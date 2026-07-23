@@ -1,0 +1,177 @@
+/* ====================================================================
+   【外卖点单 (AI 外卖 MCP) · 浅粉嫩黄点缀风】
+   依附于 #api-settings-screen 内的 #mcp-settings-section 分区
+   主样式继承 api-settings-skyblue.css 的 #api-settings-screen 规则
+   本文件只追加外卖点单的差异化样式（提示 banner / 状态徽章 / 测试按钮反馈）
+   卸载：删 index.html 中对应 <link> 引用即可 100% 回滚
+   ==================================================================== */
+
+/* ===== 顶部提示 banner：浅粉嫩黄卡片，强调「这是新功能」 ===== */
+#mcp-settings-section .mcp-banner {
+    background: linear-gradient(135deg, #FFE5EC 0%, #FFF8E7 100%) !important;
+    border: 1px solid rgba(255, 182, 193, 0.4) !important;
+    border-radius: 10px !important;
+    padding: 12px 14px !important;
+    margin-bottom: 14px !important;
+    color: #6B4A2E !important;
+    font-size: 13px !important;
+    line-height: 1.65 !important;
+    box-shadow: none !important;
+}
+#mcp-settings-section .mcp-banner strong {
+    color: #b06e30 !important;
+    font-weight: 600 !important;
+}
+#mcp-settings-section .mcp-banner code {
+    background: rgba(255, 255, 255, 0.55) !important;
+    color: #b06e30 !important;
+    padding: 1px 6px !important;
+    border-radius: 4px !important;
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace !important;
+    font-size: 12px !important;
+}
+
+/* ===== 测试连接按钮：粉白主色（区别于 #5DADE2 主蓝） ===== */
+#mcp-settings-section .mcp-test-btn {
+    background: linear-gradient(135deg, #FFB6C1, #FFC9D7) !important;
+    border: 1px solid #FFB6C1 !important;
+    color: #ffffff !important;
+    border-radius: 8px !important;
+    padding: 6px 14px !important;
+    font-size: 13px !important;
+    cursor: pointer !important;
+    transition: all 0.2s !important;
+    box-shadow: 0 2px 8px rgba(255, 182, 193, 0.25) !important;
+    flex-shrink: 0 !important;
+}
+#mcp-settings-section .mcp-test-btn:hover {
+    background: linear-gradient(135deg, #FF9FB1, #FFB8C8) !important;
+    border-color: #FF9FB1 !important;
+    box-shadow: 0 2px 12px rgba(255, 182, 193, 0.4) !important;
+}
+#mcp-settings-section .mcp-test-btn:active {
+    background: linear-gradient(135deg, #F090A0, #F8A7B8) !important;
+}
+#mcp-settings-section .mcp-test-btn:disabled {
+    background: #E0E5EE !important;
+    border-color: #D0D5DC !important;
+    color: #8E96A4 !important;
+    cursor: wait !important;
+    box-shadow: none !important;
+}
+
+/* ===== 状态徽章（连上/未连/错误） ===== */
+#mcp-settings-section .mcp-status {
+    display: inline-block !important;
+    padding: 2px 10px !important;
+    border-radius: 12px !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    margin-left: 8px !important;
+    letter-spacing: 0.3px !important;
+}
+#mcp-settings-section .mcp-status.ok {
+    background: #D4EDDA !important;
+    color: #155724 !important;
+    border: 1px solid #C3E6CB !important;
+}
+#mcp-settings-section .mcp-status.err {
+    background: #F8D7DA !important;
+    color: #721C24 !important;
+    border: 1px solid #F5C6CB !important;
+}
+#mcp-settings-section .mcp-status.pending {
+    background: #FFF3CD !important;
+    color: #856404 !important;
+    border: 1px solid #FFE69C !important;
+}
+
+/* ===== 二级子项分组（每个商家内部又分组） ===== */
+#mcp-settings-section .mcp-merchant {
+    background-color: #F0F8FF !important;
+    border: 1px solid #DCEAF5 !important;
+    border-radius: 10px !important;
+    padding: 14px !important;
+    margin-bottom: 12px !important;
+    box-shadow: none !important;
+}
+#mcp-settings-section .mcp-merchant-header {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin-bottom: 10px !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    color: #2C3E50 !important;
+}
+#mcp-settings-section .mcp-merchant-header .mcp-merchant-name {
+    flex: 1 !important;
+}
+#mcp-settings-section .mcp-merchant-icon {
+    width: 22px !important;
+    height: 22px !important;
+    border-radius: 6px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 14px !important;
+    color: #fff !important;
+    flex-shrink: 0 !important;
+}
+#mcp-settings-section .mcp-merchant-icon.mcd {
+    background: linear-gradient(135deg, #FFC72C, #DA291C) !important;
+}
+#mcp-settings-section .mcp-merchant-icon.luckin {
+    background: linear-gradient(135deg, #0066CC, #00A2E8) !important;
+}
+
+/* ===== 二级链接 ===&gt; 申请 Token 的官方入口 === */
+#mcp-settings-section .mcp-link-row {
+    display: flex !important;
+    gap: 8px !important;
+    align-items: center !important;
+    font-size: 12px !important;
+    color: #6B7A8F !important;
+    margin-top: -4px !important;
+    margin-bottom: 6px !important;
+    line-height: 1.4 !important;
+}
+#mcp-settings-section .mcp-link-row a {
+    color: #5DADE2 !important;
+    text-decoration: none !important;
+    font-weight: 600 !important;
+}
+#mcp-settings-section .mcp-link-row a:hover {
+    color: #4A8FBC !important;
+    text-decoration: underline !important;
+}
+
+/* ===== 行内开关按钮（mcp toggle） ===== */
+#mcp-settings-section .mcp-toggle {
+    position: relative !important;
+    width: 44px !important;
+    height: 24px !important;
+    background: #D0D5DC !important;
+    border-radius: 12px !important;
+    cursor: pointer !important;
+    transition: background 0.2s !important;
+    flex-shrink: 0 !important;
+}
+#mcp-settings-section .mcp-toggle::after {
+    content: '' !important;
+    position: absolute !important;
+    top: 2px !important;
+    left: 2px !important;
+    width: 20px !important;
+    height: 20px !important;
+    background: #fff !important;
+    border-radius: 50% !important;
+    transition: transform 0.2s !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important;
+}
+#mcp-settings-section .mcp-toggle.on {
+    background: linear-gradient(135deg, #5DADE2, #4A8FBC) !important;
+}
+#mcp-settings-section .mcp-toggle.on::after {
+    transform: translateX(20px) !important;
+}

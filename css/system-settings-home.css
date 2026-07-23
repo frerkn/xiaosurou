@@ -1,0 +1,227 @@
+/* 系统设置首页 - 赛博科技风格 */
+
+#system-settings-home-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #05070D;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+#system-settings-home-container {
+  width: 100%;
+  min-height: 100vh;
+  padding: 60px 20px 40px;
+  box-sizing: border-box;
+}
+
+/* 返回按钮 */
+.sys-settings-back-btn {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  width: 44px;
+  height: 44px;
+  background: rgba(0, 229, 255, 0.08);
+  border: 1px solid rgba(0, 229, 255, 0.18);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 100;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.12);
+}
+
+.sys-settings-back-btn:hover {
+  background: rgba(0, 229, 255, 0.15);
+  border-color: rgba(0, 229, 255, 0.3);
+  box-shadow: 0 0 16px rgba(0, 229, 255, 0.2);
+}
+
+.sys-settings-back-btn svg {
+  width: 24px;
+  height: 24px;
+  stroke: #6E7C95;
+  stroke-width: 2;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* 卡片容器 */
+.sys-settings-cards-container {
+  max-width: 600px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* 卡片基础样式 */
+.sys-settings-card {
+  background: rgba(10, 15, 25, 0.6);
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid rgba(0, 229, 255, 0.18);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.12);
+}
+
+.sys-settings-card:active {
+  transform: scale(0.98);
+}
+
+/* 普通卡片悬停效果 */
+.sys-settings-card:not(.highlighted):hover {
+  background: rgba(10, 15, 25, 0.8);
+  border-color: rgba(0, 229, 255, 0.3);
+  box-shadow: 0 0 16px rgba(0, 229, 255, 0.18);
+}
+
+/* 高亮卡片样式 */
+.sys-settings-card.highlighted {
+  border-color: rgba(122, 91, 255, 0.6);
+  box-shadow: 0 0 16px rgba(122, 91, 255, 0.15);
+}
+
+.sys-settings-card.highlighted:hover {
+  background: rgba(15, 20, 35, 0.8);
+  border-color: rgba(122, 91, 255, 0.8);
+  box-shadow: 0 0 24px rgba(122, 91, 255, 0.25);
+}
+
+/* 图标容器 */
+.sys-settings-card-icon {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  background: rgba(10, 15, 30, 0.8);
+  border: 1px solid rgba(0, 229, 255, 0.18);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.sys-settings-card.highlighted .sys-settings-card-icon {
+  border-color: rgba(122, 91, 255, 0.4);
+}
+
+.sys-settings-card-icon svg {
+  width: 28px;
+  height: 28px;
+  stroke: #00E5FF;
+  stroke-width: 1.5;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: stroke 0.3s ease;
+}
+
+.sys-settings-card.highlighted .sys-settings-card-icon svg {
+  stroke: #7A5BFF;
+}
+
+/* 文字内容 */
+.sys-settings-card-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.sys-settings-card-title {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  color: #A6F0FF;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sys-settings-card.highlighted .sys-settings-card-title {
+  color: #C9B8FF;
+}
+
+.sys-settings-card-subtitle {
+  font-family: ui-monospace, "SF Mono", Monaco, "Cascadia Code", "Courier New", monospace;
+  font-size: 12px;
+  color: #6E7C95;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 箭头 */
+.sys-settings-card-arrow {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sys-settings-card-arrow svg {
+  width: 16px;
+  height: 16px;
+  stroke: #6E7C95;
+  stroke-width: 2;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.3s ease;
+}
+
+.sys-settings-card:hover .sys-settings-card-arrow svg {
+  transform: translateX(3px);
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  #system-settings-home-container {
+    padding: 80px 16px 30px;
+  }
+
+  .sys-settings-cards-container {
+    gap: 12px;
+  }
+
+  .sys-settings-card {
+    padding: 16px;
+  }
+
+  .sys-settings-card-icon {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+  }
+
+  .sys-settings-card-icon svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .sys-settings-card-title {
+    font-size: 15px;
+  }
+
+  .sys-settings-card-subtitle {
+    font-size: 11px;
+  }
+}

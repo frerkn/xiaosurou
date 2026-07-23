@@ -1,0 +1,670 @@
+/* ====================================================================
+   【外卖点单 · miniApp 浮层 · 粉白嫩黄装修】
+   仿 netease-music-app-pink.css 视觉系统；用 CSS 变量切换品牌色
+   卸载：删 index.html 对应 <link> 引用即 100% 回滚
+   ==================================================================== */
+
+/* ===== miniApp 内 iOS 风格开关 · 用户原话"右上角滑动开关" ===== */
+.mpa-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px 12px;
+    background: rgba(255, 255, 255, 0.55);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(255, 182, 193, 0.25);
+    flex-shrink: 0;
+}
+.mpa-toggle-row-label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.mpa-toggle-row-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #5a3d2e;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.mpa-toggle-row-status {
+    font-size: 11px;
+    color: #b06e30;
+}
+.mpa-toggle-row-status.on {
+    color: #2D7D32;
+    font-weight: 700;
+}
+.mpa-toggle {
+    position: relative;
+    width: 52px;
+    height: 30px;
+    background: rgba(0, 0, 0, 0.22);
+    border-radius: 16px;
+    cursor: pointer;
+    transition: background 0.25s ease;
+    flex-shrink: 0;
+}
+.mpa-toggle.on {
+    background: linear-gradient(135deg, #34C759, #2D9A4A);
+}
+.mpa-toggle-knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 26px;
+    height: 26px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.25s cubic-bezier(0.4, 0.0, 0.2, 1);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3), 0 0 0 0.5px rgba(0,0,0,0.05);
+    pointer-events: none;
+}
+.mpa-toggle.on .mpa-toggle-knob {
+    transform: translateX(22px);
+}
+
+/* ===== miniApp 进度行 · 给 mcp-ui-init.js renderMiniApp 用 ===== */
+.mpa-progress-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(255, 182, 193, 0.2);
+    border-radius: 10px;
+    margin-bottom: 6px;
+    font-size: 12px;
+    line-height: 1.4;
+    animation: mpa-fade-in 0.25s ease;
+}
+@keyframes mpa-fade-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.mpa-progress-emoji {
+    font-size: 16px;
+    flex-shrink: 0;
+    width: 20px;
+    text-align: center;
+}
+.mpa-progress-body {
+    flex: 1;
+    min-width: 0;
+    color: #2C3E50;
+    word-break: break-word;
+}
+.mpa-progress-tool {
+    display: inline-block;
+    background: rgba(255, 182, 193, 0.25);
+    color: #b06e30;
+    padding: 1px 6px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    margin-right: 4px;
+}
+.mpa-progress-time {
+    flex-shrink: 0;
+    font-size: 10px;
+    color: #b06e30;
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    opacity: 0.7;
+}
+.mpa-progress-row.phase-tool_err {
+    background: rgba(248, 215, 218, 0.4);
+    border-color: rgba(192, 57, 43, 0.3);
+}
+.mpa-progress-row.phase-tool_err .mpa-progress-summary {
+    color: #922B21;
+}
+.mpa-progress-row.phase-tool_ok {
+    background: rgba(212, 237, 218, 0.4);
+    border-color: rgba(21, 87, 36, 0.2);
+}
+.mpa-progress-row.phase-session_done {
+    background: rgba(255, 230, 174, 0.4);
+    border-color: rgba(255, 182, 193, 0.4);
+    font-weight: 600;
+}
+.mpa-progress-row.phase-session_start {
+    background: rgba(168, 230, 255, 0.4);
+    border-color: rgba(0, 102, 204, 0.3);
+}
+
+/* ===== 默认品牌 = 麦当劳（红黄） ===== */
+:root {
+    --mpa-brand-primary: #DA291C;
+    --mpa-brand-secondary: #FFC72C;
+    --mpa-brand-name: '🍔 麦当劳';
+    --mpa-radius: 20px;
+    --mpa-shadow: 0 20px 60px rgba(255, 182, 193, 0.4);
+    --mpa-radius-xl: 28px;
+}
+.mpa-root.brand-luckin {
+    --mpa-brand-primary: #0066CC;
+    --mpa-brand-secondary: #00A2E8;
+    --mpa-brand-name: '☕ 瑞幸咖啡';
+    --mpa-shadow: 0 20px 60px rgba(0, 102, 204, 0.35);
+}
+
+/* ===== 浮层背景 ===== */
+.mpa-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 9999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+.mpa-overlay.visible {
+    display: flex !important;
+}
+
+/* ===== 主窗口（v0.0.78 改：右上角小窗，不挡聊天） ===== */
+.mpa-window {
+    position: absolute;
+    top: 60px;
+    right: 16px;
+    width: 360px;
+    max-width: calc(100vw - 32px);
+    max-height: 70vh;
+    background: linear-gradient(180deg, #FFF8E7 0%, #FFE5EC 100%);
+    border-radius: var(--mpa-radius-xl);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--mpa-shadow), 0 0 0 1px rgba(255, 255, 255, 0.6);
+    font-family: 'Outfit', 'PingFang SC', -apple-system, sans-serif;
+    color: #5a3d2e;
+    animation: mpa-pop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes mpa-pop {
+    from { opacity: 0; transform: translateY(-8px) scale(0.96); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ===== 折叠 badge（右上角小角标） ===== */
+.mpa-badge {
+    position: absolute;
+    top: 60px;
+    right: 16px;
+    height: 40px;
+    padding: 0 14px;
+    background: linear-gradient(135deg, var(--mpa-brand-primary), var(--mpa-brand-secondary));
+    color: #fff;
+    border-radius: 20px;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(255, 182, 193, 0.5);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    z-index: 9998;
+}
+.mpa-badge.visible {
+    display: flex;
+}
+.mpa-badge-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #fff;
+    animation: mpa-blink 1.4s ease-in-out infinite;
+}
+.mpa-badge-count {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 10px;
+    padding: 1px 8px;
+    font-size: 11px;
+    min-width: 18px;
+    text-align: center;
+}
+
+/* ===== 顶部 brand bar ===== */
+.mpa-header {
+    display: flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(255, 182, 193, 0.2);
+    flex-shrink: 0;
+}
+.mpa-title {
+    flex: 1;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--mpa-brand-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.mpa-title-icon {
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--mpa-brand-primary), var(--mpa-brand-secondary));
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    color: #fff;
+    flex-shrink: 0;
+}
+.mpa-close {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    color: #b06e30;
+    cursor: pointer;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.5);
+    transition: all 0.15s;
+    flex-shrink: 0;
+}
+.mpa-close:hover {
+    background: rgba(255, 182, 193, 0.5);
+    color: #fff;
+}
+
+/* ===== 步骤指示器（汉堡进度 / 🏠 → 📍 → 📋 → ✅） ===== */
+.mpa-steps {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px 6px;
+    font-size: 11px;
+    color: #b06e30;
+    flex-shrink: 0;
+}
+.mpa-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+    opacity: 0.5;
+    transition: opacity 0.2s;
+}
+.mpa-step.active {
+    opacity: 1;
+    font-weight: 700;
+}
+.mpa-step-dot {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+}
+.mpa-step.active .mpa-step-dot {
+    background: linear-gradient(135deg, var(--mpa-brand-primary), var(--mpa-brand-secondary));
+    color: #fff;
+    box-shadow: 0 2px 6px rgba(255, 182, 193, 0.4);
+}
+.mpa-step-line {
+    flex: 1;
+    height: 1px;
+    background: rgba(255, 182, 193, 0.4);
+    margin: 0 4px;
+    margin-bottom: 14px;
+}
+
+/* ===== 主滚动 view ===== */
+.mpa-view {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 14px 18px;
+}
+.mpa-view::-webkit-scrollbar { width: 4px; }
+.mpa-view::-webkit-scrollbar-thumb {
+    background: rgba(255, 182, 193, 0.4);
+    border-radius: 2px;
+}
+
+/* ===== 玻璃卡片 ===== */
+.mpa-card {
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 16px;
+    padding: 14px;
+    margin-bottom: 12px;
+    border: 1px solid rgba(255, 182, 193, 0.25);
+    box-shadow: 0 4px 12px rgba(255, 182, 193, 0.18);
+}
+.mpa-card-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #5a3d2e;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.mpa-card-title-sub {
+    font-size: 11px;
+    color: #b06e30;
+    font-weight: 500;
+}
+
+/* ===== 模式选择（堂食/外卖，仅麦当劳） ===== */
+.mpa-mode-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+.mpa-mode-item {
+    background: rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(255, 182, 193, 0.25);
+    border-radius: 14px;
+    padding: 16px 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 14px;
+    color: #5a3d2e;
+}
+.mpa-mode-item:hover {
+    background: rgba(255, 182, 193, 0.25);
+    transform: translateY(-2px);
+}
+.mpa-mode-item.selected {
+    background: linear-gradient(135deg, var(--mpa-brand-primary), var(--mpa-brand-secondary));
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 4px 12px rgba(255, 182, 193, 0.4);
+}
+.mpa-mode-emoji {
+    font-size: 28px;
+    margin-bottom: 6px;
+    display: block;
+}
+
+/* ===== 地址 / 门店列表 ===== */
+.mpa-list-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(255, 182, 193, 0.2);
+    border-radius: 12px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.mpa-list-row:hover {
+    background: rgba(255, 182, 193, 0.2);
+}
+.mpa-list-row.selected {
+    background: linear-gradient(135deg, rgba(255, 182, 193, 0.2), rgba(255, 216, 177, 0.2));
+    border-color: var(--mpa-brand-primary);
+}
+.mpa-list-row-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--mpa-brand-primary), var(--mpa-brand-secondary));
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+.mpa-list-row-body {
+    flex: 1;
+    min-width: 0;
+}
+.mpa-list-row-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #2C3E50;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.mpa-list-row-sub {
+    font-size: 11px;
+    color: #8a6a4a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ===== 菜单 ===== */
+.mpa-menu-empty {
+    text-align: center;
+    color: #8a6a4a;
+    font-size: 13px;
+    padding: 30px 12px;
+}
+.mpa-menu-cat-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--mpa-brand-primary);
+    padding: 8px 4px 4px;
+    margin: 0;
+    letter-spacing: 0.3px;
+}
+.mpa-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 8px;
+    background: rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(255, 182, 193, 0.2);
+    border-radius: 12px;
+    margin-bottom: 6px;
+    transition: all 0.15s;
+}
+.mpa-menu-item:hover {
+    background: rgba(255, 182, 193, 0.15);
+}
+.mpa-menu-item-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(255, 182, 193, 0.4), rgba(255, 216, 177, 0.4));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+}
+.mpa-menu-item-body {
+    flex: 1;
+    min-width: 0;
+}
+.mpa-menu-item-name {
+    font-size: 13px;
+    color: #2C3E50;
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+.mpa-menu-item-price {
+    font-size: 13px;
+    color: var(--mpa-brand-primary);
+    font-weight: 700;
+}
+.mpa-menu-item-add {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--mpa-brand-primary), var(--mpa-brand-secondary));
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    cursor: pointer;
+    border: none;
+    flex-shrink: 0;
+    font-weight: 700;
+    line-height: 1;
+    padding: 0;
+    box-shadow: 0 2px 6px rgba(255, 182, 193, 0.4);
+}
+.mpa-menu-item-add:active {
+    transform: scale(0.92);
+}
+
+/* ===== 购物车 ===== */
+.mpa-cart-empty {
+    text-align: center;
+    color: #b06e30;
+    font-size: 13px;
+    padding: 20px;
+    font-style: italic;
+}
+.mpa-cart-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px dashed rgba(255, 182, 193, 0.3);
+    font-size: 13px;
+}
+.mpa-cart-row:last-child { border-bottom: none; }
+.mpa-cart-row-name { flex: 1; color: #2C3E50; }
+.mpa-cart-row-qty { color: var(--mpa-brand-primary); font-weight: 700; }
+.mpa-cart-row-price { color: #5a3d2e; font-weight: 600; }
+.mpa-cart-total {
+    display: flex;
+    justify-content: space-between;
+    padding-top: 10px;
+    margin-top: 6px;
+    border-top: 1px solid rgba(255, 182, 193, 0.3);
+    font-weight: 700;
+    font-size: 14px;
+    color: #2C3E50;
+}
+.mpa-cart-total-price {
+    color: var(--mpa-brand-primary);
+    font-size: 17px;
+}
+
+/* ===== 底部按钮区 ===== */
+.mpa-actions {
+    display: flex;
+    gap: 10px;
+    padding: 14px 18px;
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-top: 1px solid rgba(255, 182, 193, 0.2);
+    flex-shrink: 0;
+}
+.mpa-btn {
+    flex: 1;
+    padding: 12px 16px;
+    border-radius: 14px;
+    border: none;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+}
+.mpa-btn-primary {
+    background: linear-gradient(135deg, var(--mpa-brand-primary), var(--mpa-brand-secondary));
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(255, 182, 193, 0.4);
+}
+.mpa-btn-primary:hover { transform: translateY(-1px); }
+.mpa-btn-primary:active { transform: translateY(0); }
+.mpa-btn-primary:disabled {
+    background: #E0E5EE;
+    color: #8E96A4;
+    cursor: wait;
+    box-shadow: none;
+    transform: none;
+}
+.mpa-btn-ghost {
+    background: rgba(255, 255, 255, 0.6);
+    color: #5a3d2e;
+    border: 1px solid rgba(255, 182, 193, 0.3);
+}
+.mpa-btn-ghost:hover {
+    background: rgba(255, 182, 193, 0.2);
+}
+
+/* ===== 加载 / 空 / 错误 三态 ===== */
+.mpa-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: #8a6a4a;
+}
+.mpa-state-emoji {
+    font-size: 48px;
+    margin-bottom: 12px;
+    display: block;
+    opacity: 0.6;
+}
+.mpa-state-msg {
+    font-size: 13px;
+    line-height: 1.6;
+}
+.mpa-state-msg.error { color: #c0392b; }
+
+/* ===== Tooltip / 反馈 toast（miniApp 内用） ===== */
+.mpa-toast {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 80px;
+    background: rgba(90, 61, 46, 0.95);
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 12px;
+    font-size: 13px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+    z-index: 100;
+}
+.mpa-toast.show { opacity: 1; }
+
+/* ===== 取消点单 —— 状态徽章（在聊天面板右上角跟关） ===== */
+.mpa-active-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: linear-gradient(135deg, var(--mpa-brand-primary), var(--mpa-brand-secondary));
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 14px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    box-shadow: 0 2px 8px rgba(255, 182, 193, 0.4);
+}
+.mpa-active-pill .mpa-pill-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #fff;
+    animation: mpa-blink 1.4s ease-in-out infinite;
+}
+@keyframes mpa-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}

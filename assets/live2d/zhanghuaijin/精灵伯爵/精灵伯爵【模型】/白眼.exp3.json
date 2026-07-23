@@ -1,0 +1,30 @@
+{
+    "Type": "Live2D Expression",
+    "Parameters": [
+        {
+            "Id": "bq11",
+            "Value": 1.0,
+            "Blend": "Add"
+        },
+        {
+            "Id": "bq_kg_y",
+            "Value": 1.0,
+            "Blend": "Add"
+        },
+        {
+            "Id": "bq_kg_m",
+            "Value": 0.0,
+            "Blend": "Add"
+        },
+        {
+            "Id": "bq19",
+            "Value": 0.0,
+            "Blend": "Add"
+        },
+        {
+            "Id": "bq20",
+            "Value": 0.0,
+            "Blend": "Add"
+        }
+    ]
+}

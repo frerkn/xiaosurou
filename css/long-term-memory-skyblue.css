@@ -1,0 +1,228 @@
+/* ============================================================
+   深蓝底 + 浅蓝卡 长期记忆页美化
+   仅作用于 #long-term-memory-screen
+   不动 JS / DOM / class / id / toggle / save-btn
+   ------------------------------------------------------------
+   配色与 api/wallpaper/chat-settings/chat-list 完全一致：
+   整体底：#0F1626
+   卡片  ：#E8F2FA + 1px rgba(0,229,255,0.18) + 0 2px 12px rgba(0,0,0,0.25)
+   输入框：#DCEAF5 + 1px #B5CFE0（凹陷感）
+   强调  ：#5DADE2 (hover #4A8FBC / active #3D7BA8)
+   顶栏青色呼应：#00E5FF
+   标题文字冷白：#E6F1FF
+   规则：toggle/checkbox 不动，class/id 不动，事件回调不动
+   ============================================================ */
+
+/* ============================================
+ * 一、整体深蓝底（覆盖 #f0f2f5 旧白底）
+ * ============================================ */
+#long-term-memory-screen {
+    background-color: #0F1626 !important;
+    color: #E6F1FF !important;
+}
+
+/* ============================================
+ * 二、顶部标题栏
+ * ============================================ */
+#long-term-memory-screen .header {
+    background-color: #0F1626 !important;
+    border-bottom: 1px solid rgba(0, 229, 255, 0.12) !important;
+    box-shadow: none !important;
+}
+#long-term-memory-screen .header .back-btn {
+    color: #00E5FF !important;
+}
+#long-term-memory-screen .header > span[data-lang-key] {
+    color: #E6F1FF !important;
+}
+#long-term-memory-screen .header .action-btn {
+    color: #E6F1FF !important;
+    transition: opacity 0.15s, transform 0.15s !important;
+}
+#long-term-memory-screen .header .action-btn:active {
+    opacity: 0.6 !important;
+    transform: scale(0.9) !important;
+}
+
+/* ============================================
+ * 三、列表容器：浅卡堆叠（替代旧 #f0f2f5 灰底）
+ * ============================================ */
+#long-term-memory-screen #memory-list-container {
+    background-color: transparent !important;
+    padding: 12px 12px calc(20px + env(safe-area-inset-bottom)) 12px !important;
+    gap: 10px !important;
+}
+
+/* ============================================
+ * 四、Tab 栏（玻璃感 + 蓝色 active）
+ * ============================================ */
+#long-term-memory-screen .sm-tab-bar {
+    background-color: rgba(232, 242, 250, 0.92) !important;
+    border: 1px solid rgba(0, 229, 255, 0.18) !important;
+    border-radius: 12px !important;
+    padding: 4px !important;
+    margin-bottom: 12px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+}
+#long-term-memory-screen .sm-tab {
+    color: #6B7A8F !important;
+    font-weight: 500 !important;
+    border-radius: 8px !important;
+    transition: all 0.2s !important;
+}
+#long-term-memory-screen .sm-tab:hover:not(.active) {
+    color: #5DADE2 !important;
+    background-color: rgba(93, 173, 226, 0.08) !important;
+}
+#long-term-memory-screen .sm-tab.active {
+    background-color: #5DADE2 !important;
+    color: #FFFFFF !important;
+    box-shadow: 0 2px 6px rgba(93, 173, 226, 0.35) !important;
+}
+
+/* ============================================
+ * 五、记忆卡片 .memory-card（核心组件）
+ * 旧样式：米黄 #fffaf0 + 橙色左边条 #ffb74d + 棕字 #d98100
+ * 新样式：浅蓝卡 + 蓝色左边条 + 深蓝字（统一规范）
+ * ============================================ */
+#long-term-memory-screen .memory-card {
+    background-color: #E8F2FA !important;
+    border-radius: 14px !important;
+    padding: 15px !important;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25) !important;
+    border-left: 4px solid #5DADE2 !important;
+    margin: 0 !important;
+    color: #2C3E50 !important;
+}
+#long-term-memory-screen .memory-card:hover {
+    background-color: #F0F7FC !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3) !important;
+}
+#long-term-memory-screen .memory-card .header {
+    background-color: transparent !important;
+    border-bottom: 1px solid rgba(0, 122, 255, 0.12) !important;
+    padding-bottom: 8px !important;
+    margin-bottom: 0 !important;
+}
+#long-term-memory-screen .memory-card .header .date {
+    color: #8896A6 !important;
+    font-size: 11px !important;
+    margin-bottom: 4px !important;
+}
+#long-term-memory-screen .memory-card .header .author {
+    color: #2C3E50 !important;
+    font-weight: 600 !important;
+    font-size: 15px !important;
+}
+#long-term-memory-screen .memory-card .content {
+    color: #34495E !important;
+    font-size: 14px !important;
+    line-height: 1.7 !important;
+}
+
+/* ============================================
+ * 六、列表内嵌的容器（original/structured/vector）
+ * 这些容器在 JS 里动态填充内容
+ * ============================================ */
+#long-term-memory-screen #original-memory-list,
+#long-term-memory-screen #structured-memory-container,
+#long-term-memory-screen #vector-memory-container {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+}
+
+/* ============================================
+ * 七、统计信息栏（结构化记忆页头）
+ * ============================================ */
+#long-term-memory-screen .structured-memory-stats {
+    background-color: rgba(232, 242, 250, 0.92) !important;
+    border: 1px solid rgba(0, 229, 255, 0.18) !important;
+    border-radius: 12px !important;
+    padding: 12px 15px !important;
+    margin-bottom: 12px !important;
+    color: #6B7A8F !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+}
+#long-term-memory-screen .sm-stats-row span {
+    background-color: #DCEAF5 !important;
+    color: #5DADE2 !important;
+    border: 1px solid #B5CFE0 !important;
+}
+
+/* ============================================
+ * 八、分类区块 .sm-section
+ * ============================================ */
+#long-term-memory-screen .sm-section {
+    background-color: #E8F2FA !important;
+    border: 1px solid rgba(0, 229, 255, 0.18) !important;
+    border-radius: 14px !important;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25) !important;
+    color: #2C3E50 !important;
+}
+#long-term-memory-screen .sm-section-header {
+    border-bottom: 1px solid rgba(0, 122, 255, 0.12) !important;
+    color: #2C3E50 !important;
+}
+#long-term-memory-screen .sm-section-header h3,
+#long-term-memory-screen .sm-section-header strong {
+    color: #2C3E50 !important;
+}
+
+/* ============================================
+ * 九、手动添加弹窗（覆盖 style.css 的 sm-add-form）
+ * ============================================ */
+#long-term-memory-screen .sm-add-form,
+.sm-add-form {
+    background-color: rgba(15, 22, 38, 0.96) !important;
+    color: #E6F1FF !important;
+    border-radius: 14px !important;
+}
+#long-term-memory-screen .sm-add-form select,
+#long-term-memory-screen .sm-add-form input,
+#long-term-memory-screen .sm-add-form textarea {
+    background-color: #DCEAF5 !important;
+    border: 1px solid #B5CFE0 !important;
+    color: #34495E !important;
+    border-radius: 8px !important;
+    padding: 10px !important;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+#long-term-memory-screen .sm-add-form select:focus,
+#long-term-memory-screen .sm-add-form input:focus,
+#long-term-memory-screen .sm-add-form textarea:focus {
+    border-color: #5DADE2 !important;
+    outline: none !important;
+}
+
+/* ============================================
+ * 十、倒计时卡片（countdown-card）保留紫蓝渐变（已经是好看的渐变）
+ * ============================================ */
+#long-term-memory-screen .countdown-card {
+    background: linear-gradient(135deg, #667eea, #764ba2) !important;
+    color: white !important;
+    border-radius: 14px !important;
+    padding: 20px !important;
+    box-shadow: 0 4px 14px rgba(102, 126, 234, 0.35) !important;
+}
+
+/* ============================================
+ * 十一、滚动条青色呼应
+ * ============================================ */
+#long-term-memory-screen ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+#long-term-memory-screen ::-webkit-scrollbar-track {
+    background: transparent;
+}
+#long-term-memory-screen ::-webkit-scrollbar-thumb {
+    background: rgba(0, 229, 255, 0.3);
+    border-radius: 3px;
+}
+#long-term-memory-screen ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 229, 255, 0.5);
+}

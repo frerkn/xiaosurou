@@ -1,0 +1,15 @@
+{
+    "Type": "Live2D Expression",
+    "Parameters": [
+        {
+            "Id": "qh_3",
+            "Value": 1.0,
+            "Blend": "Add"
+        },
+        {
+            "Id": "ParamHide_ArmR",
+            "Value": 1.0,
+            "Blend": "Add"
+        }
+    ]
+}

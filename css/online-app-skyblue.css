@@ -1,0 +1,801 @@
+/* ============================================================
+   联机（连接）APP 全套深蓝+浅蓝卡美化
+   作用域：#online-app-screen（list / chat / settings 三个 view）
+        + 5 个相关 modal（#online-friends-modal / #friend-requests-modal
+                          #search-friend-modal / #create-group-modal
+                          #group-info-modal）
+   配色与 api-settings-skyblue.css / chat-settings-skyblue.css 完全一致：
+   整体底：#0F1626                          顶栏：#0F1626
+   卡片  ：#E8F2FA + 1px rgba(0,229,255,0.18) + 0 2px 12px rgba(0,0,0,0.25)
+   标题  ：#2C3E50 / 15px / 600 / letter-spacing 0.3px
+           border-bottom 1px #D6E5F2 / 左侧 3px solid #5DADE2 色块
+   输入框：#DCEAF5 + 1px #B5CFE0（比卡片深一档，自动凹陷感）
+   label ：#6B7A8F / 14px
+   描述  ：#8896A6 / 12px / line-height 1.6
+   强调  ：#5DADE2 (hover #4A8FBC / active #3D7BA8)
+   顶栏青色：#00E5FF
+   提示框：#DCEAF5 / 1px #B5CFE0 / #4A6A8F
+   规则：纯视觉覆盖，不动 JS / DOM / class / id / toggle
+        .online-chat-list-item 不动 z-index / position / transform
+   ============================================================ */
+
+/* ===========================================================
+   0. 共同基线：所有 view 的深蓝底
+   =========================================================== */
+#online-app-screen {
+    background-color: #0F1626 !important;
+    color: #E6F1FF !important;
+}
+
+/* ===========================================================
+   1. 顶部 header（list / chat / settings 三个 view 共用）
+   =========================================================== */
+#online-app-screen .header {
+    background-color: #0F1626 !important;
+    border-bottom: 1px solid rgba(0, 229, 255, 0.12) !important;
+    box-shadow: none !important;
+}
+
+/* 返回箭头：青色 #00E5FF */
+#online-app-screen .header .back-btn {
+    color: #00E5FF !important;
+}
+
+/* header 中间标题（不取 back-btn/save-btn/action-btn） */
+#online-app-screen .header > span:not(.back-btn):not(.save-btn):not(.action-btn):not(.close-btn) {
+    color: #E6F1FF !important;
+}
+
+/* 右上角 action-btn（⚙ / + / ℹ）青色 */
+#online-app-screen .header .action-btn {
+    color: #00E5FF !important;
+    background: transparent !important;
+    border: 1px solid transparent !important;
+    border-radius: 8px !important;
+    padding: 4px 8px !important;
+    transition: background-color 0.2s, border-color 0.2s !important;
+}
+#online-app-screen .header .action-btn:hover {
+    background: rgba(0, 229, 255, 0.08) !important;
+    border-color: rgba(0, 229, 255, 0.3) !important;
+}
+#online-app-screen .header .action-btn:active {
+    background: rgba(0, 229, 255, 0.15) !important;
+}
+
+/* ===========================================================
+   2. list-view：状态栏 + 好友/群聊列表
+   =========================================================== */
+
+/* 2.1 状态栏（联机/未连接）— 改为浅蓝卡 */
+#online-app-status-bar {
+    background-color: #DCEAF5 !important;
+    border-bottom: 1px solid rgba(0, 229, 255, 0.18) !important;
+    color: #4A6A8F !important;
+    font-size: 12px !important;
+    padding: 8px 15px !important;
+}
+
+/* 状态点颜色（保持绿/灰/橙，仅微调以适配浅卡） */
+#online-app-status-bar .status-dot-online {
+    background: #34C759 !important;
+    box-shadow: 0 0 0 2px rgba(52, 199, 89, 0.2) !important;
+}
+#online-app-status-bar .status-dot-offline {
+    background: #8E9DB5 !important;
+}
+#online-app-status-bar .status-dot-connecting {
+    background: #FF9500 !important;
+}
+
+/* 2.2 空状态提示 */
+#online-app-chat-list {
+    background: transparent !important;
+}
+.online-app-empty-hint {
+    color: #8896A6 !important;
+}
+.online-app-empty-hint p:first-child {
+    color: #6B7A8F !important;
+    font-size: 16px !important;
+    font-weight: 500 !important;
+    margin-bottom: 8px !important;
+}
+.online-app-empty-hint p[style*="color: #999"] {
+    color: #8896A6 !important;
+}
+
+/* 2.3 聊天列表项（online-chat-list-item）
+   ⚠️ 安全约束：不动 z-index / position / transform / transition
+   只改外层视觉（背景/分隔线/文字颜色） */
+#online-app-chat-list .online-chat-list-item {
+    background-color: #E8F2FA !important;
+    border-bottom: 1px solid #D6E5F2 !important;
+    color: #34495E !important;
+}
+#online-app-chat-list .online-chat-list-item.pinned {
+    background-color: #DCEAF5 !important;
+}
+#online-app-chat-list .online-chat-list-item:active {
+    background-color: #D0E2F0 !important;
+}
+#online-app-chat-list .online-chat-list-item .name {
+    color: #2C3E50 !important;
+    font-weight: 500 !important;
+}
+#online-app-chat-list .online-chat-list-item .last-msg {
+    color: #8896A6 !important;
+    font-style: italic !important;
+}
+#online-app-chat-list .online-chat-list-item .group-tag {
+    background-color: #5DADE2 !important;
+    color: #FFFFFF !important;
+    border-radius: 4px !important;
+    padding: 1px 5px !important;
+    font-size: 10px !important;
+}
+#online-app-chat-list .online-chat-list-item .unread-count {
+    background-color: #FF3B30 !important;
+    color: #FFFFFF !important;
+}
+
+/* ===========================================================
+   3. chat-view：聊天界面
+   =========================================================== */
+
+/* 3.1 聊天标题区 */
+#online-app-chat-title {
+    color: #E6F1FF !important;
+    font-weight: 500 !important;
+}
+#online-app-chat-status .status-dot {
+    background: #34C759 !important;
+    box-shadow: 0 0 0 2px rgba(52, 199, 89, 0.2) !important;
+}
+#online-app-chat-status .status-text {
+    color: #8896A6 !important;
+    font-size: 12px !important;
+}
+
+/* 3.2 消息区背景 */
+#online-app-messages {
+    background-color: #0F1626 !important;
+    padding: 10px 15px !important;
+}
+
+/* 3.3 消息气泡（user/friend/system） */
+#online-app-messages .online-msg.user {
+    background-color: #5DADE2 !important;
+    color: #FFFFFF !important;
+    border-bottom-right-radius: 6px !important;
+}
+#online-app-messages .online-msg.friend {
+    background-color: #E8F2FA !important;
+    color: #34495E !important;
+    border: 1px solid rgba(0, 229, 255, 0.18) !important;
+    border-bottom-left-radius: 6px !important;
+}
+#online-app-messages .online-msg.system {
+    background: transparent !important;
+    color: #8896A6 !important;
+    font-size: 12px !important;
+}
+#online-app-messages .online-msg .sender-name {
+    color: #5DADE2 !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+}
+#online-app-messages .online-msg .msg-time {
+    color: rgba(255, 255, 255, 0.65) !important;
+    font-size: 10px !important;
+}
+#online-app-messages .online-msg.friend .msg-time {
+    color: #8896A6 !important;
+}
+#online-app-messages .group-msg-sender {
+    color: #5DADE2 !important;
+    font-size: 11px !important;
+    font-weight: 500 !important;
+}
+
+/* 3.4 输入区域 */
+#online-app-input-area {
+    background-color: #E8F2FA !important;
+    border-top: 1px solid rgba(0, 229, 255, 0.18) !important;
+    padding: 8px 12px !important;
+}
+#online-app-chat-input {
+    background-color: #DCEAF5 !important;
+    border: 1px solid #B5CFE0 !important;
+    color: #34495E !important;
+    border-radius: 20px !important;
+    padding: 8px 14px !important;
+    font-size: 15px !important;
+    outline: none !important;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+    font-family: inherit !important;
+}
+#online-app-chat-input::placeholder {
+    color: #A0B0C5 !important;
+}
+#online-app-chat-input:focus {
+    border-color: #5DADE2 !important;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+#online-app-sticker-btn {
+    background: transparent !important;
+    border: none !important;
+    color: #5DADE2 !important;
+}
+#online-app-send-btn {
+    background-color: #5DADE2 !important;
+    color: #FFFFFF !important;
+    border: 1px solid #5DADE2 !important;
+    border-radius: 20px !important;
+    padding: 8px 18px !important;
+    font-size: 15px !important;
+    font-weight: 500 !important;
+    box-shadow: 0 2px 8px rgba(93, 173, 226, 0.25) !important;
+    cursor: pointer !important;
+}
+#online-app-send-btn:active {
+    background-color: #4A8FBC !important;
+    border-color: #4A8FBC !important;
+}
+#online-app-ai-call-btn {
+    background-color: #FF9500 !important;
+    color: #FFFFFF !important;
+    border: 1px solid #FF9500 !important;
+    border-radius: 20px !important;
+    padding: 8px 14px !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    cursor: pointer !important;
+}
+#online-app-ai-call-btn:active {
+    opacity: 0.85 !important;
+}
+#online-app-ai-call-btn:disabled {
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
+}
+
+/* 3.5 表情面板 */
+#online-sticker-panel {
+    background-color: #E8F2FA !important;
+    border-top: 1px solid rgba(0, 229, 255, 0.18) !important;
+    height: 300px !important;
+}
+#online-sticker-panel-header {
+    background-color: #E8F2FA !important;
+    border-bottom: 1px solid #D6E5F2 !important;
+    color: #2C3E50 !important;
+    padding: 8px 15px !important;
+}
+#online-sticker-panel-header > span[style*="color:#007aff"],
+#online-sticker-panel-header > span[style*="color: #007aff"] {
+    color: #5DADE2 !important;
+}
+#online-sticker-panel-header > span[style*="cursor:pointer"] {
+    color: #5DADE2 !important;
+}
+#online-sticker-panel-header > span[style*="font-weight:600"] {
+    color: #2C3E50 !important;
+}
+#online-sticker-tabs {
+    background-color: #DCEAF5 !important;
+    border-bottom: 1px solid #B5CFE0 !important;
+    padding: 6px 10px !important;
+}
+#online-sticker-tabs .os-tab {
+    background-color: #FFFFFF !important;
+    color: #4A6A8F !important;
+    border: 1px solid #D8E0EB !important;
+    border-radius: 14px !important;
+    padding: 4px 12px !important;
+    font-size: 12px !important;
+    cursor: pointer !important;
+}
+#online-sticker-tabs .os-tab.active {
+    background-color: #5DADE2 !important;
+    color: #FFFFFF !important;
+    border-color: #5DADE2 !important;
+}
+#online-sticker-grid {
+    background-color: #E8F2FA !important;
+    padding: 12px !important;
+}
+.online-sticker-item img {
+    background-color: #FFFFFF !important;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15) !important;
+}
+.online-sticker-name {
+    color: #6B7A8F !important;
+    font-size: 10px !important;
+}
+
+/* ===========================================================
+   4. settings-view：联机设置
+   =========================================================== */
+.online-app-settings-body {
+    background-color: #0F1626 !important;
+    padding: 14px 14px calc(20px + env(safe-area-inset-bottom)) 14px !important;
+    color: #E6F1FF !important;
+}
+
+/* 4.1 卡片容器（settings-section） */
+#online-app-settings-view .settings-section {
+    background-color: #E8F2FA !important;
+    border: 1px solid rgba(0, 229, 255, 0.18) !important;
+    border-radius: 12px !important;
+    padding: 16px !important;
+    margin-bottom: 10px !important;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25) !important;
+    overflow: visible !important;
+}
+
+/* 列表项 */
+#online-app-settings-view .settings-item {
+    background-color: transparent !important;
+    border-bottom: 1px solid #D6E5F2 !important;
+    padding: 10px 0 !important;
+    min-height: auto !important;
+    color: #34495E !important;
+}
+#online-app-settings-view .settings-section > .settings-item:last-child {
+    border-bottom: none !important;
+}
+#online-app-settings-view .settings-item label {
+    color: #4A6A8F !important;
+    font-size: 14px !important;
+}
+#online-app-settings-view .settings-item .settings-right {
+    color: #34495E !important;
+}
+
+/* 4.2 文本输入框 */
+#online-app-settings-view input[type="text"],
+#online-app-settings-view input[type="password"],
+#online-app-settings-view input[type="number"],
+#online-app-settings-view input[type="email"] {
+    background-color: #DCEAF5 !important;
+    border: 1px solid #B5CFE0 !important;
+    color: #34495E !important;
+    border-radius: 8px !important;
+    padding: 8px 12px !important;
+    font-size: 14px !important;
+    text-align: left !important;
+    outline: none !important;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+#online-app-settings-view input[type="text"]::placeholder,
+#online-app-settings-view input[type="password"]::placeholder {
+    color: #A0B0C5 !important;
+}
+#online-app-settings-view input[type="text"]:focus,
+#online-app-settings-view input[type="password"]:focus,
+#online-app-settings-view input[type="number"]:focus {
+    border-color: #5DADE2 !important;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* 4.3 头像预览 */
+#online-app-avatar-preview {
+    border: 2px solid #B5CFE0 !important;
+    background-color: #DCEAF5 !important;
+    width: 40px !important;
+    height: 40px !important;
+    border-radius: 50% !important;
+    object-fit: cover !important;
+}
+
+/* 4.4 连接状态文字 */
+#online-app-conn-status {
+    color: #8896A6 !important;
+    font-size: 14px !important;
+}
+#online-app-conn-status[style*="color: #34c759"],
+#online-app-conn-status[style*="color:#34c759"] {
+    color: #34C759 !important;
+}
+#online-app-conn-status[style*="color: #ff3b30"],
+#online-app-conn-status[style*="color:#ff3b30"] {
+    color: #FF3B30 !important;
+}
+#online-app-conn-status[style*="color: #999"] {
+    color: #8896A6 !important;
+}
+
+/* 4.5 教程区域（帮助与教程块） */
+#online-app-settings-view div[style*="background: #f8f9fa"] {
+    background-color: #DCEAF5 !important;
+    border: 1px solid #B5CFE0 !important;
+    border-radius: 12px !important;
+    padding: 15px !important;
+    margin: 15px 0 !important;
+    color: #4A6A8F !important;
+}
+#online-app-settings-view div[style*="background: #f8f9fa"] > div[style*="font-weight: bold"] {
+    color: #2C3E50 !important;
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    margin-bottom: 12px !important;
+    text-align: center !important;
+}
+
+/* 4.6 描边小按钮（settings-mini-btn + 连接/断开/上传/重置） */
+#online-app-settings-view .settings-mini-btn,
+#online-app-settings-view button.settings-mini-btn {
+    background: transparent !important;
+    border: 1px solid #D8E0EB !important;
+    color: #5DADE2 !important;
+    border-radius: 8px !important;
+    padding: 8px 16px !important;
+    font-size: 14px !important;
+    cursor: pointer !important;
+    box-shadow: none !important;
+    transition: border-color 0.2s, color 0.2s, background-color 0.2s !important;
+}
+#online-app-settings-view .settings-mini-btn:hover,
+#online-app-settings-view button.settings-mini-btn:hover {
+    border-color: #5DADE2 !important;
+    color: #4A8FBC !important;
+    background: rgba(93, 173, 226, 0.06) !important;
+}
+#online-app-settings-view .settings-mini-btn:active,
+#online-app-settings-view button.settings-mini-btn:active {
+    border-color: #3D7BA8 !important;
+    color: #3D7BA8 !important;
+    background: transparent !important;
+}
+#online-app-settings-view #online-app-upload-avatar-btn,
+#online-app-settings-view #online-app-reset-avatar-btn {
+    padding: 6px 12px !important;
+    font-size: 13px !important;
+}
+
+/* 4.7 主操作按钮（settings-full-btn） */
+#online-app-settings-view .settings-full-btn {
+    background-color: #5DADE2 !important;
+    border: 1px solid #5DADE2 !important;
+    color: #FFFFFF !important;
+    border-radius: 8px !important;
+    padding: 10px 16px !important;
+    font-size: 14px !important;
+    text-align: center !important;
+    font-weight: 500 !important;
+    cursor: pointer !important;
+    box-shadow: 0 2px 8px rgba(93, 173, 226, 0.25) !important;
+    transition: background-color 0.2s, border-color 0.2s !important;
+}
+#online-app-settings-view .settings-full-btn:hover {
+    background-color: #4A8FBC !important;
+    border-color: #4A8FBC !important;
+}
+#online-app-settings-view .settings-full-btn:active {
+    background-color: #3D7BA8 !important;
+    border-color: #3D7BA8 !important;
+}
+
+/* 教程类按钮：保留 iOS 蓝但更轻 */
+#online-app-settings-view #online-app-deploy-tutorial-btn,
+#online-app-settings-view #online-app-guide-tutorial-btn,
+#online-app-settings-view #online-app-explain-tutorial-btn {
+    background-color: #5DADE2 !important;
+    border-color: #5DADE2 !important;
+    color: #FFFFFF !important;
+}
+
+/* 危险操作按钮：清理 / 重置 */
+#online-app-settings-view #online-app-clear-cache-btn {
+    color: #FF9500 !important;
+    border-color: #FF9500 !important;
+    background: transparent !important;
+}
+#online-app-settings-view #online-app-clear-cache-btn:hover {
+    background: rgba(255, 149, 0, 0.08) !important;
+}
+#online-app-settings-view #online-app-reset-btn {
+    color: #FF3B30 !important;
+    border-color: #FF3B30 !important;
+    background: transparent !important;
+}
+#online-app-settings-view #online-app-reset-btn:hover {
+    background: rgba(255, 59, 48, 0.08) !important;
+}
+
+/* 好友申请角标 */
+#online-app-settings-view #online-app-friend-badge {
+    background-color: #FF3B30 !important;
+    color: #FFFFFF !important;
+    padding: 2px 8px !important;
+    border-radius: 10px !important;
+    font-size: 12px !important;
+    margin-left: 8px !important;
+}
+
+/* ===========================================================
+   5. 5 个 modal 共用美化
+   =========================================================== */
+
+/* 5.1 通用 modal 容器（仅作用于联机相关 5 个 modal） */
+#online-friends-modal .modal-content,
+#friend-requests-modal .modal-content,
+#search-friend-modal .modal-content,
+#create-group-modal .modal-content,
+#group-info-modal .modal-content {
+    background-color: #E8F2FA !important;
+    border: 1px solid rgba(0, 229, 255, 0.18) !important;
+    border-radius: 14px !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+    color: #34495E !important;
+}
+
+/* 5.2 modal header */
+#online-friends-modal .modal-header,
+#friend-requests-modal .modal-header,
+#search-friend-modal .modal-header,
+#create-group-modal .modal-header,
+#group-info-modal .modal-header {
+    background-color: #E8F2FA !important;
+    border-bottom: 1px solid #D6E5F2 !important;
+    color: #2C3E50 !important;
+    font-weight: 600 !important;
+    padding: 12px 16px !important;
+}
+
+/* modal header 标题 span（不含关闭按钮） */
+#online-friends-modal .modal-header > span:not(.close-btn),
+#friend-requests-modal .modal-header > span:not(.close-btn),
+#search-friend-modal .modal-header > span:not(.close-btn),
+#create-group-modal .modal-header > span:not(.close-btn),
+#group-info-modal .modal-header > span:not(.close-btn) {
+    color: #2C3E50 !important;
+    font-weight: 600 !important;
+}
+
+/* modal 关闭按钮 ×  青色 */
+#online-friends-modal .close-btn,
+#friend-requests-modal .close-btn,
+#search-friend-modal .close-btn,
+#create-group-modal .close-btn,
+#group-info-modal .close-btn {
+    color: #5DADE2 !important;
+    font-size: 24px !important;
+    font-weight: 300 !important;
+    cursor: pointer !important;
+}
+#online-friends-modal .close-btn:hover,
+#friend-requests-modal .close-btn:hover,
+#search-friend-modal .close-btn:hover,
+#create-group-modal .close-btn:hover,
+#group-info-modal .close-btn:hover {
+    color: #4A8FBC !important;
+}
+
+/* 5.3 modal body */
+#online-friends-modal .modal-body,
+#friend-requests-modal .modal-body,
+#search-friend-modal .modal-body,
+#create-group-modal .modal-body,
+#group-info-modal .modal-body {
+    background-color: #E8F2FA !important;
+    color: #34495E !important;
+}
+
+/* 5.4 modal 内的空状态提示 */
+#online-friends-modal div[style*="text-align: center; color: #999"],
+#friend-requests-modal div[style*="text-align: center; color: #999"],
+#search-friend-modal div[style*="text-align: center; color: #999"],
+#create-group-modal div[style*="text-align: center; color: #999"],
+#group-info-modal div[style*="text-align: center; color: #999"] {
+    color: #8896A6 !important;
+}
+
+/* 5.5 modal 内的灰色提示文字（color: #999 inline） */
+#online-friends-modal [style*="color: #999"],
+#friend-requests-modal [style*="color: #999"],
+#search-friend-modal [style*="color: #999"],
+#create-group-modal [style*="color: #999"],
+#group-info-modal [style*="color: #999"] {
+    color: #8896A6 !important;
+}
+
+/* 5.6 modal 内的 input（联机好友列表 / 搜索 / 建群） */
+#search-friend-modal input[type="text"],
+#create-group-modal input[type="text"] {
+    background-color: #DCEAF5 !important;
+    border: 1px solid #B5CFE0 !important;
+    color: #34495E !important;
+    border-radius: 8px !important;
+    padding: 10px 12px !important;
+    font-size: 14px !important;
+    outline: none !important;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+    box-sizing: border-box !important;
+}
+#search-friend-modal input[type="text"]::placeholder,
+#create-group-modal input[type="text"]::placeholder {
+    color: #A0B0C5 !important;
+}
+#search-friend-modal input[type="text"]:focus,
+#create-group-modal input[type="text"]:focus {
+    border-color: #5DADE2 !important;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* 5.7 modal 内的 #007aff 蓝色按钮 → 统一改 #5DADE2 */
+#search-friend-modal button[style*="background:#007aff"],
+#search-friend-modal button[style*="background: #007aff"],
+#create-group-modal button[style*="background:#007aff"],
+#create-group-modal button[style*="background: #007aff"] {
+    background-color: #5DADE2 !important;
+    color: #FFFFFF !important;
+    border: 1px solid #5DADE2 !important;
+    border-radius: 8px !important;
+    padding: 10px 18px !important;
+    font-size: 14px !important;
+    cursor: pointer !important;
+    box-shadow: 0 2px 8px rgba(93, 173, 226, 0.25) !important;
+}
+#search-friend-modal button[style*="background:#007aff"]:hover,
+#create-group-modal button[style*="background:#007aff"]:hover {
+    background-color: #4A8FBC !important;
+    border-color: #4A8FBC !important;
+}
+#search-friend-modal button[style*="background:#007aff"]:active,
+#create-group-modal button[style*="background:#007aff"]:active {
+    background-color: #3D7BA8 !important;
+    border-color: #3D7BA8 !important;
+}
+
+/* 5.8 创建群聊好友项（create-group-friend-item） */
+.create-group-friend-item {
+    background-color: transparent !important;
+    border-bottom: 1px solid #D6E5F2 !important;
+}
+.create-group-friend-item:last-child {
+    border-bottom: none !important;
+}
+.create-group-friend-item label {
+    color: #34495E !important;
+    font-size: 14px !important;
+    padding: 10px 0 !important;
+}
+.create-group-friend-item input[type="checkbox"] {
+    accent-color: #5DADE2 !important;
+}
+.create-group-friend-item img {
+    border: 1px solid #B5CFE0 !important;
+    background-color: #DCEAF5 !important;
+}
+
+/* 5.9 创建群聊弹窗里的"创建群聊"主按钮（settings-full-btn + inline blue） */
+#create-group-modal .settings-full-btn {
+    background-color: #5DADE2 !important;
+    border: 1px solid #5DADE2 !important;
+    color: #FFFFFF !important;
+    border-radius: 8px !important;
+    padding: 12px 16px !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    cursor: pointer !important;
+    box-shadow: 0 2px 8px rgba(93, 173, 226, 0.25) !important;
+}
+#create-group-modal .settings-full-btn:hover {
+    background-color: #4A8FBC !important;
+    border-color: #4A8FBC !important;
+}
+
+/* 5.10 群聊信息弹窗（group-info-content）里的内联按钮：
+    - 移除成员（#ff3b30 红）→ 保留红但描边
+    - 拉好友入群（#007aff 蓝）→ 5DADE2
+    - 拉入 AI 角色（#007aff 蓝）→ 5DADE2
+    - 移除 AI 角色（#ff9500 橙）→ 保留橙但描边
+    - 立即总结（#5856d6 紫）→ 5DADE2 蓝调统一
+    - 导出当前群聊（#34c759 绿）→ 5DADE2 蓝调统一
+    - 导出全部联机数据（#5ac8fa 浅蓝）→ 5DADE2 蓝调统一 */
+#group-info-modal .settings-full-btn,
+#group-info-modal button.settings-full-btn {
+    background-color: #5DADE2 !important;
+    border: 1px solid #5DADE2 !important;
+    color: #FFFFFF !important;
+    border-radius: 8px !important;
+    padding: 10px 16px !important;
+    font-size: 14px !important;
+    text-align: center !important;
+    font-weight: 500 !important;
+    cursor: pointer !important;
+    margin-top: 10px !important;
+    box-shadow: 0 2px 8px rgba(93, 173, 226, 0.25) !important;
+}
+#group-info-modal .settings-full-btn:hover {
+    background-color: #4A8FBC !important;
+    border-color: #4A8FBC !important;
+}
+#group-info-modal .settings-full-btn:active {
+    background-color: #3D7BA8 !important;
+    border-color: #3D7BA8 !important;
+}
+
+/* 群成员"移除"按钮 — 红色描边版（保持警示感） */
+#group-info-modal button.settings-btn[style*="color:#ff3b30"],
+#group-info-modal button.settings-btn[style*="color: #ff3b30"] {
+    background: transparent !important;
+    color: #FF3B30 !important;
+    border: 1px solid #FF3B30 !important;
+    border-radius: 6px !important;
+    padding: 4px 10px !important;
+    font-size: 12px !important;
+    cursor: pointer !important;
+}
+#group-info-modal button.settings-btn[style*="color:#ff3b30"]:hover {
+    background: rgba(255, 59, 48, 0.08) !important;
+}
+
+/* 群信息里"导出当前群聊 / 全部联机数据"等按钮用浅绿/紫/浅蓝 → 统一深蓝卡风格，
+   这里只覆盖颜色不让其偏色：保持各自的语义色但加一点浅蓝底 */
+
+/* 群成员项之间的分隔（内联 border-bottom: 1px solid #eee） */
+#group-info-modal div[style*="border-bottom: 1px solid #eee"] {
+    border-bottom-color: #D6E5F2 !important;
+}
+
+/* ===========================================================
+   6. 联机聊天表情包气泡（透明气泡内图） — 浅卡风格不变
+   =========================================================== */
+.online-msg.sticker-bubble {
+    background: transparent !important;
+    padding: 2px !important;
+}
+.online-msg.sticker-bubble .msg-time {
+    color: #8896A6 !important;
+}
+
+/* ===========================================================
+   7. 滚动条（webkit）：青色呼应
+   =========================================================== */
+#online-app-screen *::-webkit-scrollbar,
+#online-friends-modal *::-webkit-scrollbar,
+#friend-requests-modal *::-webkit-scrollbar,
+#search-friend-modal *::-webkit-scrollbar,
+#create-group-modal *::-webkit-scrollbar,
+#group-info-modal *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+#online-app-screen *::-webkit-scrollbar-track,
+#online-friends-modal *::-webkit-scrollbar-track,
+#friend-requests-modal *::-webkit-scrollbar-track,
+#search-friend-modal *::-webkit-scrollbar-track,
+#create-group-modal *::-webkit-scrollbar-track,
+#group-info-modal *::-webkit-scrollbar-track {
+    background: transparent;
+}
+#online-app-screen *::-webkit-scrollbar-thumb,
+#online-friends-modal *::-webkit-scrollbar-thumb,
+#friend-requests-modal *::-webkit-scrollbar-thumb,
+#search-friend-modal *::-webkit-scrollbar-thumb,
+#create-group-modal *::-webkit-scrollbar-thumb,
+#group-info-modal *::-webkit-scrollbar-thumb {
+    background: rgba(0, 229, 255, 0.3);
+    border-radius: 3px;
+}
+#online-app-screen *::-webkit-scrollbar-thumb:hover,
+#online-friends-modal *::-webkit-scrollbar-thumb:hover,
+#friend-requests-modal *::-webkit-scrollbar-thumb:hover,
+#search-friend-modal *::-webkit-scrollbar-thumb:hover,
+#create-group-modal *::-webkit-scrollbar-thumb:hover,
+#group-info-modal *::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 229, 255, 0.5);
+}
+
+/* ===========================================================
+   8. 兜底：设置项里 inline 灰文字
+   =========================================================== */
+#online-app-settings-view .settings-item [style*="color: #999"] {
+    color: #8896A6 !important;
+}
+#online-app-settings-view .settings-item [style*="color:#999"] {
+    color: #8896A6 !important;
+}

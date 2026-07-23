@@ -1,0 +1,160 @@
+/* 普通聊天语音消息：底部半屏按住说话面板 */
+#voice-record-btn.preparing {
+    opacity: 0.65;
+    cursor: wait;
+}
+
+#voice-record-btn.recording {
+    color: #7c5cff;
+    filter: drop-shadow(0 0 8px rgba(124, 92, 255, 0.8));
+}
+
+#voice-record-panel-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 260;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    pointer-events: auto;
+}
+
+.voice-record-panel-spacer {
+    flex: 1 1 auto;
+    min-height: 0;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.16));
+}
+
+.voice-record-panel {
+    height: 40%;
+    min-height: 250px;
+    max-height: 360px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 12px 22px calc(18px + env(safe-area-inset-bottom));
+    border-radius: 24px 24px 0 0;
+    border-top: 1px solid rgba(158, 177, 255, 0.22);
+    background:
+        radial-gradient(circle at 50% 38%, rgba(124, 92, 255, 0.24), transparent 42%),
+        linear-gradient(180deg, rgba(26, 29, 47, 0.92), rgba(10, 12, 22, 0.96));
+    box-shadow:
+        0 -20px 55px rgba(0, 0, 0, 0.42),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    color: #f7f8ff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    animation: voicePanelSlideUp 0.2s ease-out;
+}
+
+.voice-record-panel-handle {
+    width: 44px;
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(210, 216, 235, 0.42);
+    margin: 0 0 18px;
+}
+
+.voice-record-panel-title {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #ffffff;
+    text-shadow: 0 0 16px rgba(126, 111, 255, 0.38);
+}
+
+.voice-record-panel-subtitle {
+    margin-top: 7px;
+    font-size: 13px;
+    color: rgba(226, 231, 255, 0.72);
+}
+
+.voice-hold-mic-btn {
+    width: 112px;
+    height: 112px;
+    margin: 24px 0 18px;
+    border: none;
+    border-radius: 50%;
+    color: #ffffff;
+    cursor: pointer;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    background: linear-gradient(135deg, #25a8ff 0%, #6b63ff 48%, #9b5cff 100%);
+    box-shadow:
+        0 16px 36px rgba(86, 105, 255, 0.34),
+        0 0 0 8px rgba(91, 103, 255, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.32);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
+}
+
+.voice-hold-mic-btn:active,
+.voice-hold-mic-btn.recording {
+    transform: scale(0.96);
+}
+
+.voice-hold-mic-btn.recording {
+    animation: voiceMicBreath 1.15s ease-in-out infinite;
+    box-shadow:
+        0 0 28px rgba(37, 168, 255, 0.72),
+        0 0 56px rgba(125, 92, 255, 0.72),
+        0 0 0 12px rgba(101, 111, 255, 0.18),
+        inset 0 1px 0 rgba(255, 255, 255, 0.36);
+    filter: saturate(1.18);
+}
+
+.voice-record-cancel-btn {
+    min-width: 96px;
+    height: 38px;
+    padding: 0 20px;
+    border: 1px solid rgba(219, 225, 255, 0.18);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.07);
+    color: rgba(244, 247, 255, 0.86);
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.voice-record-cancel-btn:hover,
+.voice-record-cancel-btn:active {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(219, 225, 255, 0.28);
+    color: #ffffff;
+}
+
+@keyframes voicePanelSlideUp {
+    from {
+        transform: translateY(24px);
+        opacity: 0.75;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes voiceMicBreath {
+    0%,
+    100% {
+        box-shadow:
+            0 0 22px rgba(37, 168, 255, 0.55),
+            0 0 42px rgba(125, 92, 255, 0.55),
+            0 0 0 9px rgba(101, 111, 255, 0.13),
+            inset 0 1px 0 rgba(255, 255, 255, 0.36);
+    }
+
+    50% {
+        box-shadow:
+            0 0 34px rgba(37, 168, 255, 0.86),
+            0 0 72px rgba(125, 92, 255, 0.86),
+            0 0 0 16px rgba(101, 111, 255, 0.22),
+            inset 0 1px 0 rgba(255, 255, 255, 0.42);
+    }
+}

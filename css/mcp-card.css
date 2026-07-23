@@ -1,0 +1,283 @@
+/* ====================================================================
+   【外卖点单 · 聊天气泡内的卡片样式】
+   用于聊天消息列表中的 mcd_card / luckin_card 消息渲染
+   视觉跟 mcp-miniapp-pink.css 同色系（粉白嫩黄）
+   ==================================================================== */
+
+/* ===== 卡片外层（跟普通消息气泡共存，独立不挤占聊天宽度） ===== */
+.mcp-message-card {
+    max-width: 85%;
+    background: linear-gradient(180deg, #FFF8E7 0%, #FFE5EC 100%);
+    border: 1px solid rgba(255, 182, 193, 0.35);
+    border-radius: 18px;
+    padding: 12px 14px;
+    margin: 6px 0;
+    color: #5a3d2e;
+    box-shadow: 0 4px 14px rgba(255, 182, 193, 0.18);
+    font-family: 'Outfit', 'PingFang SC', -apple-system, sans-serif;
+    overflow: hidden;
+    position: relative;
+}
+.mcp-message-card.brand-luckin {
+    background: linear-gradient(180deg, #F0F8FF 0%, #E3F2FF 100%);
+    border-color: rgba(0, 102, 204, 0.18);
+    box-shadow: 0 4px 14px rgba(0, 102, 204, 0.12);
+}
+.mcp-message-card .mcp-msg-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #b06e30;
+    margin-bottom: 8px;
+    letter-spacing: 0.3px;
+}
+.mcp-message-card.brand-luckin .mcp-msg-head {
+    color: #1565C0;
+}
+.mcp-message-card .mcp-msg-head .mcp-msg-icon {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    background: linear-gradient(135deg, #DA291C, #FFC72C);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 12px;
+    flex-shrink: 0;
+}
+.mcp-message-card.brand-luckin .mcp-msg-head .mcp-msg-icon {
+    background: linear-gradient(135deg, #0066CC, #00A2E8);
+}
+.mcp-message-card .mcp-msg-head .mcp-msg-tool {
+    margin-left: auto;
+    font-size: 10px;
+    color: #8a6a4a;
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    background: rgba(255, 255, 255, 0.5);
+    padding: 1px 8px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 182, 193, 0.25);
+}
+.mcp-message-card.brand-luckin .mcp-msg-head .mcp-msg-tool {
+    color: #4A6A8F;
+    border-color: rgba(0, 102, 204, 0.18);
+}
+.mcp-message-card .mcp-msg-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #5a3d2e;
+    margin-bottom: 4px;
+}
+.mcp-message-card.brand-luckin .mcp-msg-title {
+    color: #0D47A1;
+}
+
+/* ===== 卡片错误态 ===== */
+.mcp-message-card.mcp-error {
+    background: linear-gradient(180deg, #FDEDEC 0%, #FADBD8 100%);
+    border-color: rgba(192, 57, 43, 0.3);
+    color: #922B21;
+}
+.mcp-message-card.mcp-error .mcp-msg-head { color: #922B21; }
+.mcp-message-card.mcp-error pre {
+    background: rgba(255, 255, 255, 0.6);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 11px;
+    color: #5a3d2e;
+    overflow-x: auto;
+    line-height: 1.5;
+    margin: 6px 0 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* ===== 菜单列表项 ===== */
+.mcp-menu-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 0;
+    border-bottom: 1px dashed rgba(255, 182, 193, 0.35);
+    font-size: 13px;
+}
+.mcp-menu-row:last-child { border-bottom: none; }
+.mcp-menu-row-emoji {
+    font-size: 18px;
+    flex-shrink: 0;
+    width: 24px;
+    text-align: center;
+}
+.mcp-menu-row-name {
+    flex: 1;
+    color: #2C3E50;
+    font-weight: 500;
+}
+.mcp-menu-row-price {
+    color: #DA291C;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.mcp-message-card.brand-luckin .mcp-menu-row-price {
+    color: #0066CC;
+}
+.mcp-menu-row-plus {
+    background: linear-gradient(135deg, #DA291C, #FFC72C);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    flex-shrink: 0;
+    box-shadow: 0 2px 4px rgba(255, 182, 193, 0.3);
+}
+.mcp-message-card.brand-luckin .mcp-menu-row-plus {
+    background: linear-gradient(135deg, #0066CC, #00A2E8);
+    box-shadow: 0 2px 4px rgba(0, 102, 204, 0.2);
+}
+
+/* ===== 订单卡片摘要 ===== */
+.mcp-order-summary {
+    background: rgba(255, 255, 255, 0.55);
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin: 6px 0;
+    border: 1px solid rgba(255, 182, 193, 0.25);
+}
+.mcp-order-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    padding: 3px 0;
+    color: #2C3E50;
+}
+.mcp-order-row .mcp-order-qty {
+    color: #b06e30;
+    font-weight: 600;
+    margin-right: 6px;
+}
+.mcp-order-row .mcp-order-price {
+    color: #5a3d2e;
+    white-space: nowrap;
+    margin-left: 8px;
+}
+.mcp-order-total {
+    border-top: 1px solid rgba(255, 182, 193, 0.3);
+    margin-top: 6px;
+    padding-top: 8px;
+    font-weight: 700;
+    font-size: 14px;
+    display: flex;
+    justify-content: space-between;
+}
+.mcp-order-total-price {
+    color: #DA291C;
+    font-size: 17px;
+}
+.mcp-message-card.brand-luckin .mcp-order-total-price {
+    color: #0066CC;
+}
+
+/* ===== 订单号大徽章 ===== */
+.mcp-order-id {
+    background: linear-gradient(135deg, #DA291C, #FFC72C);
+    color: #fff;
+    padding: 6px 14px;
+    border-radius: 14px;
+    font-size: 14px;
+    font-weight: 700;
+    display: inline-block;
+    margin: 6px 0;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 8px rgba(218, 41, 28, 0.3);
+}
+.mcp-message-card.brand-luckin .mcp-order-id {
+    background: linear-gradient(135deg, #0066CC, #00A2E8);
+    box-shadow: 0 2px 8px rgba(0, 102, 204, 0.25);
+}
+.mcp-order-id-tag {
+    font-size: 10px;
+    font-weight: 500;
+    opacity: 0.85;
+    margin-right: 4px;
+}
+
+/* ===== 优惠 / 门店 / 通用 JSON 折叠展示 ===== */
+.mcp-json-pre {
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 10px;
+    padding: 8px 10px;
+    font-size: 11px;
+    color: #5a3d2e;
+    max-height: 240px;
+    overflow: auto;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin: 6px 0 0;
+}
+.mcp-message-card.brand-luckin .mcp-json-pre {
+    color: #1565C0;
+}
+.mcp-json-toggle {
+    color: #5DADE2;
+    font-size: 11px;
+    cursor: pointer;
+    text-decoration: underline;
+    margin-top: 4px;
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: inherit;
+}
+.mcp-json-toggle:hover { color: #4A8FBC; }
+
+/* ===== 候选商品 / 推荐商品小条 ===== */
+.mcp-candidate-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 12px;
+    margin-bottom: 6px;
+    border: 1px solid rgba(255, 182, 193, 0.2);
+}
+.mcp-candidate-row-emoji {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #FFE5EC, #FFF8E7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+}
+.mcp-candidate-row-body {
+    flex: 1;
+    min-width: 0;
+}
+.mcp-candidate-row-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: #2C3E50;
+}
+.mcp-candidate-row-reason {
+    font-size: 11px;
+    color: #8a6a4a;
+    margin-top: 1px;
+}
+.mcp-candidate-row-price {
+    font-size: 12px;
+    color: #DA291C;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.mcp-message-card.brand-luckin .mcp-candidate-row-price {
+    color: #0066CC;
+}

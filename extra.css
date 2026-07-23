@@ -1,0 +1,671 @@
+/* ============================================
+   extra.css - 通用补丁 & 新板块样�?   所有新�?修复的样式统一写在这里
+   ============================================ */
+
+/* ============================================
+   自定义心声提示词 - 美化样式
+   ============================================ */
+
+/* 父容器：强制纵向排列，覆�?style.css �?row !important */
+.settings-item.custom-thoughts-setting {
+    flex-direction: column !important;
+    align-items: stretch !important;
+}
+
+/* 头部：标�?描述 左侧，开�?右侧 */
+.custom-thoughts-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.custom-thoughts-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.custom-thoughts-title {
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--text-primary, #000);
+    line-height: 1.4;
+}
+
+.custom-thoughts-desc {
+    font-size: 12px;
+    color: var(--text-secondary, #8e8e93);
+    margin-top: 2px;
+    line-height: 1.3;
+}
+
+#phone-screen.dark-mode .custom-thoughts-title {
+    color: #f5f5f7;
+}
+
+#phone-screen.dark-mode .custom-thoughts-desc {
+    color: #98989f;
+}
+
+/* 展开区域：输入框 + 按钮 */
+.custom-thoughts-body {
+    margin-top: 14px;
+    animation: thoughtsSlideIn 0.25s ease-out;
+}
+
+@keyframes thoughtsSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.custom-thoughts-textarea {
+    width: 100%;
+    min-height: 140px;
+    border: 1.5px solid var(--border-color, #e5e5ea);
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 14px;
+    line-height: 1.6;
+    resize: vertical;
+    font-family: inherit;
+    background: var(--input-bg, #f9f9fb);
+    color: var(--text-primary, #333);
+    box-sizing: border-box;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    outline: none;
+}
+
+.custom-thoughts-textarea:focus {
+    border-color: #34c759;
+    box-shadow: 0 0 0 3px rgba(52, 199, 89, 0.15);
+}
+
+.custom-thoughts-textarea::placeholder {
+    color: #c7c7cc;
+}
+
+#phone-screen.dark-mode .custom-thoughts-textarea {
+    background: #2c2c2e;
+    border-color: #3a3a3c;
+    color: #f5f5f7;
+}
+
+#phone-screen.dark-mode .custom-thoughts-textarea:focus {
+    border-color: #30d158;
+    box-shadow: 0 0 0 3px rgba(48, 209, 88, 0.2);
+}
+
+#phone-screen.dark-mode .custom-thoughts-textarea::placeholder {
+    color: #636366;
+}
+
+/* 操作按钮�?*/
+.custom-thoughts-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 10px;
+}
+
+.custom-thoughts-reset-btn {
+    font-size: 13px;
+    padding: 6px 14px;
+    border: 1px solid var(--border-color, #e5e5ea);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-secondary, #8e8e93);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.custom-thoughts-reset-btn:active {
+    background: rgba(0, 0, 0, 0.05);
+    transform: scale(0.96);
+}
+
+#phone-screen.dark-mode .custom-thoughts-reset-btn {
+    border-color: #3a3a3c;
+    color: #98989f;
+}
+
+#phone-screen.dark-mode .custom-thoughts-reset-btn:active {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* ============================================
+   自定义结构化总结提示�?- 变量提示样式
+   ============================================ */
+
+.custom-summary-hint code {
+    background: rgba(52, 199, 89, 0.1);
+    color: #34c759;
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: monospace;
+    white-space: nowrap;
+}
+
+#phone-screen.dark-mode .custom-summary-hint code {
+    background: rgba(48, 209, 88, 0.15);
+    color: #30d158;
+}
+
+#phone-screen.dark-mode .custom-summary-hint {
+    color: #98989f !important;
+}
+
+/* ============================================
+   导入导出按钮样式
+   ============================================ */
+
+.custom-thoughts-io-btn {
+    font-size: 13px;
+    padding: 6px 14px;
+    border: 1px solid var(--border-color, #e5e5ea);
+    border-radius: 8px;
+    background: transparent;
+    color: #34c759;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-right: 6px;
+}
+
+.custom-thoughts-io-btn:active {
+    background: rgba(52, 199, 89, 0.1);
+    transform: scale(0.96);
+}
+
+#phone-screen.dark-mode .custom-thoughts-io-btn {
+    border-color: #3a3a3c;
+    color: #30d158;
+}
+
+#phone-screen.dark-mode .custom-thoughts-io-btn:active {
+    background: rgba(48, 209, 88, 0.15);
+}
+
+.custom-thoughts-actions {
+    gap: 0 !important;
+}
+
+/* ============================================================
+ * 首页美化（深色玻璃拟态）�?默认样式追加�?extra.css 末尾
+ * 用户自定�?CSS 在更后面加载时可覆盖（保留全局 CSS 覆盖能力�? * ============================================================ */
+
+/* (1) #home-screen 默认深色渐变背景（用户上传壁纸后�?applyGlobalWallpaper 接管�?*/
+#home-screen {
+    background-color: transparent !important;
+    background-image:
+        radial-gradient(circle at 20% 12%, rgba(107, 125, 255, .38), transparent 32%),
+        radial-gradient(circle at 84% 28%, rgba(0, 229, 255, .22), transparent 30%),
+        radial-gradient(circle at 50% 100%, rgba(174, 92, 255, .26), transparent 38%),
+        linear-gradient(160deg, #10131f 0%, #171b2e 48%, #0d1020 100%);
+    color: rgba(255, 255, 255, .85);
+    position: relative;
+}
+/* 兜底渐变背景：仅当用户没上传壁纸（home-screen �?inline background-image）时显示
+   用户上传壁纸�?inline style 会盖�?CSS 渐变，同时伪元素也通过 :not 自动让位 */
+#home-screen:not([style*="background-image"])::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(circle at 20% 12%, rgba(107, 125, 255, .38), transparent 32%),
+        radial-gradient(circle at 84% 28%, rgba(0, 229, 255, .22), transparent 30%),
+        radial-gradient(circle at 50% 100%, rgba(174, 92, 255, .26), transparent 38%),
+        linear-gradient(160deg, #10131f 0%, #171b2e 48%, #0d1020 100%);
+    z-index: 0;
+    pointer-events: none;
+}
+/* �?home-screen-pages 内的内容浮在伪元素之�?*/
+#home-screen > * {
+    position: relative;
+    z-index: 1;
+}
+
+/* (2) 三页共用：浅色文字（深色背景下） */
+.home-screen-page {
+    color: rgba(255, 255, 255, .85);
+}
+
+/* (3) �?widget 列已�?HTML 删除，保险起见隐�?*/
+#desktop-widget-column { display: none !important; }
+#desktop-layout { display: contents !important; }
+
+/* (4) 玻璃 banner（第 1 页） */
+.glass-banner {
+    position: relative;
+    height: 130px;
+    border-radius: 30px;
+    padding: 20px;
+    margin-bottom: 22px;
+    overflow: hidden;
+    background:
+        radial-gradient(circle at 82% 20%, rgba(0, 234, 255, .32), transparent 28%),
+        radial-gradient(circle at 18% 88%, rgba(170, 105, 255, .34), transparent 32%),
+        linear-gradient(135deg, rgba(255, 255, 255, .18), rgba(255, 255, 255, .055));
+    border: 1px solid rgba(255, 255, 255, .18);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    box-shadow: 0 16px 46px rgba(0, 0, 0, .26), inset 0 0 32px rgba(155, 180, 255, .08);
+}
+.glass-banner::after {
+    content: "";
+    position: absolute;
+    width: 170px;
+    height: 170px;
+    right: -62px;
+    top: -38px;
+    border-radius: 50%;
+    border: 1px solid rgba(128, 218, 255, .28);
+    box-shadow: 0 0 50px rgba(86, 160, 255, .18);
+    pointer-events: none;
+}
+.glass-banner #profile-banner-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 1;  /* 之前 .22 太朦，已改为 1 让用户上传图清晰显示 */
+    z-index: 0;
+}
+#profile-widget .profile-avatar-container {
+    position: absolute;
+    top: 20px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 2;
+    width: 64px !important;
+    height: 64px !important;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #ffe6f4, #8fdcff 48%, #9378ff);
+    padding: 3px;
+    box-shadow: 0 0 28px rgba(123, 155, 255, .55);
+    margin-bottom: 0;
+    overflow: hidden;
+}
+#profile-widget .profile-avatar-container #profile-avatar-img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    background: linear-gradient(135deg, #282a4a, #121526);
+    display: block;
+}
+#profile-widget #profile-username {
+    position: absolute;
+    top: 96px !important;  /* 20(top) + 64(avatar) + 12(gap) = 96 */
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 2;
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: .5px;
+    color: #fff;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, .4);
+    text-align: center;
+}
+
+/* (5) 玻璃卡片网格 */
+.glass-card-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    width: 100%;
+    padding: 18px 0 4px 0;  /* 顶部 padding 加大，让六个图标整体下推 */
+    margin-top: auto;       /* 推到 #main-content-area 底部，紧�?dock */
+}
+
+/* (6) 玻璃卡片 */
+.glass-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: none;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    cursor: pointer;
+}
+.glass-card::before {
+    content: none;
+}
+.glass-card .label {
+    position: relative;
+    z-index: 1;
+    margin: 0;
+    color: #000;
+    font-size: 13px;
+    font-weight: 500;
+    text-shadow: none;
+    text-align: center;
+}
+
+/* (7) 图标容器（玻璃风�?*/
+.glass-card .icon-bg-desktop {
+    position: relative;
+    z-index: 1;
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(255, 255, 255, .2), rgba(255, 255, 255, .08)) !important;
+    border: 1px solid rgba(255, 255, 255, .14) !important;
+    box-shadow: 0 0 18px rgba(75, 198, 255, .12) !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    transition: transform .2s ease;
+}
+.glass-card .icon-svg {
+    width: 42px;
+    height: 42px;
+}
+.glass-card .icon-bg-desktop:active {
+    transform: scale(.92);
+}
+
+/* (8) SVG 显示 + img 兜底（方�?Z 修复版：�?attribute selector�?*/
+.icon-svg {
+    width: 22px;
+    height: 22px;
+    color: #fff;
+    display: block;
+    position: relative;
+    z-index: 2;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .25));
+}
+.glass-card .icon-bg-desktop > img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 3;
+    border-radius: inherit;
+}
+/* img src="" 时隐藏，�?SVG 显示；用户上传图�?img �?src 自动显示 */
+.icon-bg-desktop > img[src=""],
+.small-widget-icon-wrapper > img[src=""],
+img[src=""] {
+    display: none !important;
+}
+/* 例外：主�?第三页头像、微博头像、banner 大图 src 为空时也显示（用 background 渐变兜底），让用户能点击触发上传 */
+#profile-avatar-img[src=""],
+#p3-avatar-img[src=""],
+#p3-weibo-avatar[src=""],
+#profile-banner-img[src=""] {
+    display: block !important;
+}
+/* banner 大图 src 空时的占位背景：中央白色高光 + 双向淡渐变，暗示"可点�? */
+#profile-banner-img[src=""] {
+    background:
+        radial-gradient(circle at 50% 50%, rgba(255, 255, 255, .22), transparent 55%),
+        linear-gradient(135deg, rgba(101, 207, 255, .12), rgba(170, 105, 255, .15));
+}
+.icon-bg-desktop > img:not([src=""]) {
+    display: block !important;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 3;
+    border-radius: inherit;
+}
+.small-widget-icon-wrapper > img:not([src=""]) {
+    display: block !important;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 3;
+    border-radius: 14px;
+}
+
+/* (9) 玻璃 dock */
+.glass-dock {
+    position: relative !important;  /* 新增：让 dock-bg-img absolute 定位 */
+    background: rgba(20, 24, 42, .62) !important;
+    border: 1px solid rgba(255, 255, 255, .16) !important;
+    border-radius: 28px !important;
+    padding: 9px 10px !important;
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    align-items: center !important;
+    height: 78px;
+    backdrop-filter: blur(22px);
+    -webkit-backdrop-filter: blur(22px);
+    box-shadow: 0 16px 46px rgba(0, 0, 0, .36), inset 0 0 28px rgba(130, 150, 255, .06);
+    flex-shrink: 0;
+    cursor: pointer;  /* 新增：暗�?dock 可点�?*/
+    overflow: hidden;  /* 新增：让背景图圆角不溢出 */
+}
+/* dock 背景图（可点击上传） */
+.glass-dock-bg-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: inherit;
+    z-index: 0;
+    pointer-events: none;  /* 不阻挡子图标点击 */
+}
+.glass-dock-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 4px;
+    padding: 0;
+    position: relative;  /* 新增：z-index 生效需�?relative/absolute */
+    z-index: 1;           /* 新增：浮�?dock-bg-img 之上 */
+}
+.glass-dock-item .icon-bg-desktop {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(255, 255, 255, .2), rgba(255, 255, 255, .08)) !important;
+    border: 1px solid rgba(255, 255, 255, .14) !important;
+    box-shadow: 0 0 18px rgba(75, 198, 255, .12) !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+    transition: transform .2s ease;
+}
+.glass-dock-item .icon-bg-desktop:active {
+    transform: scale(.92);
+}
+.glass-dock-item .label {
+    color: rgba(255, 255, 255, .82);
+    font-size: 11px;
+    margin: 0;
+}
+.glass-dock-item .icon-svg {
+    width: 26px;
+    height: 26px;
+    color: #aeefff;
+    position: relative;
+    z-index: 2;
+}
+
+/* (10) 第二三页卡片半透化（HTML 一行不动） */
+.home-screen-page:nth-child(2) .polaroid-photo,
+.home-screen-page:nth-child(2) .large-widget,
+.home-screen-page:nth-child(2) .small-widget,
+.home-screen-page:nth-child(2) .vinyl-transparent-widget,
+.home-screen-page:nth-child(2) .left-app-grid,
+.home-screen-page:nth-child(3) .p3-profile-widget,
+.home-screen-page:nth-child(3) .p3-anniversary-widget,
+.home-screen-page:nth-child(3) .p3-weibo-widget {
+    background: linear-gradient(145deg, rgba(255, 255, 255, .12), rgba(255, 255, 255, .045)) !important;
+    border: 1px solid rgba(255, 255, 255, .12) !important;
+    color: rgba(255, 255, 255, .85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+.home-screen-page:nth-child(2) .small-widget-label,
+.home-screen-page:nth-child(3) .p3-deco-line,
+.home-screen-page:nth-child(3) .weibo-user-info,
+.home-screen-page:nth-child(3) .anni-caption,
+.home-screen-page:nth-child(3) .anni-date,
+.home-screen-page:nth-child(2) .label,
+.home-screen-page:nth-child(3) .label {
+    color: #000 !important;
+}
+.home-screen-page:nth-child(2) .icon-bg-desktop,
+.home-screen-page:nth-child(3) .icon-bg-desktop {
+    background: linear-gradient(135deg, rgba(255, 255, 255, .2), rgba(255, 255, 255, .08)) !important;
+    border: 1px solid rgba(255, 255, 255, .14) !important;
+    box-shadow: 0 0 14px rgba(75, 198, 255, .12) !important;
+}
+
+/* (11) 第二�?small-widget 4 图标（preset/渲染�?狼人杀/X）：
+ * 取消长方形玻璃底盘，改为与左侧支付宝那组一致的方形透明玻璃底座
+ * 形状：参�?.icon-bg-desktop�?5px 方形 + 浅色透明渐变 + 边框 + 微光�? * 颜色：黑字（用户浅色背景需求） */
+
+/* 容器：仅保留 flex column 排版，不画矩形底�?*/
+.home-screen-page:nth-child(2) .small-widget {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+/* 55px 方形透明底座（与 .icon-bg-desktop 在第二页的玻璃样式完全一致） */
+.home-screen-page:nth-child(2) .small-widget-icon-wrapper {
+    position: relative;
+    width: 55px;
+    height: 55px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, .2), rgba(255, 255, 255, .08)) !important;
+    border: 1px solid rgba(255, 255, 255, .14) !important;
+    box-shadow: 0 0 14px rgba(75, 198, 255, .12) !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    transition: transform .2s ease;
+}
+
+/* 点击时图标轻微缩小（保留全局规则，未来添�?small-widget 也能用） */
+.small-widget:active .small-widget-icon-wrapper {
+    transform: scale(.92);
+}
+
+/* 字体黑色：用户浅色背景需求�? * 特异�?1 ID + 2 classes + 1 pseudo = 130 > voice-recording.css:286 �?110
+ * text-shadow: none 是为了浅色背景不需要阴�?*/
+#page-2-app-container .home-screen-page:nth-child(2) .small-widget-label {
+    color: #000 !important;
+    text-shadow: none !important;
+    font-size: 13px !important;
+    font-weight: 500;
+}
+
+/* SVG 在小图标里的尺寸（无图时显示的默认占位图标） */
+.icon-svg.small-svg {
+    width: 20px;
+    height: 20px;
+    color: #aeefff;
+    position: relative;
+    z-index: 2;
+}
+
+/* (12) 第二三页过期图柔化兜�?�?已删除（用户反馈朦朦胧胧，取消该滤镜；如未来需要失效图兜底，改�?img[src=""] 选择器） */
+
+/* ============================================================
+ * 修复补丁（v3）：聊天界面空白兜底
+ * 症状：点 chat-list 角色栏后，chat-interface-screen 被推到屏幕外
+ *       （chat-interface-screen �?position �?inline style 改成 relative�? * 根因：phone-screen �?auth-system.js 改成 display:block�? *       同时 chat-interface-screen �?inline position 失效
+ * 修复：强�?.screen 永远 absolute + 填满父容器，覆盖任何 inline style
+ * ============================================================ */
+.screen {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* ============================================================
+ * 修复补丁（v4）：第三页图标全屏遮罩兜�? * 症状：导入旧版备�?美化后，第三页桌面图标（forum/new-world 等）
+ *       图片被外�?CSS 改成 position: fixed + 全屏，遮住首�? * 根因：古早美化在没第三页时做的，新版加了第三页的 desktop-app-icon�? *       这些 .icon-bg-desktop > img �?src 被备份恢复后，触发了
+ *       某些针对 nth-child(3) �?.icon-bg 的全局规则
+ * 修复：强制第二页/第三页所�?.icon-bg-desktop > img 限制在容器内�? *       永远不能超出父元素（不管外部 CSS 怎么写）
+ * ============================================================ */
+.home-screen-page:nth-child(2) .icon-bg-desktop > img,
+.home-screen-page:nth-child(3) .icon-bg-desktop > img,
+.home-screen-page:nth-child(2) .icon-bg > img,
+.home-screen-page:nth-child(3) .icon-bg > img {
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    inset: auto !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    z-index: auto !important;
+    transform: none !important;
+}
+
+/* 兜底：第二页/第三页的 home-screen-page 整体也要�?overflow:hidden�?   防止任何子元素溢出到第一页可见区�?*/
+.home-screen-page:nth-child(2),
+.home-screen-page:nth-child(3) {
+    overflow: hidden !important;
+}
+
+/* ============================================================
+ * 修复补丁（v5）：图标图案"平铺三页"终极兜底
+ * 症状：导入含第三页图标的备份后，对应图标 img 脱离容器，固定显示在三页
+ *       可见区域上（"平铺在三页滑动页面上"�? * 根因：第三页存在后，某些 img 元素被外�?CSS 或浏览器渲染异常绑定�? *       全屏可见，导致不管滑到哪页都能看到那张图
+ * 修复�? *   1. 强制所�?#home-screen 内的 img 都不能超过父容器尺寸
+ *   2. 强制第二�?第三页所�?img �?position 重置�?relative�? *      防止 position: fixed/absolute 让它脱离父级�? * ============================================================ */
+#home-screen img {
+    max-width: 100% !important;
+    max-height: 100% !important;
+}
+.home-screen-page:nth-child(2) img,
+.home-screen-page:nth-child(3) img {
+    position: relative !important;
+    inset: auto !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+}
+
+/* (e) 第一�?6 个图标缩到介于原值和 dock 之间（琪琪反馈太大但要比底部 dock 大一些，2026-06-26�? * 原值：    icon-bg-desktop 96x96 / SVG 42x42 / label 12px / gap 8px
+ * 底部dock：icon-bg-desktop 56x56 / SVG 26x26 / label 11px
+ * 改后�?   icon-bg-desktop 72x72 / SVG 32x32 / label 11px / gap 6px
+ * label �?dock 对齐（都�?11px），图标背景�?dock �?16px */
+.home-screen-page:nth-child(1) .glass-card {
+    gap: 6px;
+}
+.home-screen-page:nth-child(1) .glass-card .icon-bg-desktop {
+    width: 72px;
+    height: 72px;
+}
+.home-screen-page:nth-child(1) .glass-card .icon-svg {
+    width: 32px;
+    height: 32px;
+}
+.home-screen-page:nth-child(1) .glass-card .label {
+    font-size: 13px;
+}

@@ -1,0 +1,1055 @@
+/* ============================================================
+   变量记忆系统 - 深蓝底 + 浅蓝卡 + 青色高亮 视觉皮肤
+   作用范围：#vector-memory-screen（主屏）+ #vm-settings-screen（设置/教程全屏面板）
+   ------------------------------------------------------------
+   配色总览（沿用 api-settings-skyblue 体系保持一致）：
+   整体底  : #0F1626
+   卡片    : #E8F2FA + 1px rgba(0,229,255,0.18) + 12px 圆角
+   输入框  : #DCEAF5 + 1px #B5CFE0
+   强调    : #5DADE2 (hover #4A8FBC / active #3D7BA8)
+   顶栏青色: #00E5FF
+   危险色  : #ff3b30 (清空玄关、删除等)
+   回收站色: #ff9500 (橙色，区分记忆库)
+   核心 C  : #ff0000 (核心灵魂)
+
+   规则：不动任何 JS / class / id / DOM 结构，只覆盖视觉
+   ============================================================ */
+
+/* ---------- 1. 整体深蓝底 ---------- */
+#vector-memory-screen,
+#vm-settings-screen,
+#vector-memory-screen.ios-settings-screen,
+#vm-settings-screen.ios-settings-screen {
+    background-color: #0F1626 !important;
+    color: #E6F1FF !important;
+}
+
+/* ---------- 2. 顶部标题栏 ---------- */
+#vector-memory-screen .header,
+#vm-settings-screen .header {
+    background-color: #0F1626 !important;
+    border-bottom: 1px solid rgba(0, 229, 255, 0.12) !important;
+    box-shadow: none !important;
+}
+
+/* 返回箭头：青色 #00E5FF */
+#vector-memory-screen .header .back-btn,
+#vm-settings-screen .header .back-btn {
+    color: #00E5FF !important;
+}
+
+/* 标题文字：冷白 */
+#vector-memory-screen .header > span[data-lang-key],
+#vm-settings-screen .header > span[data-lang-key] {
+    color: #E6F1FF !important;
+}
+
+/* ---------- 3. 主容器：滚动条 & 内边距 ---------- */
+#vector-memory-screen .list-container,
+#vector-memory-screen-container,
+.vm-fullscreen-panel {
+    background-color: #0F1626 !important;
+    padding: 14px 14px calc(20px + env(safe-area-inset-bottom)) 14px !important;
+}
+
+/* ---------- 4. 2 房间 Tab 栏（记忆库 / 回收站） ---------- */
+#vector-memory-screen .vm-room-tabs {
+    display: flex !important;
+    gap: 0 !important;
+    background-color: #E8F2FA !important;
+    border: 1px solid rgba(0, 229, 255, 0.18) !important;
+    border-radius: 12px !important;
+    padding: 4px !important;
+    margin-bottom: 14px !important;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25) !important;
+    align-items: stretch !important;
+}
+
+#vector-memory-screen .vm-room-tab {
+    flex: 1 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    padding: 10px 12px !important;
+    border-radius: 9px !important;
+    cursor: pointer !important;
+    color: #2C3E50 !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    transition: background-color 0.2s, color 0.2s !important;
+}
+
+/* 存储用量徽章（贴在 Tab 栏右侧，不抢 tab 空间） */
+#vector-memory-screen .vm-room-storage {
+    flex: 0 0 auto !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    padding: 10px 12px !important;
+    color: #5DADE2 !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    border-left: 1px solid rgba(93, 173, 226, 0.2) !important;
+    margin-left: 4px !important;
+    white-space: nowrap !important;
+    cursor: default !important;
+}
+
+#vector-memory-screen .vm-room-storage-icon {
+    font-size: 14px !important;
+    line-height: 1 !important;
+}
+
+#vector-memory-screen .vm-room-storage.vm-storage-caution {
+    color: #f39c12 !important;
+}
+
+#vector-memory-screen .vm-room-storage.vm-storage-warn {
+    color: #e74c3c !important;
+    font-weight: 700 !important;
+}
+
+/* 状态圆点（自动提取中） */
+#vector-memory-screen .vm-status-dot {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    padding: 7px 12px !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    color: #5DADE2 !important;
+    background-color: rgba(93, 173, 226, 0.08) !important;
+    border-radius: 12px !important;
+    cursor: help !important;
+    white-space: nowrap !important;
+}
+
+#vector-memory-screen .vm-status-pulse {
+    width: 8px !important;
+    height: 8px !important;
+    border-radius: 50% !important;
+    background-color: #2ecc71 !important;
+    box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7) !important;
+    animation: vm-pulse 2s infinite !important;
+}
+
+@keyframes vm-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7); }
+    70% { box-shadow: 0 0 0 8px rgba(46, 204, 113, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0); }
+}
+
+#vector-memory-screen .vm-room-tab.active {
+    background-color: #5DADE2 !important;
+    color: #FFFFFF !important;
+    box-shadow: 0 2px 8px rgba(93, 173, 226, 0.4) !important;
+}
+
+#vector-memory-screen .vm-room-tab:active {
+    opacity: 0.8 !important;
+}
+
+#vector-memory-screen .vm-room-count {
+    background-color: rgba(93, 173, 226, 0.15) !important;
+    color: #5DADE2 !important;
+    padding: 2px 8px !important;
+    border-radius: 10px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    min-width: 22px !important;
+    text-align: center !important;
+}
+
+#vector-memory-screen .vm-room-tab.active .vm-room-count {
+    background-color: rgba(255, 255, 255, 0.25) !important;
+    color: #FFFFFF !important;
+}
+
+/* ---------- 5. 工具栏 ---------- */
+#vector-memory-screen .vm-toolbar {
+    display: flex !important;
+    gap: 8px !important;
+    padding: 0 0 12px 0 !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    background-color: transparent !important;
+}
+
+#vector-memory-screen .vm-toolbar-btn {
+    padding: 7px 14px !important;
+    border: 1px solid rgba(0, 229, 255, 0.25) !important;
+    background-color: #E8F2FA !important;
+    border-radius: 8px !important;
+    font-size: 13px !important;
+    cursor: pointer !important;
+    color: #2C3E50 !important;
+    font-weight: 500 !important;
+    transition: all 0.2s !important;
+}
+
+#vector-memory-screen .vm-toolbar-btn:hover {
+    background-color: #DCEAF5 !important;
+    border-color: rgba(0, 229, 255, 0.4) !important;
+}
+
+#vector-memory-screen .vm-toolbar-btn:active {
+    opacity: 0.75 !important;
+}
+
+/* 主操作按钮（提取记忆 / 立即导入） */
+#vector-memory-screen .vm-toolbar-btn.vm-primary {
+    background-color: #5DADE2 !important;
+    color: #FFFFFF !important;
+    border-color: #5DADE2 !important;
+}
+
+#vector-memory-screen .vm-toolbar-btn.vm-primary:hover {
+    background-color: #4A8FBC !important;
+    border-color: #4A8FBC !important;
+}
+
+/* 删除选中（橙色，介于全选和清空之间） */
+#vector-memory-screen .vm-toolbar-btn#vm-foyer-delete-selected {
+    background-color: rgba(255, 149, 0, 0.08) !important;
+    border-color: #ff9500 !important;
+    color: #ff9500 !important;
+}
+
+#vector-memory-screen .vm-toolbar-btn#vm-foyer-delete-selected:hover {
+    background-color: rgba(255, 149, 0, 0.18) !important;
+}
+
+/* 危险按钮（清空玄关） */
+#vector-memory-screen .vm-toolbar-btn.vm-danger {
+    background-color: rgba(255, 59, 48, 0.08) !important;
+    border-color: #ff3b30 !important;
+    color: #ff3b30 !important;
+}
+
+#vector-memory-screen .vm-toolbar-btn.vm-danger:hover {
+    background-color: rgba(255, 59, 48, 0.18) !important;
+}
+
+/* 玄关提示文字 */
+#vector-memory-screen .vm-foyer-tip {
+    color: #8896A6 !important;
+    font-size: 11px !important;
+    line-height: 1.4 !important;
+}
+
+/* ---------- 6. 导入旧日记横幅 ---------- */
+#vector-memory-screen .vm-import-banner {
+    background-color: #DCEAF5 !important;
+    border: 1px solid #B5CFE0 !important;
+    border-radius: 12px !important;
+    padding: 12px 14px !important;
+    margin-bottom: 14px !important;
+    color: #4A6A8F !important;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25) !important;
+}
+
+#vector-memory-screen .vm-import-banner-icon {
+    color: #5DADE2 !important;
+}
+
+#vector-memory-screen .vm-import-banner-text strong {
+    color: #5DADE2 !important;
+}
+
+#vector-memory-screen .vm-import-banner-text {
+    color: #4A6A8F !important;
+}
+
+#vector-memory-screen .vm-import-banner-btn {
+    background-color: #5DADE2 !important;
+    color: #FFFFFF !important;
+    border: 1px solid #5DADE2 !important;
+}
+
+#vector-memory-screen .vm-import-banner-btn:hover {
+    background-color: #4A8FBC !important;
+}
+
+#vector-memory-screen .vm-import-banner-btn.vm-banner-secondary {
+    background-color: transparent !important;
+    color: #6B7A8F !important;
+    border: 1px solid #B5CFE0 !important;
+}
+
+#vector-memory-screen .vm-import-banner-close {
+    color: #8896A6 !important;
+}
+
+#vector-memory-screen .vm-import-banner-close:hover {
+    color: #5DADE2 !important;
+}
+
+/* ---------- 7. 清理候选面板 ---------- */
+#vector-memory-screen .vm-cleanup-card {
+    background-color: rgba(255, 59, 48, 0.06) !important;
+    border: 1px solid rgba(255, 59, 48, 0.3) !important;
+    border-radius: 12px !important;
+    padding: 14px !important;
+    margin-bottom: 14px !important;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25) !important;
+}
+
+#vector-memory-screen .vm-cleanup-card h4 {
+    color: #ff3b30 !important;
+    font-size: 15px !important;
+    margin: 0 0 8px 0 !important;
+    font-weight: 600 !important;
+}
+
+#vector-memory-screen .vm-cleanup-card p {
+    color: #6B7A8F !important;
+    font-size: 12px !important;
+    line-height: 1.6 !important;
+}
+
+#vector-memory-screen .vm-cleanup-list {
+    background-color: transparent !important;
+    border: none !important;
+}
+
+#vector-memory-screen .vm-cleanup-item {
+    border-bottom: 1px solid rgba(255, 59, 48, 0.15) !important;
+    padding: 8px 0 !important;
+}
+
+#vector-memory-screen .vm-cleanup-item-meta {
+    color: #8896A6 !important;
+    font-size: 11px !important;
+}
+
+#vector-memory-screen .vm-cleanup-actions {
+    display: flex !important;
+    gap: 8px !important;
+    margin-top: 12px !important;
+}
+
+#vector-memory-screen .vm-bulk-bar-btn {
+    padding: 6px 14px !important;
+    border: 1px solid rgba(0, 229, 255, 0.25) !important;
+    background-color: #E8F2FA !important;
+    border-radius: 8px !important;
+    color: #2C3E50 !important;
+    font-size: 13px !important;
+    cursor: pointer !important;
+}
+
+#vector-memory-screen .vm-bulk-bar-btn.vm-bulk-danger {
+    color: #ff3b30 !important;
+    border-color: #ff3b30 !important;
+    background-color: rgba(255, 59, 48, 0.08) !important;
+}
+
+#vector-memory-screen .vm-bulk-bar-btn.vm-bulk-primary {
+    background-color: #5DADE2 !important;
+    color: #FFFFFF !important;
+    border-color: #5DADE2 !important;
+}
+
+/* ---------- 8. 记忆卡片（卧室 / 记忆库）---------- */
+#vector-memory-screen .vm-section-header {
+    color: #5DADE2 !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    margin: 8px 0 8px 0 !important;
+    padding-left: 8px !important;
+    border-left: 3px solid #5DADE2 !important;
+    line-height: 20px !important;
+}
+
+#vector-memory-screen .vm-list-container {
+    background-color: transparent !important;
+    padding: 0 !important;
+}
+
+#vector-memory-screen .vm-item-row {
+    background-color: #E8F2FA !important;
+    border: 1px solid rgba(0, 229, 255, 0.18) !important;
+    border-radius: 12px !important;
+    padding: 12px 14px !important;
+    margin-bottom: 8px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+}
+
+#vector-memory-screen .vm-item-row.vm-item-core {
+    border: 1px solid rgba(255, 0, 0, 0.35) !important;
+    background: linear-gradient(135deg, #E8F2FA 0%, rgba(255, 215, 0, 0.05) 100%) !important;
+}
+
+#vector-memory-screen .vm-item-content {
+    color: #2C3E50 !important;
+    font-size: 14px !important;
+    line-height: 1.5 !important;
+    word-break: break-word !important;
+}
+
+#vector-memory-screen .vm-item-meta {
+    color: #6B7A8F !important;
+    font-size: 11px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    flex-wrap: wrap !important;
+    margin-top: 6px !important;
+}
+
+#vector-memory-screen .vm-meta-tag {
+    background-color: #DCEAF5 !important;
+    color: #4A6A8F !important;
+    padding: 2px 8px !important;
+    border-radius: 10px !important;
+    font-size: 11px !important;
+    border: 1px solid #B5CFE0 !important;
+}
+
+#vector-memory-screen .vm-time-picker {
+    background-color: #DCEAF5 !important;
+    border: 1px solid #B5CFE0 !important;
+    border-radius: 6px !important;
+    padding: 3px 6px !important;
+    color: #2C3E50 !important;
+    font-size: 11px !important;
+    font-family: inherit !important;
+}
+
+#vector-memory-screen .vm-time-picker:focus {
+    outline: none !important;
+    border-color: #5DADE2 !important;
+}
+
+#vector-memory-screen .vm-item-btn {
+    padding: 4px 10px !important;
+    border: 1px solid #B5CFE0 !important;
+    background-color: transparent !important;
+    color: #5DADE2 !important;
+    border-radius: 6px !important;
+    font-size: 12px !important;
+    cursor: pointer !important;
+    font-weight: 500 !important;
+}
+
+#vector-memory-screen .vm-item-btn:hover {
+    background-color: rgba(93, 173, 226, 0.1) !important;
+    border-color: #5DADE2 !important;
+}
+
+#vector-memory-screen .vm-item-btn:active {
+    opacity: 0.75 !important;
+}
+
+/* 删按钮（红色） */
+#vector-memory-screen .vm-delete-frag-btn {
+    color: #ff3b30 !important;
+    border-color: rgba(255, 59, 48, 0.4) !important;
+}
+
+#vector-memory-screen .vm-delete-frag-btn:hover {
+    background-color: rgba(255, 59, 48, 0.1) !important;
+    border-color: #ff3b30 !important;
+}
+
+/* 救回卧室 → 升级核心（橙色） */
+#vector-memory-screen .vm-save-bedroom-btn {
+    color: #ff9500 !important;
+    border-color: rgba(255, 149, 0, 0.4) !important;
+}
+
+#vector-memory-screen .vm-save-bedroom-btn:hover {
+    background-color: rgba(255, 149, 0, 0.1) !important;
+    border-color: #ff9500 !important;
+}
+
+/* ---------- 9. 玄关 / 回收站 卡片 ---------- */
+#vector-memory-screen .vm-foyer-toolbar {
+    margin-bottom: 8px !important;
+}
+
+#vector-memory-screen .vm-foyer-list {
+    background-color: transparent !important;
+    padding: 0 !important;
+}
+
+#vector-memory-screen .vm-foyer-card {
+    background-color: #E8F2FA !important;
+    border: 1px solid rgba(255, 149, 0, 0.3) !important;
+    border-radius: 12px !important;
+    padding: 12px 14px !important;
+    margin-bottom: 8px !important;
+    display: flex !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+}
+
+#vector-memory-screen .vm-foyer-checkbox-wrap {
+    display: flex !important;
+    align-items: center !important;
+    padding-top: 2px !important;
+    cursor: pointer !important;
+}
+
+#vector-memory-screen .vm-foyer-checkbox {
+    width: 18px !important;
+    height: 18px !important;
+    cursor: pointer !important;
+    accent-color: #ff9500 !important;
+}
+
+#vector-memory-screen .vm-foyer-card-body {
+    flex: 1 !important;
+    min-width: 0 !important;
+}
+
+#vector-memory-screen .vm-foyer-card-content {
+    color: #2C3E50 !important;
+    font-size: 14px !important;
+    line-height: 1.5 !important;
+    word-break: break-word !important;
+    margin-bottom: 6px !important;
+}
+
+#vector-memory-screen .vm-foyer-card-meta {
+    display: flex !important;
+    gap: 6px !important;
+    flex-wrap: wrap !important;
+}
+
+#vector-memory-screen .vm-foyer-card-actions {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+}
+
+/* ---------- 10. 空状态 ---------- */
+#vector-memory-screen .vm-list-container > div[style*="text-align:center"] {
+    color: #8896A6 !important;
+}
+
+#vector-memory-screen .vm-list-container > div[style*="text-align:center"] p {
+    color: #8896A6 !important;
+}
+
+#vector-memory-screen .vm-list-container > div[style*="text-align:center"] p[style*="color:#666"] {
+    color: #2C3E50 !important;
+}
+
+/* ---------- 11. 全屏设置/教程面板（#vm-settings-screen）---------- */
+#vm-settings-screen .vm-fullscreen-panel {
+    background-color: #E8F2FA !important;
+    color: #2C3E50 !important;
+}
+
+#vm-settings-screen .vm-panel-header {
+    background-color: #E8F2FA !important;
+    border-bottom: 1px solid rgba(0, 229, 255, 0.18) !important;
+    padding: 12px 14px !important;
+    color: #2C3E50 !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 10 !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+}
+
+#vm-settings-screen .vm-panel-back {
+    color: #5DADE2 !important;
+    font-size: 24px !important;
+    font-weight: 300 !important;
+    cursor: pointer !important;
+}
+
+#vm-settings-screen .vm-panel-title {
+    color: #2C3E50 !important;
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.3px !important;
+}
+
+#vm-settings-screen .vm-panel-tabs {
+    display: flex !important;
+    background-color: #DCEAF5 !important;
+    border-radius: 8px !important;
+    padding: 3px !important;
+    margin: 0 12px !important;
+}
+
+#vm-settings-screen .vm-panel-tab {
+    flex: 1 !important;
+    padding: 8px 12px !important;
+    border-radius: 6px !important;
+    text-align: center !important;
+    cursor: pointer !important;
+    color: #6B7A8F !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    transition: all 0.2s !important;
+}
+
+#vm-settings-screen .vm-panel-tab.active {
+    background-color: #5DADE2 !important;
+    color: #FFFFFF !important;
+    box-shadow: 0 2px 6px rgba(93, 173, 226, 0.4) !important;
+}
+
+#vm-settings-screen .vm-panel-body {
+    padding: 14px !important;
+    background-color: #E8F2FA !important;
+    color: #2C3E50 !important;
+}
+
+#vm-settings-screen .vm-panel-content {
+    display: none !important;
+}
+
+#vm-settings-screen .vm-panel-content.active {
+    display: block !important;
+}
+
+/* 设置分组卡 */
+#vm-settings-screen .vm-settings-group {
+    background-color: #FFFFFF !important;
+    border: 1px solid rgba(0, 229, 255, 0.18) !important;
+    border-left: 3px solid #5DADE2 !important;
+    border-radius: 12px !important;
+    padding: 14px 16px !important;
+    margin-bottom: 12px !important;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+#vm-settings-screen .vm-settings-group h4 {
+    color: #2C3E50 !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    margin: 0 0 12px 0 !important;
+    padding-bottom: 8px !important;
+    border-bottom: 1px solid #D6E5F2 !important;
+    letter-spacing: 0.3px !important;
+}
+
+#vm-settings-screen .vm-setting-item {
+    margin-bottom: 12px !important;
+}
+
+#vm-settings-screen .vm-setting-item:last-child {
+    margin-bottom: 0 !important;
+}
+
+#vm-settings-screen .vm-setting-item label {
+    color: #2C3E50 !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    display: block !important;
+    margin-bottom: 6px !important;
+}
+
+#vm-settings-screen .vm-input,
+#vm-settings-screen .vm-input-full,
+#vm-settings-screen .vm-input-sm,
+#vm-settings-screen .vm-textarea {
+    background-color: #DCEAF5 !important;
+    border: 1px solid #B5CFE0 !important;
+    border-radius: 8px !important;
+    padding: 8px 12px !important;
+    color: #2C3E50 !important;
+    font-size: 14px !important;
+    font-family: inherit !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+#vm-settings-screen .vm-input:focus,
+#vm-settings-screen .vm-input-full:focus,
+#vm-settings-screen .vm-textarea:focus {
+    outline: none !important;
+    border-color: #5DADE2 !important;
+    background-color: #FFFFFF !important;
+}
+
+#vm-settings-screen .vm-input::placeholder,
+#vm-settings-screen .vm-input-full::placeholder,
+#vm-settings-screen .vm-textarea::placeholder {
+    color: #8896A6 !important;
+}
+
+#vm-settings-screen .vm-btn-primary {
+    background-color: #5DADE2 !important;
+    color: #FFFFFF !important;
+    border: 1px solid #5DADE2 !important;
+    border-radius: 8px !important;
+    padding: 8px 16px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    cursor: pointer !important;
+    box-shadow: 0 2px 8px rgba(93, 173, 226, 0.25) !important;
+}
+
+#vm-settings-screen .vm-btn-primary:hover {
+    background-color: #4A8FBC !important;
+    border-color: #4A8FBC !important;
+}
+
+#vm-settings-screen .vm-btn-primary:active {
+    background-color: #3D7BA8 !important;
+    border-color: #3D7BA8 !important;
+}
+
+#vm-settings-screen .vm-preset-row {
+    display: flex !important;
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+    margin-top: 8px !important;
+}
+
+#vm-settings-screen .vm-preset-btn {
+    background-color: #DCEAF5 !important;
+    border: 1px solid #B5CFE0 !important;
+    border-radius: 6px !important;
+    padding: 5px 12px !important;
+    color: #2C3E50 !important;
+    font-size: 12px !important;
+    cursor: pointer !important;
+}
+
+#vm-settings-screen .vm-preset-btn:hover {
+    background-color: #5DADE2 !important;
+    color: #FFFFFF !important;
+    border-color: #5DADE2 !important;
+}
+
+/* 描述/提示文字 */
+#vm-settings-screen div[style*="font-size:11px"] {
+    color: #8896A6 !important;
+}
+
+/* ---------- 12. 教程页样式 ---------- */
+#vm-settings-screen .vm-guide {
+    max-width: 600px !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+}
+
+#vm-settings-screen .vm-guide-section {
+    background-color: #FFFFFF !important;
+    border: 1px solid rgba(0, 229, 255, 0.18) !important;
+    border-left: 3px solid #5DADE2 !important;
+    border-radius: 12px !important;
+    padding: 14px 16px !important;
+    margin-bottom: 12px !important;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+#vm-settings-screen .vm-guide-section h4 {
+    color: #2C3E50 !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    margin: 0 0 10px 0 !important;
+    padding-bottom: 8px !important;
+    border-bottom: 1px solid #D6E5F2 !important;
+}
+
+#vm-settings-screen .vm-guide-section p {
+    color: #4A6A8F !important;
+    font-size: 13px !important;
+    line-height: 1.7 !important;
+    margin: 6px 0 !important;
+}
+
+#vm-settings-screen .vm-guide-card {
+    background-color: #DCEAF5 !important;
+    border: 1px solid #B5CFE0 !important;
+    border-radius: 8px !important;
+    padding: 10px 12px !important;
+    margin: 8px 0 !important;
+}
+
+#vm-settings-screen .vm-guide-card-title {
+    color: #5DADE2 !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    margin-bottom: 4px !important;
+}
+
+#vm-settings-screen .vm-guide-card p {
+    color: #4A6A8F !important;
+    font-size: 12px !important;
+    line-height: 1.6 !important;
+    margin: 0 !important;
+}
+
+#vm-settings-screen .vm-guide-tip {
+    background-color: rgba(0, 229, 255, 0.08) !important;
+    border: 1px solid rgba(0, 229, 255, 0.25) !important;
+    border-radius: 8px !important;
+    padding: 8px 12px !important;
+    color: #4A6A8F !important;
+    font-size: 12px !important;
+    line-height: 1.6 !important;
+    margin: 8px 0 !important;
+}
+
+#vm-settings-screen .vm-guide-list {
+    background-color: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 8px 0 !important;
+}
+
+#vm-settings-screen .vm-guide-list > div {
+    border-bottom: 1px solid #D6E5F2 !important;
+    padding: 6px 0 !important;
+    color: #4A6A8F !important;
+    font-size: 13px !important;
+}
+
+#vm-settings-screen .vm-guide-list > div:last-child {
+    border-bottom: none !important;
+}
+
+#vm-settings-screen .vm-guide-label {
+    color: #5DADE2 !important;
+    font-weight: 600 !important;
+    margin-right: 4px !important;
+}
+
+#vm-settings-screen .vm-guide-step {
+    color: #4A6A8F !important;
+    font-size: 13px !important;
+    line-height: 1.7 !important;
+    margin: 4px 0 !important;
+    padding-left: 4px !important;
+}
+
+#vm-settings-screen .vm-step-num {
+    color: #5DADE2 !important;
+    font-weight: 600 !important;
+    margin-right: 4px !important;
+}
+
+/* ---------- 13. 批量管理工具栏 ---------- */
+#vector-memory-screen .vm-bulk-bar {
+    background-color: #DCEAF5 !important;
+    border: 1px solid #B5CFE0 !important;
+    border-radius: 10px !important;
+    padding: 10px 14px !important;
+    margin-bottom: 12px !important;
+}
+
+#vector-memory-screen .vm-bulk-bar-text {
+    color: #2C3E50 !important;
+    font-size: 13px !important;
+}
+
+/* ---------- 14. 暗色模式兼容（深底变体）---------- */
+#phone-screen.dark-mode #vector-memory-screen,
+#phone-screen.dark-mode #vm-settings-screen {
+    background-color: #0A0F1A !important;
+}
+
+#phone-screen.dark-mode #vector-memory-screen .vm-item-row,
+#phone-screen.dark-mode #vector-memory-screen .vm-foyer-card,
+#phone-screen.dark-mode #vm-settings-screen .vm-settings-group,
+#phone-screen.dark-mode #vm-settings-screen .vm-guide-section {
+    background-color: #1A2438 !important;
+    border-color: rgba(0, 229, 255, 0.3) !important;
+}
+
+#phone-screen.dark-mode #vector-memory-screen .vm-item-content,
+#phone-screen.dark-mode #vector-memory-screen .vm-foyer-card-content {
+    color: #E6F1FF !important;
+}
+
+#phone-screen.dark-mode #vector-memory-screen .vm-item-meta,
+#phone-screen.dark-mode #vector-memory-screen .vm-meta-tag {
+    color: #B0BFD0 !important;
+}
+
+#phone-screen.dark-mode #vector-memory-screen .vm-meta-tag {
+    background-color: #243349 !important;
+    border-color: #34465F !important;
+}
+
+#phone-screen.dark-mode #vector-memory-screen .vm-time-picker {
+    background-color: #243349 !important;
+    border-color: #34465F !important;
+    color: #E6F1FF !important;
+}
+
+#phone-screen.dark-mode #vm-settings-screen .vm-input,
+#phone-screen.dark-mode #vm-settings-screen .vm-input-full,
+#phone-screen.dark-mode #vm-settings-screen .vm-textarea {
+    background-color: #243349 !important;
+    border-color: #34465F !important;
+    color: #E6F1FF !important;
+}
+
+#phone-screen.dark-mode #vm-settings-screen .vm-panel-body,
+#phone-screen.dark-mode #vm-settings-screen .vm-panel-header {
+    background-color: #1A2438 !important;
+}
+
+#phone-screen.dark-mode #vm-settings-screen .vm-settings-group h4,
+#phone-screen.dark-mode #vm-settings-screen .vm-panel-title,
+#phone-screen.dark-mode #vm-settings-screen .vm-setting-item label {
+    color: #E6F1FF !important;
+}
+
+#phone-screen.dark-mode #vm-settings-screen .vm-guide-section p,
+#phone-screen.dark-mode #vm-settings-screen .vm-guide-card p,
+#phone-screen.dark-mode #vm-settings-screen .vm-guide-list > div {
+    color: #B0BFD0 !important;
+}
+
+/* ============================================================
+   记忆主页（导航页）#memory-hub-screen
+   ============================================================ */
+#memory-hub-screen {
+    background-color: #0F1626 !important;
+    color: #E6F1FF !important;
+}
+
+#memory-hub-screen .header {
+    background-color: #0F1626 !important;
+    border-bottom: 1px solid rgba(0, 229, 255, 0.12) !important;
+    box-shadow: none !important;
+}
+
+#memory-hub-screen .header .back-btn {
+    color: #00E5FF !important;
+}
+
+#memory-hub-screen .header > span[data-lang-key] {
+    color: #E6F1FF !important;
+}
+
+/* 顶栏下拉（模式选择） */
+#memory-hub-screen .header select#memory-hub-mode-select {
+    background-color: #1A2438 !important;
+    border: 1px solid rgba(0, 229, 255, 0.3) !important;
+    border-radius: 8px !important;
+    color: #E6F1FF !important;
+    padding: 4px 8px !important;
+    font-size: 12px !important;
+}
+
+#memory-hub-screen #memory-hub-container {
+    background-color: #0F1626 !important;
+    padding: 15px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 14px !important;
+}
+
+/* 三张导航卡片：日记 / 变量记忆 / 结构化 */
+#memory-hub-screen .memory-hub-card {
+    display: flex !important;
+    align-items: center !important;
+    gap: 14px !important;
+    padding: 18px 18px !important;
+    background-color: #E8F2FA !important;
+    border: 1px solid rgba(0, 229, 255, 0.18) !important;
+    border-left: 3px solid #5DADE2 !important;
+    border-radius: 12px !important;
+    cursor: pointer !important;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25) !important;
+    transition: transform 0.15s, box-shadow 0.15s, background-color 0.15s !important;
+}
+
+#memory-hub-screen .memory-hub-card:hover {
+    background-color: #DCEAF5 !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35) !important;
+}
+
+#memory-hub-screen .memory-hub-card:active {
+    transform: scale(0.98) !important;
+    background-color: #CFE0F0 !important;
+}
+
+#memory-hub-screen .memory-hub-card-icon {
+    font-size: 32px !important;
+    flex-shrink: 0 !important;
+    width: 48px !important;
+    height: 48px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background-color: rgba(93, 173, 226, 0.12) !important;
+    border-radius: 10px !important;
+}
+
+#memory-hub-screen .memory-hub-card-body {
+    flex: 1 !important;
+    min-width: 0 !important;
+}
+
+#memory-hub-screen .memory-hub-card-title {
+    color: #2C3E50 !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    margin-bottom: 4px !important;
+    letter-spacing: 0.3px !important;
+}
+
+#memory-hub-screen .memory-hub-card-desc {
+    color: #6B7A8F !important;
+    font-size: 12px !important;
+    line-height: 1.5 !important;
+}
+
+#memory-hub-screen .memory-hub-card-arrow {
+    color: #5DADE2 !important;
+    font-size: 24px !important;
+    font-weight: 300 !important;
+    flex-shrink: 0 !important;
+}
+
+/* 模式提示卡（底部"当前模式"） */
+#memory-hub-screen .memory-hub-tip {
+    background-color: #DCEAF5 !important;
+    border: 1px solid #B5CFE0 !important;
+    border-radius: 10px !important;
+    padding: 12px 14px !important;
+    color: #4A6A8F !important;
+    font-size: 12px !important;
+    line-height: 1.6 !important;
+    text-align: center !important;
+}
+
+#memory-hub-screen .memory-hub-tip strong {
+    color: #5DADE2 !important;
+    font-weight: 600 !important;
+}
+
+/* 暗色模式：卡片反色 */
+#phone-screen.dark-mode #memory-hub-screen .memory-hub-card {
+    background-color: #1A2438 !important;
+    border-color: rgba(0, 229, 255, 0.3) !important;
+}
+
+#phone-screen.dark-mode #memory-hub-screen .memory-hub-card-title {
+    color: #E6F1FF !important;
+}
+
+#phone-screen.dark-mode #memory-hub-screen .memory-hub-card-desc {
+    color: #B0BFD0 !important;
+}
+
+#phone-screen.dark-mode #memory-hub-screen .memory-hub-card-icon {
+    background-color: rgba(93, 173, 226, 0.2) !important;
+}
+
+#phone-screen.dark-mode #memory-hub-screen .memory-hub-tip {
+    background-color: #243349 !important;
+    border-color: #34465F !important;
+    color: #B0BFD0 !important;
+}
+
+#phone-screen.dark-mode #memory-hub-screen .memory-hub-tip strong {
+    color: #5DADE2 !important;
+}
