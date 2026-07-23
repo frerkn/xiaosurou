@@ -226,11 +226,14 @@
       }
     }
 
-    // 4.5 【2026-07-21 加】有样本 → 强制 cover 模型（用户原话："我们需要的是角色唱歌不是别人唱歌"）
-    // 即使用户在设置选了普通模型，只要角色有上传音色样本就自动切到 cover
-    if (hasVoiceSample && !String(model).startsWith('music-cover')) {
+    // 4.5 【2026-07-23 改】原本强制 cover，改成读开关 autoCoverWhenHasSample（默认 true 保持原行为）
+    // 关掉后 = 即使有音色样本也用用户在设置里选的普通模型（更便宜，但失去角色专属音色）
+    const autoCover = state.globalSettings?.autoCoverWhenHasSample !== false;
+    if (autoCover && hasVoiceSample && !String(model).startsWith('music-cover')) {
       console.log('[AIMusic] 检测到角色音色样本，自动从 ' + model + ' 切换到 music-cover（角色专属音色）');
       model = 'music-cover';
+    } else if (!autoCover && hasVoiceSample && !String(model).startsWith('music-cover')) {
+      console.log('[AIMusic] 角色有音色样本但用户关了 auto-cover，沿用用户选的模型: ' + model);
     }
 
     const isCoverModel = String(model).startsWith('music-cover');

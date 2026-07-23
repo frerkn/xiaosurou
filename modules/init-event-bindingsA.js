@@ -1550,7 +1550,12 @@ window.initEventBindingsA = async function(state, db) {
       };
 
       const openPlayer = (event) => {
-        if (!musicState.isActive) return;
+        // 【2026-07-23 修】AI 自动唱歌的路径（ai-response.js / ai-group.js / background-activity.js）不调
+        // startListenTogetherSession，musicState.isActive 一直是 false，但 playlist 已经有歌且 isPlaying=true
+        // 灵动岛能弹出来但点不开——加 playlist+isPlaying 兜底判断
+        const hasPlayingSong = musicState.playlist && musicState.playlist.length > 0
+          && musicState.currentIndex >= 0 && musicState.isPlaying;
+        if (!musicState.isActive && !hasPlayingSong) return;
         event?.preventDefault();
         event?.stopPropagation();
         window.showMusicPlayerOverlay?.();
@@ -2346,6 +2351,11 @@ window.initEventBindingsA = async function(state, db) {
       const musicModelSelect = document.getElementById('music-model-select');
       if (musicModelSelect) {
         state.globalSettings.musicModel = musicModelSelect.value;
+      }
+      // 【2026-07-23 新增】"角色有音色样本时自动用 Cover" 开关
+      const autoCoverSwitch = document.getElementById('auto-cover-when-has-sample-switch');
+      if (autoCoverSwitch) {
+        state.globalSettings.autoCoverWhenHasSample = autoCoverSwitch.checked;
       }
 
       await db.globalSettings.put(state.globalSettings);

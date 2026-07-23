@@ -148,11 +148,11 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
   <script src="modules/chat-interface.js?v=0.0.37" defer></script>
   <script src="modules/chat-input.js?v=0.0.36" defer></script>
   <!-- 第四层：AI 核心 -->
-  <script src="modules/ai-response.js?v=0.0.47" defer></script>
-  <script src="modules/ai-group.js?v=0.0.38" defer></script>
+  <script src="modules/ai-response.js?v=0.0.48" defer></script>
+  <script src="modules/ai-group.js?v=0.0.39" defer></script>
   <!-- 第五层：功能模块 -->
   <script src="modules/music-player.js?v=0.0.45" defer></script>
-  <script src="modules/ai-music.js?v=0.0.79" defer></script>
+  <script src="modules/ai-music.js?v=0.0.80" defer></script>
   <script src="js/music-voice-sample.js?v=0.0.79" defer></script>
   <script src="js/ai-songs-store.js?v=0.0.79" defer></script>
   <script src="js/role-voice-sample-ui.js?v=0.0.79" defer></script>
@@ -167,7 +167,7 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
   <script src="modules/message-actions.js?v=0.0.36" defer></script>
   <script src="modules/nai-imagen.js?v=0.0.36" defer></script>
   <script src="modules/backup-import-export.js?v=0.0.36" defer></script>
-  <script src="modules/settings-presets.js?v=0.0.88" defer></script>
+  <script src="modules/settings-presets.js?v=0.0.89" defer></script>
   <script src="modules/chat-settings-presets.js?v=0.0.36" defer></script>
   <script src="modules/shopping.js?v=0.0.36" defer></script>
   <script src="modules/rendering-rules.js?v=0.0.36" defer></script>
@@ -217,7 +217,7 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
   <!-- PIN/城市（依赖 DOM） -->
   <script src="modules/init-pin-city.js?v=0.0.36" defer></script>
   <!-- 事件绑定和功能（依赖 state, db） -->
-  <script src="modules/init-event-bindingsA.js?v=0.0.44" defer></script>
+  <script src="modules/init-event-bindingsA.js?v=0.0.46" defer></script>
   <script src="modules/init-event-bindingsB.js?v=0.0.38" defer></script>
   <script src="modules/init-features.js?v=0.0.40" defer></script>
   <!-- 主入口（最后加载，调用 init） -->
@@ -2361,6 +2361,15 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
                                 <option value="music-2.5">music-2.5</option>
                             </optgroup>
                         </select>
+                    </div>
+                </div>
+                <div class="settings-item" style="margin-top: 6px;">
+                    <label style="font-size: 13px; color: var(--text-secondary, #666);">角色有音色样本时自动用 Cover</label>
+                    <div class="settings-right">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="auto-cover-when-has-sample-switch">
+                            <span class="slider"></span>
+                        </label>
                     </div>
                 </div>
             </div>

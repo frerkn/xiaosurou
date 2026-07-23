@@ -1091,7 +1091,8 @@ ${longTimeNoSee ? `【重要提示】你们已经很久没聊天了！你【必�
               if (window.MusicPlayer && typeof window.MusicPlayer.addAiSongToPlaylist === 'function') {
                 const addResult = await window.MusicPlayer.addAiSongToPlaylist(blob, {
                   songId, title: songTitle, isCover: useVoiceSample,
-                  chatId: chatId, createdAt: Date.now()
+                  chatId: chatId, createdAt: Date.now(),
+                  lyrics: songLyrics  // 【2026-07-23 修】caller 漏传 lyrics
                 });
                 if (addResult && typeof addResult.index === 'number') addedIndex = addResult.index;
               }
@@ -1566,7 +1567,8 @@ ${silenceUserMsg}
           if (window.MusicPlayer && typeof window.MusicPlayer.addAiSongToPlaylist === 'function') {
             const addResult = await window.MusicPlayer.addAiSongToPlaylist(blob, {
               songId, title: songTitle, isCover: useVoiceSample,
-              chatId: chatId, createdAt: Date.now()
+              chatId: chatId, createdAt: Date.now(),
+              lyrics: songLyrics  // 【2026-07-23 修】caller 漏传 lyrics
             });
             if (addResult && typeof addResult.index === 'number') addedIndex = addResult.index;
           }

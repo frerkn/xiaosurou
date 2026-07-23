@@ -15,6 +15,9 @@
 // 2026-07-21 v0.1.29: bump CACHE_VERSION — 新增 js/ai-songs-store.js（AI 原创曲 IndexedDB 持久化层）
 // 2026-07-21 v0.1.30: bump CACHE_VERSION — 视频通话 Live2D 接入（cubism core + pixi.js + pixi-live2d-display + lib/live2dcubismcore.min.js + modules/live2d-loader.js + assets/live2d/）
 
+// 2026-07-23 v0.1.38: bump CACHE_VERSION 强制清缓存（"角色有音色样本时自动用 Cover" 开关 — index.html 加 #auto-cover-when-has-sample-switch 开关；settings-presets.js 加载默认 true；init-event-bindingsA.js 保存到 globalSettings.autoCoverWhenHasSample；ai-music.js 强制 cover 逻辑改成读这个开关，false 时即使有样本也用用户在设置里选的普通模型）
+// 2026-07-23 v0.1.37: bump CACHE_VERSION 强制清缓存（灵动岛点击打不开播放器 — modules/init-event-bindingsA.js setupMusicIslandWidget openPlayer 原来只判 musicState.isActive，AI 自动唱歌的路径不调 startListenTogetherSession 一直是 false，加 playlist+isPlaying 兜底判断）
+// 2026-07-23 v0.1.36: bump CACHE_VERSION 强制清缓存（AI 歌 caller 漏传 lyrics — ai-response.js:6739 + ai-group.js:1092 + ai-group.js:1567 三处 addAiSongToPlaylist 没传 lyrics 字段，buildLrcFromLyrics 拿不到词 → 播放器 lrcContent 一直是空，歌词不显示）
 // 2026-07-23 v0.1.35: bump CACHE_VERSION 强制清缓存（Cover 模式歌词覆盖 bug — modules/ai-music.js generateCover 删掉 preprocess 返回的 formatted_lyrics 覆盖逻辑，之前是 server 从参考音频 ASR 出来的旧歌词覆盖了用户给的新词，导致 Cover 唱的还是上传内容）
 // 2026-07-22 v0.1.34: bump CACHE_VERSION 强制清缓存（音色样本 file input accept 加扩展名兜底 — js/role-voice-sample-ui.js accept 改为 ".mp3,.wav,.m4a,..." 列表避免 audio/* 在 Windows Chrome/PWA 过滤掉 mp3；hidden 改 display:none 保险；js/music-voice-sample.js setVoiceSample 强制 blob mime=audio/mpeg 避免 IDB 丢 mime）
 // 2026-07-22 v0.1.33: bump CACHE_VERSION 强制清缓存（悬浮球"AI 原创曲管理"入口 — modules/floating-ball.js 加 data-action="manage-ai-songs" + handleQuickManageAiSongs() mini modal 列出 IndexedDB 所有 AI 歌，每首 ▶/⤓/🗑，底部一键清空；js/ai-songs-store.js 加 listAllSongs API）
@@ -22,7 +25,7 @@
 // 2026-07-22 v0.1.31: bump CACHE_VERSION 强制清缓存（AI 原创曲按 songId 去重 — modules/music-player.js addAiSongToPlaylist 加 songId pre-dedup 块，绕过 getMusicTrackKey 不认 songId 的 bug）
 // 2026-07-21 v0.1.30: bump CACHE_VERSION — 视频通话 Live2D 接入（cubism core + pixi.js + pixi-live2d-display + lib/live2dcubismcore.min.js + modules/live2d-loader.js + assets/live2d/）
 // 2026-07-21 v0.1.29: bump CACHE_VERSION — 新增 js/ai-songs-store.js（AI 原创曲 IndexedDB 持久化层）
-const CACHE_VERSION = 'v0.1.35';
+const CACHE_VERSION = 'v0.1.38';
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [

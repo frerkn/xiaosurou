@@ -6741,7 +6741,8 @@ ${getActiveThoughtsPrompt()}
                   title: songTitle,
                   isCover: useVoiceSample,
                   chatId: chatId,
-                  createdAt: Date.now()
+                  createdAt: Date.now(),
+                  lyrics: songLyrics  // 【2026-07-23 修】caller 漏传 lyrics，buildLrcFromLyrics 拿不到词 → 播放器 lrcContent 一直是空
                 });
                 if (addResult && typeof addResult.index === 'number') {
                   addedIndex = addResult.index;
