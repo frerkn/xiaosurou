@@ -108,10 +108,12 @@
   // ---------- Cover 模式（两步调用：preprocess → 主生成） ----------
   async function generateCover({ apiKey, model, prompt, lyrics, audioBase64, onProgress }) {
     let coverFeatureId = null;
-    let finalLyrics = lyrics;
+    const finalLyrics = lyrics;  // 【2026-07-23 修】不再用 server 返回的 formatted_lyrics 覆盖——
+                                   // preprocess 返回的 formatted_lyrics 是 server 从参考音频 ASR 出来的歌词，
+                                   // 覆盖会把用户给的新词替换成参考音频里的旧词，导致 Cover 唱的还是上传内容
     let usedPreprocess = false;
 
-    // 步骤 1：如果用户给了歌词，先跑 preprocess 提取特征 + 歌词格式化
+    // 步骤 1：如果用户给了歌词，先跑 preprocess 提取声音特征（拿 cover_feature_id）
     if (lyrics && String(lyrics).trim()) {
       usedPreprocess = true;
       onProgress && onProgress({ stage: 'preprocess', text: '正在提取音频特征...' });
@@ -123,10 +125,7 @@
         throw new Error('Cover 预处理失败: ' + (preprocessRes.base_resp.status_msg || '未知错误'));
       }
       coverFeatureId = preprocessRes.cover_feature_id;
-      // 如果 server 返回了 formatted_lyrics，优先用 server 格式化后的（结构更准）
-      if (preprocessRes.formatted_lyrics) {
-        finalLyrics = preprocessRes.formatted_lyrics;
-      }
+      // 故意不读 preprocessRes.formatted_lyrics——见上面注释
     }
 
     // 步骤 2：调主端点
