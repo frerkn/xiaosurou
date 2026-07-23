@@ -49,8 +49,13 @@
 
   // 存一段音频 blob
   // duration 是秒（UI 测出来的），uploadedAt 自动
+  // 【2026-07-22 修】强制 blob mime=audio/mpeg——避免 IDB 反序列化丢 mime 后 Cover API 拒收
+  //  File 对象可能有 audio/mpeg/audio/wav 等具体 mime，但 IDB 存读可能丢，强制包装最稳
   async function setVoiceSample(chatId, blob, duration) {
     if (!chatId || !blob) return false;
+    const safeBlob = blob.type && blob.type.startsWith('audio/') && blob.type !== ''
+      ? blob
+      : new Blob([blob], { type: 'audio/mpeg' });
     try {
       const db = await openDb();
       return await new Promise((resolve, reject) => {
@@ -58,7 +63,7 @@
         const store = tx.objectStore(STORE_NAME);
         const record = {
           chatId: chatId,
-          blob: blob,
+          blob: safeBlob,
           duration: Number(duration) || 0,
           uploadedAt: Date.now()
         };

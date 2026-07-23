@@ -84,14 +84,14 @@
         AI 唱歌时可以用 Cover 模式模仿这个音色。
       </div>
       <div style="display:flex; gap:8px; align-items:center;">
-        <input type="file" id="role-voice-sample-input" accept="audio/*" hidden>
+        <input type="file" accept=".mp3,.wav,.m4a,.ogg,.flac,.aac,audio/mpeg,audio/wav,audio/x-m4a,audio/mp4,audio/ogg,audio/flac,audio/aac" style="display:none;">
         <button type="button" class="settings-mini-btn" id="role-voice-sample-upload-btn">📁 选择音频文件</button>
         <span id="role-voice-sample-status" style="font-size:12px; color:var(--text-secondary, #8e8e93);"></span>
       </div>
     `;
     container.appendChild(wrap);
 
-    const fileInput = wrap.querySelector('#role-voice-sample-input');
+    const fileInput = wrap.querySelector('input[type="file"]');
     const uploadBtn = wrap.querySelector('#role-voice-sample-upload-btn');
     const statusEl = wrap.querySelector('#role-voice-sample-status');
 
@@ -158,7 +158,7 @@
       </div>
       <div style="display:flex; gap:8px;">
         <button type="button" class="settings-mini-btn" id="role-voice-sample-play-btn">▶ 试听</button>
-        <input type="file" id="role-voice-sample-input" accept="audio/*" hidden>
+        <input type="file" accept=".mp3,.wav,.m4a,.ogg,.flac,.aac,audio/mpeg,audio/wav,audio/x-m4a,audio/mp4,audio/ogg,audio/flac,audio/aac" style="display:none;">
         <button type="button" class="settings-mini-btn" id="role-voice-sample-replace-btn">🔄 更换</button>
         <button type="button" class="settings-mini-btn" id="role-voice-sample-delete-btn">🗑 删除</button>
       </div>
@@ -168,7 +168,7 @@
     const playBtn = wrap.querySelector('#role-voice-sample-play-btn');
     const replaceBtn = wrap.querySelector('#role-voice-sample-replace-btn');
     const deleteBtn = wrap.querySelector('#role-voice-sample-delete-btn');
-    const fileInput = wrap.querySelector('#role-voice-sample-input');
+    const fileInput = wrap.querySelector('input[type="file"]');
 
     let playUrl = null;
     let playAudio = null;
