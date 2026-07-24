@@ -497,39 +497,82 @@ async function unsubscribeFromPushServer() {
   async function repairSystemNotification() {
     const config = ensureSystemNotificationConfig();
     const messages = [];
+    const repairBtn = document.getElementById('repair-system-notification-btn');
+    const originalBtnText = repairBtn ? repairBtn.textContent : '';
+    // 2026-07-24 修复：按钮加 disabled + 状态文字，给用户"点了有反应"的即时反馈，
+    // 并避免多次连点 + 排查"点了一键修复通知没反应"问题（之前的卡住可能由
+    // navigator.serviceWorker.ready 永久 pending 导致）
+    if (repairBtn) {
+      repairBtn.disabled = true;
+      repairBtn.textContent = '修复中…';
+    }
+    console.log('[系统通知修复] 启动');
 
     try {
       let registration = null;
 
       if (!('Notification' in window)) {
+        console.warn('[系统通知修复] 浏览器不支持系统通知');
         alert('当前浏览器不支持系统通知');
         await checkNotificationHealth();
         return;
       }
 
       if ('serviceWorker' in navigator) {
-        try {
+        // 2026-07-24 修复：file:// 协议下 origin='null'，浏览器禁止注册 SW
+        // (SecurityError: "The URL protocol of the current origin ('null') is not supported")
+        // 直接跳过整个 SW 块，不当作"失败"，只提示用户升级访问方式
+        const isFileProtocol = location.protocol === 'file:' || location.origin === 'null';
+        if (isFileProtocol) {
+          console.log('[系统通知修复] 当前是 file:// 协议，跳过 SW 注册（浏览器不支持）');
+          messages.push('当前是 file:// 协议，Service Worker 不可用（如需 SW 推送请用 HTTPS / localhost / PWA 打开）');
+        } else try {
+          console.log('[系统通知修复] 检查 SW 注册状态...');
           registration = await navigator.serviceWorker.getRegistration();
           if (!registration) {
+            console.log('[系统通知修复] 未注册，正在注册新 SW...');
             registration = await navigator.serviceWorker.register('./sw.js');
             messages.push('Service Worker 已重新注册');
           } else {
+            console.log('[系统通知修复] 已存在 SW registration');
             messages.push('Service Worker 已获取');
           }
           if (navigator.serviceWorker.ready) {
-            registration = await navigator.serviceWorker.ready;
+            console.log('[系统通知修复] 等待 SW ready（最多 5s）...');
+            // 2026-07-24 修复：iOS PWA 模式下 navigator.serviceWorker.ready 偶尔不 resolve，
+            // 加 5s timeout 兜底，避免整个修复流程卡死
+            try {
+              registration = await Promise.race([
+                navigator.serviceWorker.ready,
+                new Promise((_, reject) => setTimeout(
+                  () => reject(new Error('SW ready timeout (5s)')),
+                  5000
+                ))
+              ]);
+              console.log('[系统通知修复] SW ready 已就绪');
+            } catch (readyErr) {
+              console.warn('[系统通知修复] SW ready 等待超时:', readyErr.message);
+              messages.push('SW ready 等待超时（5s），已跳过该步骤');
+            }
           }
-          if (window.notificationManager) {
+          if (window.notificationManager && registration) {
             window.notificationManager.swRegistration = registration;
             window.notificationManager.isInitialized = true;
           }
         } catch (error) {
-          messages.push('Service Worker 注册失败：' + getReadableNotificationError(error));
+          console.error('[系统通知修复] SW 注册失败:', error);
+          // 2026-07-24 显示详细错误信息（error.name + error.message），
+          // 帮用户快速分辨是 SecurityError（file:// 协议不支持）/
+          // NetworkError（sw.js 404 或跨域）/
+          // TypeError（旧 SW 卡 installing 状态，新 register() 冲突）
+          const errDetail = `${error?.name || 'Error'}: ${error?.message || String(error)}`;
+          messages.push('Service Worker 注册失败：' + getReadableNotificationError(error) + ' [' + errDetail + ']');
         }
       } else {
         messages.push('当前浏览器不支持 Service Worker');
       }
 
+      console.log('[系统通知修复] 检查通知权限...');
       if (Notification.permission === 'default') {
         const permissionGranted = await requestNotificationPermission();
         messages.push(permissionGranted ? '通知权限已授权' : '通知权限未授权');
@@ -539,6 +582,7 @@ async function unsubscribeFromPushServer() {
         messages.push('通知权限已拒绝，需要在浏览器或系统设置中手动开启');
       }
 
+      console.log('[系统通知修复] 检查 Push 订阅...');
       if (Notification.permission === 'granted' && registration && 'PushManager' in window) {
         try {
           const pushResult = await tryCreatePushSubscription(registration);
@@ -553,12 +597,31 @@ async function unsubscribeFromPushServer() {
         messages.push('当前浏览器不支持 PushManager');
       }
 
+      console.log('[系统通知修复] 重新检测健康状态...');
       await checkNotificationHealth();
-      alert(messages.join('\n') || '通知修复已完成');
+      console.log('[系统通知修复] 完成:', messages);
+      // 2026-07-24 修复：alert 顶部加 success/failure summary
+      // 之前直接 alert(messages.join('\n'))，如果 SW 注册失败、push 失败，
+      // 用户看到的就是一堆失败消息，没有任何"流程跑完了"的反馈。
+      // 现在：顶部明确告诉用户"全部成功"/"部分需要关注"+ 失败项数量
+      // 注意：file:// 协议下"SW 不可用"是环境限制不算失败，PushManager 不支持也不算失败
+      const failureCount = messages.filter(m =>
+        m.includes('失败') || m.includes('未授权') || m.includes('已拒绝')
+      ).length;
+      const summary = failureCount === 0
+        ? '✅ 通知修复成功'
+        : `⚠️ 通知修复流程已执行（${failureCount} 项需要关注）`;
+      alert(`${summary}\n\n${messages.join('\n')}`);
     } catch (error) {
       console.error('[系统通知修复] 失败:', error);
-      alert('一键修复失败：' + getReadableNotificationError(error));
+      alert('❌ 一键修复失败：' + getReadableNotificationError(error));
       await checkNotificationHealth();
+    } finally {
+      // 恢复按钮状态（无论成功失败）
+      if (repairBtn) {
+        repairBtn.disabled = false;
+        repairBtn.textContent = originalBtnText || '一键修复通知';
+      }
     }
   }
 
@@ -1592,6 +1655,9 @@ async function unsubscribeFromPushServer() {
   // ========== 全局暴露 ==========
   window.initSystemNotification = initSystemNotification;
   window.initBatteryManager = initBatteryManager;
+  // 2026-07-24 暴露 repairSystemNotification 到 window（诊断用）：
+  // 让用户在 console 直接调 `await window.repairSystemNotification()` 排查卡点
+  window.repairSystemNotification = repairSystemNotification;
 
   // ========== 从 script.js 迁移：updateUnreadIndicator ==========
   function updateUnreadIndicator(count) {

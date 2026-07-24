@@ -13,8 +13,10 @@
 // 2026-07-14 v0.1.22: bump CACHE_VERSION 强制清缓存（一起读书加 URL 抓取 + 粉白美化，index.html/main-ui.css/reading-room.js 都改了）
 // 2026-07-14 v0.1.21: getProxyUrl 加 hostname 优先判断 — 双平台切换永远正确不靠缓存
 // 2026-07-21 v0.1.29: bump CACHE_VERSION — 新增 js/ai-songs-store.js（AI 原创曲 IndexedDB 持久化层）
+// 2026-07-24 v0.1.44: bump CACHE_VERSION 强制清缓存（Live2D 硬开关 — state.globalSettings.live2dEnabled !== true 时 mountLive2DForCall 直接 return, UI 输入框也隐藏；之前卖家模型不兼容 doDrawModel undefined '0'，保留所有 Live2D 代码和数据以备以后换兼容模型）
 // 2026-07-21 v0.1.30: bump CACHE_VERSION — 视频通话 Live2D 接入（cubism core + pixi.js + pixi-live2d-display + lib/live2dcubismcore.min.js + modules/live2d-loader.js + assets/live2d/）
 
+// 2026-07-24 v0.1.45: bump CACHE_VERSION 强制清缓存（音色样本时长上限 60s → 180s / 3 分钟 — js/role-voice-sample-ui.js MAX_DURATION 60→180、MAX_SIZE 10MB→20MB、文案跟着变。MiniMax Cover 输出音频长度受参考音频长度限制，60s 唱不完整一首歌，3 分钟够用；3 分钟 wav 25-35MB 仍超 20MB，但 mp3 5-8MB 够用，主推 mp3）
 // 2026-07-23 v0.1.38: bump CACHE_VERSION 强制清缓存（"角色有音色样本时自动用 Cover" 开关 — index.html 加 #auto-cover-when-has-sample-switch 开关；settings-presets.js 加载默认 true；init-event-bindingsA.js 保存到 globalSettings.autoCoverWhenHasSample；ai-music.js 强制 cover 逻辑改成读这个开关，false 时即使有样本也用用户在设置里选的普通模型）
 // 2026-07-23 v0.1.37: bump CACHE_VERSION 强制清缓存（灵动岛点击打不开播放器 — modules/init-event-bindingsA.js setupMusicIslandWidget openPlayer 原来只判 musicState.isActive，AI 自动唱歌的路径不调 startListenTogetherSession 一直是 false，加 playlist+isPlaying 兜底判断）
 // 2026-07-23 v0.1.36: bump CACHE_VERSION 强制清缓存（AI 歌 caller 漏传 lyrics — ai-response.js:6739 + ai-group.js:1092 + ai-group.js:1567 三处 addAiSongToPlaylist 没传 lyrics 字段，buildLrcFromLyrics 拿不到词 → 播放器 lrcContent 一直是空，歌词不显示）
@@ -25,7 +27,11 @@
 // 2026-07-22 v0.1.31: bump CACHE_VERSION 强制清缓存（AI 原创曲按 songId 去重 — modules/music-player.js addAiSongToPlaylist 加 songId pre-dedup 块，绕过 getMusicTrackKey 不认 songId 的 bug）
 // 2026-07-21 v0.1.30: bump CACHE_VERSION — 视频通话 Live2D 接入（cubism core + pixi.js + pixi-live2d-display + lib/live2dcubismcore.min.js + modules/live2d-loader.js + assets/live2d/）
 // 2026-07-21 v0.1.29: bump CACHE_VERSION — 新增 js/ai-songs-store.js（AI 原创曲 IndexedDB 持久化层）
-const CACHE_VERSION = 'v0.1.38';
+// 2026-07-24 v0.1.42: bump CACHE_VERSION 强制清缓存（SW install 改宽容：cache.addAll → Promise.allSettled，单个 URL 失败不再让整个 install 失败 — 修复"一键修复通知 SW 注册不上"根因）
+// 2026-07-24 v0.1.41: bump CACHE_VERSION 强制清缓存（一键修复通知卡死修复：navigator.serviceWorker.ready 加 5s timeout + 全流程 console.log 进度 + 按钮 disabled 状态 — modules/notification-battery.js + index.html bump ?v=0.0.38）
+// 2026-07-24 v0.1.40: bump CACHE_VERSION 强制清缓存（"无声智能保活"settings-item 改用标准结构 label + .settings-desc，跟其他设置项对齐 — index.html line 3173-3183）
+// 2026-07-24 v0.1.39: bump CACHE_VERSION 强制清缓存（系统设置首页"数据与存储"卡片跳转目标从 sec-cloud-storage 改到 sec-data-management — modules/system-settings-home.js + index.html bump ?v=0.0.37）
+const CACHE_VERSION = 'v0.1.45';
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [
@@ -67,10 +73,27 @@ self.addEventListener('install', event => {
     caches.open(CACHE_NAME)
       .then(cache => {
         console.log('[SW] Cache opened, caching core files...');
-        return cache.addAll(URLS_TO_CACHE);
+        // 2026-07-24 修复：cache.addAll 改 allSettled 单独缓存每个文件
+        // 原因：URLS_TO_CACHE 里有 25 个文件（含 5 个外部 CDN），任何一个 fetch
+        // 失败（CDN 抽风 / CORS / 404）整个 addAll 就会 reject，导致 SW install
+        // 永远卡 installing 状态 → navigator.serviceWorker.register() 抛错 →
+        // "一键修复通知" alert 里看不到"已重新注册"的成功提示。
+        // 改宽容后：单个失败只 warn 跳过，整体 install 必成功。
+        return Promise.allSettled(
+          URLS_TO_CACHE.map(url =>
+            cache.add(url).catch(err => {
+              console.warn('[SW] 缓存失败（已跳过）:', url, err.message || err);
+              return null;
+            })
+          )
+        ).then(results => {
+          const ok = results.filter(r => r.status === 'fulfilled').length;
+          const fail = results.length - ok;
+          console.log(`[SW] Core files cached: ${ok} ok, ${fail} failed.`);
+        });
       })
       .then(() => {
-        console.log('[SW] Core files cached.');
+        console.log('[SW] skipWaiting()');
         return self.skipWaiting();
       })
   );

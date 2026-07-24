@@ -56,6 +56,11 @@
    * @param {Object} chat - 当前通话的 chat 对象
    */
   async function mountLive2DForCall(chat) {
+    // v0.0.50 Live2D 硬开关 — 默认禁用, 卖家模型不兼容 pixi-live2d-display 时整个模块不工作
+    // 以后想恢复: state.globalSettings.live2dEnabled = true (用户在设置里调, 或代码里写死)
+    if (!state || !state.globalSettings || state.globalSettings.live2dEnabled !== true) {
+      return; // 不挂 Live2D, 不动原图, 视频通话走静态图 (原 330 行为)
+    }
     console.log('[Live2D] mountLive2DForCall called, chat:', chat && chat.name, 'modelPath:', chat && chat.settings && chat.settings.live2dModelPath);
     try {
     const screen = document.getElementById('video-call-screen');
@@ -103,8 +108,9 @@
     if (!result.success) {
       console.warn('[Live2D] mount failed:', result.error, '— restoring original video area');
       canvas.remove();
-      // 错误恢复: 不改 style.display — 让 display: none 保持
-      // 挂断后 #video-call-screen 会 display: none, 子元素自动隐藏, 不需要恢复
+      // v0.1.34: 关键修复 — Live2D 加载失败时必须恢复原图显示
+      // 否则视频通话整个对面画面区都被 hide, 用户看到黑屏
+      restoreVideoCallOriginalDisplay();
     } else {
       console.log('[Live2D] mount success');
     }
@@ -114,10 +120,26 @@
   }
 
   /**
-   * 卸载 Live2D (释放 PIXI GL 资源 + 移除 canvas)
-   * v0.1.7: 不再恢复任何 style.display — 挂断后整个 #video-call-screen 会被 showScreen display: none
-   *         不需要单独恢复 #video-display-area / #remote-video-img / #participant-avatars-grid
-   *         避免挂断瞬间闪现背景图
+   * 恢复视频通话原始画面区显示 (清除 mountLive2DForCall 隐藏的 inline style)
+   * 挂断瞬间无闪现: endVideoCall 是同步流程, unmount 后下一帧才 showScreen 隐藏 #video-call-screen,
+   * inline style 恢复后原图被父元素一起隐藏, 不会出现 1 帧闪现.
+   */
+  function restoreVideoCallOriginalDisplay() {
+    const displayArea = document.getElementById('video-display-area');
+    if (displayArea) displayArea.style.display = '';
+    const remoteImg = document.getElementById('remote-video-img');
+    if (remoteImg) remoteImg.style.display = '';
+    const participantGrid = document.getElementById('participant-avatars-grid');
+    if (participantGrid && participantGrid.parentElement) {
+      participantGrid.parentElement.style.display = '';
+    }
+  }
+
+  /**
+   * 卸载 Live2D (释放 PIXI GL 资源 + 移除 canvas) + 恢复原图显示
+   * v0.1.34: 必须恢复原图显示, 否则:
+   *  - 挂断后下次视频通话整个对面画面区都被 hide, Live2D 又加载失败 → 黑屏
+   *  - Live2D 加载失败时如果不恢复, 通话过程中对面也是黑的
    */
   function unmountLive2DForCall() {
     const canvas = document.getElementById('live2d-canvas');
@@ -125,8 +147,8 @@
       window.Live2DLoader.disposeLive2D(canvas);
       canvas.remove();
     }
-    // 注意: 不调用任何 style.display = '' — 避免挂断瞬间背景图闪现
-    // #video-call-screen 会被 showScreen 整体隐藏
+    // 恢复原图显示 — 让下次视频通话 / Live2D 失败时能正常显示对面
+    restoreVideoCallOriginalDisplay();
   }
 
   let videoCallMicStream = null;

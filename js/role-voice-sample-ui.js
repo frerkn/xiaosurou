@@ -8,8 +8,10 @@
 
 (function () {
   const MIN_DURATION = 5;   // 秒
-  const MAX_DURATION = 60;  // 秒
-  const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+  // 【2026-07-24 改】60 → 180（3 分钟）——MiniMax 文档支持最长 6 分钟，但 3 分钟够唱完一首歌且对浏览器/IndexedDB 压力小
+  const MAX_DURATION = 180; // 秒
+  // 【2026-07-24 改】10MB → 20MB——3 分钟 mp3 约 5-8MB，wav 约 25-35MB，20MB 兜底 mp3 足够
+  const MAX_SIZE = 20 * 1024 * 1024; // 20MB
 
   // ---------- 工具：格式化时长 ----------
   function formatDuration(sec) {
@@ -80,7 +82,7 @@
     wrap.style.padding = '12px 15px';
     wrap.innerHTML = `
       <div style="font-size:12px; color:var(--text-secondary, #8e8e93); margin-bottom:8px;">
-        上传一段 ${MIN_DURATION}-${MAX_DURATION} 秒的角色声音样本（mp3/wav/m4a，≤10MB），
+        上传一段 ${MIN_DURATION}-${MAX_DURATION} 秒（${(MIN_DURATION/60).toFixed(1)}-${(MAX_DURATION/60).toFixed(1)} 分钟）的角色声音样本（mp3/wav/m4a，≤${Math.round(MAX_SIZE/1024/1024)}MB），
         AI 唱歌时可以用 Cover 模式模仿这个音色。
       </div>
       <div style="display:flex; gap:8px; align-items:center;">
@@ -106,7 +108,7 @@
       // 大小校验
       if (file.size > MAX_SIZE) {
         statusEl.textContent = '';
-        alertFallback('文件过大', '音频文件不能超过 10MB');
+        alertFallback('文件过大', '音频文件不能超过 ' + Math.round(MAX_SIZE/1024/1024) + 'MB');
         e.target.value = '';
         return;
       }
@@ -123,7 +125,7 @@
       }
       if (duration < MIN_DURATION || duration > MAX_DURATION) {
         statusEl.textContent = '';
-        alertFallback('时长不符', '音频时长需在 ' + MIN_DURATION + '-' + MAX_DURATION + ' 秒之间（当前 ' + formatDuration(duration) + '）');
+        alertFallback('时长不符', '音频时长需在 ' + formatDuration(MIN_DURATION) + '-' + formatDuration(MAX_DURATION) + ' 之间（当前 ' + formatDuration(duration) + '）');
         e.target.value = '';
         return;
       }
@@ -214,7 +216,7 @@
       const file = e.target.files && e.target.files[0];
       if (!file) return;
       if (file.size > MAX_SIZE) {
-        alertFallback('文件过大', '音频文件不能超过 10MB');
+        alertFallback('文件过大', '音频文件不能超过 ' + Math.round(MAX_SIZE/1024/1024) + 'MB');
         e.target.value = '';
         return;
       }
@@ -227,7 +229,7 @@
         return;
       }
       if (duration < MIN_DURATION || duration > MAX_DURATION) {
-        alertFallback('时长不符', '音频时长需在 ' + MIN_DURATION + '-' + MAX_DURATION + ' 秒之间（当前 ' + formatDuration(duration) + '）');
+        alertFallback('时长不符', '音频时长需在 ' + formatDuration(MIN_DURATION) + '-' + formatDuration(MAX_DURATION) + ' 之间（当前 ' + formatDuration(duration) + '）');
         e.target.value = '';
         return;
       }

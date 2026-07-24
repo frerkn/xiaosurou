@@ -177,7 +177,7 @@
       'image-vision': 'sec-image-gen',
       'couple-space': 'sec-couple-space',
       'ai-behavior': 'sec-ai-behavior',
-      'data-storage': 'sec-cloud-storage',
+      'data-storage': 'sec-data-management',  // 2026-07-24 改：用户反馈"数据管理"最常用，"数据与存储"卡片直接跳到数据管理 section
       // 2026-07-08 v0.0.78 新增
       'mcp-takeout': 'sec-mcp-takeout'
     };

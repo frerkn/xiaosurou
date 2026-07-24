@@ -155,7 +155,7 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
   <script src="modules/ai-music.js?v=0.0.80" defer></script>
   <script src="js/music-voice-sample.js?v=0.0.79" defer></script>
   <script src="js/ai-songs-store.js?v=0.0.79" defer></script>
-  <script src="js/role-voice-sample-ui.js?v=0.0.79" defer></script>
+  <script src="js/role-voice-sample-ui.js?v=0.0.80" defer></script>
   <script src="js/netease-music.js?v=0.0.39" defer></script>
   <script src="js/netease-music-app.js?v=0.0.42" defer></script>
   <script src="js/custom-music-cover.js?v=0.0.37" defer></script>
@@ -163,7 +163,7 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
   <script src="modules/sticker-manager.js?v=0.0.36" defer></script>
   <script src="modules/memory-summary.js?v=0.0.38" defer></script>
   <script src="modules/live2d-loader.js?v=0.1.4" defer></script>
-  <script src="modules/video-voice-call.js?v=0.0.48" defer></script>
+  <script src="modules/video-voice-call.js?v=0.0.50" defer></script>
   <script src="modules/message-actions.js?v=0.0.36" defer></script>
   <script src="modules/nai-imagen.js?v=0.0.36" defer></script>
   <script src="modules/backup-import-export.js?v=0.0.36" defer></script>
@@ -194,13 +194,13 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
   <script src="modules/appearance-theme.js?v=0.0.86" defer></script>
   <script src="modules/hot-news.js?v=0.1.2" defer></script>
   <script src="modules/runtime-diagnostics.js?v=0.0.38" defer></script>
-  <script src="modules/notification-battery.js?v=0.0.37" defer></script>
+  <script src="modules/notification-battery.js?v=0.0.41" defer></script>
   <script src="modules/background-activity.js?v=0.0.43" defer></script>
   <script src="modules/card-import.js?v=0.0.36" defer></script>
   <script src="modules/character-export.js?v=0.0.36" defer></script>
   <script src="modules/data-management.js?v=0.0.36" defer></script>
   <script src="modules/misc-features.js?v=0.0.40" defer></script>
-  <script src="modules/system-settings-home.js?v=0.0.36" defer></script>
+  <script src="modules/system-settings-home.js?v=0.0.37" defer></script>
   <!-- 第八层：初始化（必须在所有模块之后） -->
   <!-- 数据定义（无依赖） -->
   <script src="modules/init-avatar-frames.js?v=0.0.36" defer></script>
@@ -3172,10 +3172,10 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
 
             <!-- 无声智能保活 (移植自社区版，2026-07-18) -->
             <div class="settings-item" style="margin-top: 12px; border-top: 1px dashed rgba(255, 182, 193, 0.4); padding-top: 12px;">
-                <label>
-                    <span style="display: block;">启用无声智能保活</span>
-                    <span style="font-size: 12px; color: var(--text-secondary); display: block; margin-top: 4px;">零音频方案：WakeLock + Web Worker 心跳 + JIT 预热。适合 PWA / iOS WebKit（不占音频通道）</span>
-                </label>
+                <div>
+                    <label>启用无声智能保活</label>
+                    <div class="settings-desc">零音频方案：WakeLock + Web Worker 心跳 + JIT 预热。适合 PWA / iOS WebKit（不占音频通道）</div>
+                </div>
                 <label class="toggle-switch">
                     <input type="checkbox" id="smart-keep-alive-switch">
                     <span class="slider"></span>
@@ -3360,8 +3360,8 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
 
         <!-- 数据管理 (危险区域) -->
         <div class="settings-header">数据管理</div>
-        
-        <div class="settings-section">
+
+        <div class="settings-section" data-section="sec-data-management" id="sec-data-management">
             <!-- 1. 图片占用 + 压缩按钮 (同一行) -->
             <div class="settings-item">
                 <!-- 左侧标题 -->
@@ -4868,8 +4868,9 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
                  </div>
             </div>
 
-            <!-- v0.1.30 Live2D 视频通话模型路径 - 留空走原静态图, 填路径启用 Live2D 渲染 -->
-            <div class="settings-item" id="ai-live2d-model-group">
+            <!-- v0.0.50 Live2D 视频通话模型路径 - 暂时禁用 (卖家模型不兼容 pixi-live2d-display)
+                 UI 输入框先隐藏, 以后换兼容模型再开放. chat.settings.live2dModelPath 数据保留, 一行 display:'' 就能恢复 -->
+            <div class="settings-item" id="ai-live2d-model-group" style="display: none;">
                  <label>Live2D 模型</label>
                  <div class="settings-right full-width">
                     <input type="text" id="ai-live2d-model-input" placeholder="留空 = 不启用 | 填路径如 assets/live2d/zhanghuaijin/小狼/小狼.model3.json">
