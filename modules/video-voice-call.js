@@ -987,6 +987,12 @@
       }
     }
 
+    // 兜底: resolveApiSlotConfig 不返回 isGemini, 上面赋值后是 undefined
+    // 用 proxyUrl 重新判断, 跟主聊天 / 群聊 / cphone 保持一致
+    if (!isGemini && proxyUrl) {
+      isGemini = proxyUrl.includes('generativelanguage');
+    }
+
     if (!proxyUrl || !apiKey || !model) {
       console.error('Video Call failed: API config not resolved.', { proxyUrl, apiKey, model });
       const callFeed = document.getElementById('video-call-main');
@@ -2177,6 +2183,12 @@ ${linkedContents}
         isGemini = config.isGemini;
         geminiSafetySettings = config.geminiSafetySettings;
       }
+    }
+
+    // 兜底: resolveApiSlotConfig 不返回 isGemini, 上面赋值后是 undefined
+    // 用 proxyUrl 重新判断, 跟主聊天 / 群聊 / cphone 保持一致
+    if (!isGemini && proxyUrl) {
+      isGemini = proxyUrl.includes('generativelanguage');
     }
 
     if (!proxyUrl || !apiKey || !model) {

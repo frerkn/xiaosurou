@@ -42,6 +42,23 @@
     }
   });
 
+  // 【2026-07-25 修复】自定义胶片封面兜底——
+  // 网易云/腾讯那些有 track.cover 的歌继续用专辑封面；
+  // AI 生成 / 本地歌曲没封面的，fallback 到用户上传的胶片图；
+  // 都没有再走默认 URL。
+  // 之前 3 个地方硬写 `track.cover || '...默认URL'`，自定义封面永远不显示。
+  const DEFAULT_COVER_URL = 'https://s3plus.meituan.net/opapisdk/op_ticket_885190757_1757748720126_qdqqd_1jt5sv.jpeg';
+  function getEffectiveCoverUrl(track) {
+    const trackCover = track && track.cover ? track.cover : '';
+    if (trackCover) return trackCover;
+    try {
+      // custom-music-cover.js 暴露的全局方法，读不到时返回空串
+      return (window.MusicCustomCover && window.MusicCustomCover.getCustomCover()) || '';
+    } catch (e) {
+      return '';
+    }
+  }
+
   // 来源：script.js 第 3020~3060 行
   function applyLyricsBarPosition(chat) {
     const lyricsBar = document.getElementById('global-lyrics-bar');
@@ -501,7 +518,7 @@
     if (!phoneScreen || !track) return;
     phoneScreen.classList.add('dynamic-island-active');
     if (albumArt) {
-      albumArt.src = track.cover || 'https://s3plus.meituan.net/opapisdk/op_ticket_885190757_1757748720126_qdqqd_1jt5sv.jpeg';
+      albumArt.src = getEffectiveCoverUrl(track) || DEFAULT_COVER_URL;
     }
     lyricBar?.classList.remove('visible');
   }
@@ -946,7 +963,7 @@
     try {
       const coverEl = document.getElementById('music-player-cover');
       if (coverEl) {
-        coverEl.src = track.cover || 'https://s3plus.meituan.net/opapisdk/op_ticket_885190757_1757748720126_qdqqd_1jt5sv.jpeg';
+        coverEl.src = getEffectiveCoverUrl(track) || DEFAULT_COVER_URL;
       }
     } catch (e) {
       console.warn('[applyTrackUI] 封面更新失败:', e);
@@ -1176,7 +1193,7 @@
     if (isFrameMode || isAlwaysIslandMode) {
 
       phoneScreenForIsland.classList.add('dynamic-island-active');
-      islandAlbumArt.src = track.cover || 'https://s3plus.meituan.net/opapisdk/op_ticket_885190757_1757748720126_qdqqd_1jt5sv.jpeg';
+      islandAlbumArt.src = getEffectiveCoverUrl(track) || DEFAULT_COVER_URL;
       lyricBar.classList.remove('visible');
     } else {
 
@@ -1323,7 +1340,8 @@
         fileType: file.type,
         isLocal: isLocal,     // <-- 修改
         lrcContent: lrcContent,
-        cover: 'https://s3plus.meituan.net/opapisdk/op_ticket_885190757_1757748720126_qdqqd_1jt5sv.jpeg',
+        // 【2026-07-25 修复】不存默认 URL，存空串——getEffectiveCoverUrl 会 fallback 到用户自定义胶片
+        cover: '',
         playlistId: playlistId
       });
       uploadedCount++;
@@ -1738,7 +1756,8 @@
       artist: song.singer || song.artists || (Array.isArray(song.ar) ? song.ar.map(a => a.name).join('/') : (song.artist || '未知歌手')),
       id: String(song.id),
       // 【修复】优先读取 picimg (你的API返回字段)
-      cover: song.picimg || song.cover || song.al?.picUrl || 'https://s3plus.meituan.net/opapisdk/op_ticket_885190757_1757748720126_qdqqd_1jt5sv.jpeg',
+      // 【2026-07-25 修复】没封面存空串——getEffectiveCoverUrl 会 fallback 到用户自定义胶片
+      cover: song.picimg || song.cover || song.al?.picUrl || '',
       source: 'toubiec',
       albumId: song.al?.id
     }));
@@ -1753,7 +1772,8 @@
       name: song.name,
       artist: Array.isArray(song.ar) ? song.ar.map(a => a.name).join('/') : (song.artist || '未知歌手'),
       id: String(song.id),
-      cover: song.al?.picUrl || song.cover || 'https://s3plus.meituan.net/opapisdk/op_ticket_885190757_1757748720126_qdqqd_1jt5sv.jpeg',
+      // 【2026-07-25 修复】没封面存空串——getEffectiveCoverUrl 会 fallback 到用户自定义胶片
+      cover: song.al?.picUrl || song.cover || '',
       source: 'toubiec'
     }));
   }
@@ -1838,7 +1858,8 @@
         name: song.song,
         artist: song.singer,
         id: song.id,
-        cover: song.cover || 'https://s3plus.meituan.net/opapisdk/op_ticket_885190757_1757748720126_qdqqd_1jt5sv.jpeg',
+        // 【2026-07-25 修复】没封面存空串——getEffectiveCoverUrl 会 fallback 到用户自定义胶片
+        cover: song.cover || '',
         source: 'tencent'
       })).slice(0, 30);
     } catch (e) {

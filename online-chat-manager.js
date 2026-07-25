@@ -88,10 +88,22 @@ class OnlineChatManager {
     }
 
     _pruneHistories(keep = 200) {
+        const container = document.getElementById('online-app-messages');
         for (const chatId in this.chats) {
             const chat = this.chats[chatId];
             if (chat && Array.isArray(chat.history) && chat.history.length > keep) {
+                // 【PWA 闪退修复】找出被切掉的消息 ID，同步删 DOM 节点，
+                // 避免 "history 切了 200 条，DOM 还挂 500+ 节点" 的内存累积。
+                const removed = chat.history.slice(0, chat.history.length - keep);
                 chat.history = chat.history.slice(-keep);
+                // 只清理当前打开的群聊 DOM（其他群聊没渲染到屏幕，别浪费）
+                if (container && this._lastRenderedChatId === chatId) {
+                    removed.forEach(msg => {
+                        const id = msg.messageId || msg.clientMessageId || `tid:${msg.timestamp}`;
+                        const dom = container.querySelector(`[data-msg-id="${CSS.escape(id)}"]`);
+                        if (dom) dom.remove();
+                    });
+                }
             }
         }
     }
@@ -1304,6 +1316,9 @@ renderMessages(chat, force = false) {
     buildMessageNode(msg, chat) {
         // 拆出单消息 DOM 构造，方便 renderMessages 批量插入 + appendMessageToUI 复用
         const container = document.createElement('div');
+        // 【PWA 闪退修复】给每个消息节点打 msgId 标记，让 _pruneHistories 能精准定位旧节点
+        const _msgId = msg.messageId || msg.clientMessageId || `tid:${msg.timestamp}`;
+        container.dataset.msgId = _msgId;
         const STICKER_RE = /(^https:\/\/i\.postimg\.cc\/.+|^https:\/\/files\.catbox\.moe\/.+|^https?:\/\/sharkpan\.xyz\/.+|^data:image|\.(png|jpg|jpeg|gif|webp)\?.*$|\.(png|jpg|jpeg|gif|webp)$)/i;
 
         if (msg.role === 'system') {
@@ -1325,7 +1340,8 @@ renderMessages(chat, force = false) {
 
         const isSticker = STICKER_RE.test(msg.content);
         const contentHtml = isSticker
-            ? `<img class="sticker-in-msg" src="${msg.content}">`
+            // 【PWA 闪退修复】sticker 表情包 50-300KB，加 lazy + async decode 避免同步 decode 阻塞
+            ? `<img class="sticker-in-msg" src="${msg.content}" loading="lazy" decoding="async">`
             : `<div>${this.escapeHtml(msg.content)}</div>`;
 
         let senderNameHtml = '';
@@ -1340,7 +1356,7 @@ renderMessages(chat, force = false) {
             <div class="msg-time">${this.formatTime(msg.timestamp)}</div>
         </div>`;
 
-        const avatar = `<img class="online-msg-avatar" src="${avatarSrc}">`;
+        const avatar = `<img class="online-msg-avatar" src="${avatarSrc}" loading="lazy" decoding="async">`;
 
         if (msg.role === 'user') {
             container.innerHTML = bubble + avatar;
@@ -1355,16 +1371,21 @@ renderMessages(chat, force = false) {
         const container = document.getElementById('online-app-messages');
         if (!container) return;
 
+        // 【PWA 闪退修复】同步打 msgId，跟 buildMessageNode 保持一致
+        const _msgId = msg.messageId || msg.clientMessageId || `tid:${msg.timestamp}`;
+
         const STICKER_RE = /(^https:\/\/i\.postimg\.cc\/.+|^https:\/\/files\.catbox\.moe\/.+|^https?:\/\/sharkpan\.xyz\/.+|^data:image|\.(png|jpg|jpeg|gif|webp)\?.*$|\.(png|jpg|jpeg|gif|webp)$)/i;
 
         if (msg.role === 'system') {
             const div = document.createElement('div');
             div.className = 'online-msg system';
+            div.dataset.msgId = _msgId;  // 【PWA 闪退修复】system 消息也打标，方便清理
             div.textContent = msg.content;
             container.appendChild(div);
         } else {
             const wrapper = document.createElement('div');
             wrapper.className = msg.role === 'user' ? 'online-msg-row user' : 'online-msg-row friend';
+            wrapper.dataset.msgId = _msgId;  // 【PWA 闪退修复】同步打 msgId
 
             let avatarSrc;
             if (msg.role === 'user') {
@@ -1377,7 +1398,8 @@ renderMessages(chat, force = false) {
 
             const isSticker = STICKER_RE.test(msg.content);
             const contentHtml = isSticker
-                ? `<img class="sticker-in-msg" src="${msg.content}">`
+                // 【PWA 闪退修复】sticker 表情包 50-300KB，加 lazy + async decode 避免同步 decode 阻塞
+                ? `<img class="sticker-in-msg" src="${msg.content}" loading="lazy" decoding="async">`
                 : `<div>${this.escapeHtml(msg.content)}</div>`;
 
             let senderNameHtml = '';
@@ -1392,7 +1414,7 @@ renderMessages(chat, force = false) {
                 <div class="msg-time">${this.formatTime(msg.timestamp)}</div>
             </div>`;
 
-            const avatar = `<img class="online-msg-avatar" src="${avatarSrc}">`;
+            const avatar = `<img class="online-msg-avatar" src="${avatarSrc}" loading="lazy" decoding="async">`;
 
             if (msg.role === 'user') {
                 wrapper.innerHTML = bubble + avatar;
