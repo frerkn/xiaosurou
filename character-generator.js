@@ -1041,8 +1041,13 @@
                 max_tokens: 8000
             };
             console.log('使用OpenAI格式，请求体:', JSON.stringify(payload, null, 2));
-            
-            response = await fetch(`${proxyUrl}/v1/chat/completions`, {
+
+            // 智能补全：用户填到版本号（/v1 /v2 ...）就只补 /chat/completions，没填就保底补 /v1/chat/completions
+            const trimmed = proxyUrl.replace(/\/$/, '');
+            const hasVersion = /\/v\d+$/.test(trimmed);
+            const apiBase = hasVersion ? trimmed : `${trimmed}/v1`;
+
+            response = await fetch(`${apiBase}/chat/completions`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
