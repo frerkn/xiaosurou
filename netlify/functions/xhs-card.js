@@ -122,7 +122,7 @@ exports.handler = async function (event) {
     }
     const url = String(body.url || '').trim();
     if (!url) return json(400, { ok: false, error: '缺少 url 参数' });
-    if (!/xiaohongshu\.com|xhslink\.com/i.test(url)) {
+    if (!/xiaohongshu\.com|xhslink\.(com|cn)/i.test(url)) {
         return json(400, { ok: false, error: '不是小红书链接' });
     }
 
