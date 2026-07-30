@@ -118,15 +118,6 @@
             playTip: '"读一下我桌面上 XX.pdf" / "整理下我下载文件夹"',
             signUpUrl: 'https://www.npmjs.com/package/@modelcontextprotocol/server-filesystem',
         },
-        {
-            // 小红书 lite: 走 X-Xhs-Cookie 自定义头 (不走 Bearer Token)
-            icon: '📕',
-            name: '小红书 lite',
-            url: 'https://sullymeow.ccwu.cc/mcp',
-            tokenHint: '不走 Bearer Token · 走自定义请求头 X-Xhs-Cookie (cookie 从浏览器开发者工具复制)',
-            playTip: '"搜一下 XX 笔记" / "帮我在小红书发个 XX 帖"',
-            signUpUrl: 'https://www.xiaohongshu.com',
-        },
     ];
 
     function renderRecommendItem(item) {
@@ -243,21 +234,6 @@
                 '聊天说 "读一下我桌面上 XX.pdf" / "整理下我下载文件夹"',
             ],
             tip: '💡 <b style="color:#B91C1C">安全警告</b>: AI 能读 / 写 / 删那个目录的文件! 不要指向根目录或敏感文件夹, 建议先开一个专门的 "AI 工作" 文件夹。',
-        },
-        {
-            icon: '📕',
-            name: '小红书 lite',
-            steps: [
-                '<b style="color:#B91C1C">重要: 这个走自定义请求头, 不走 Bearer Token</b>',
-                '在你电脑浏览器打开 <a href="https://www.xiaohongshu.com" target="_blank" rel="noopener">xiaohongshu.com</a> → 扫码登录',
-                '登录后按 F12 打开开发者工具 → 切到 Network 标签 → 随便点页面上一个东西 (发个请求)',
-                '点开那个请求 → 找 <b>Request Headers</b> 里的 <code>cookie</code> 字段 → 鼠标右键 → Copy value',
-                '回 330 → 点 "+ 添加 MCP 服务器" → 名称 "小红书" → URL 填 <code>https://sullymeow.ccwu.cc/mcp</code> → <b>Bearer Token 留空</b>',
-                '展开 "自定义请求头" 区域 → 点 "+ 添加请求头" → 名称 <code>X-Xhs-Cookie</code> → 值粘贴刚才复制的 cookie',
-                '点 "测试连接" → 看到工具 (search / publish_note / like_feed 等) → 保存 → 启用',
-                '聊天说 "搜一下 XX 笔记" / "帮我在小红书发个 XX 帖"',
-            ],
-            tip: '⚠️ <b style="color:#B91C1C">风险提醒</b>: 1) cookie 经过第三方服务器 (虽然他们说无状态); 2) 小红书反爬很猛, 角色发的帖子活几小时就被屏蔽; 3) 经常用容易封号. <b>建议</b>: 先在闲置小号试, 别用主号. 觉得好玩再考虑自部署 XHSLite 到自己服务器 (工作量 1-2 天)。',
         },
     ];
 

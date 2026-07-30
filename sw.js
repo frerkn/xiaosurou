@@ -32,8 +32,8 @@
 // 2026-07-25 v0.1.46: bump CACHE_VERSION 强制清缓存（语音/视频通话 Gemini 直连修复 — video-voice-call.js 两处 isGemini 兜底：resolveApiSlotConfig 不返回 isGemini, 用 proxyUrl.includes('generativelanguage') 兜底判定）
 // 2026-07-24 v0.1.40: bump CACHE_VERSION 强制清缓存（"无声智能保活"settings-item 改用标准结构 label + .settings-desc，跟其他设置项对齐 — index.html line 3173-3183）
 // 2026-07-24 v0.1.39: bump CACHE_VERSION 强制清缓存（系统设置首页"数据与存储"卡片跳转目标从 sec-cloud-storage 改到 sec-data-management — modules/system-settings-home.js + index.html bump ?v=0.0.37）
-// 2026-07-30 v0.1.52: bump CACHE_VERSION 强制清缓存（联机群聊气泡紧凑化 — css/online-app-skyblue.css .online-msg 加 padding: 5px 10px + line-height: 1.4 + .msg-time margin-top: 2px, 让气泡上下高度变小, 跟主屏 1-on-1 接近; index.html bump online-app-skyblue.css ?v=0.0.98）
-const CACHE_VERSION = 'v0.1.52';
+// 2026-07-30 v0.1.53: bump CACHE_VERSION 强制清缓存（小红书链接预览死代码清理 — 删 xhs-link-preview.js / xhs-fetch-hook.js / netlify xhs-card / xhs-images + index.html 2 script + sw.js 缓存条目 + 拦截; 推荐项"小红书 lite"服务 sullymeow.ccwu.cc 已下线, 推荐区 + 教程同步移除）
+const CACHE_VERSION = 'v0.1.53';
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [
@@ -54,9 +54,6 @@ const URLS_TO_CACHE = [
   './js/mcp-generic-client.js',
   './js/mcp-tool-bridge.js',
   './js/mcp-ui-list.js',
-  // v1.0.0 新增: 小红书链接预览
-  './js/xhs-link-preview.js',
-  './js/xhs-fetch-hook.js',
   // v0.1.30 新增：Live2D 视频通话（cubism 引擎 + loader + 视频通话主文件）
   './lib/live2dcubismcore.min.js',
   './modules/live2d-loader.js',
@@ -141,9 +138,6 @@ self.addEventListener('fetch', event => {
      url.includes('/js/mcp-generic-client.js') ||
      url.includes('/js/mcp-tool-bridge.js') ||
      url.includes('/js/mcp-ui-list.js') ||
-     // v1.0.0 新增: 小红书链接预览
-     url.includes('/js/xhs-link-preview.js') ||
-     url.includes('/js/xhs-fetch-hook.js') ||
      // v0.1.30 新增：Live2D 视频通话（引擎 + loader + 模型目录）
      url.includes('/lib/live2dcubismcore.min.js') ||
      url.includes('/modules/live2d-loader.js') ||
