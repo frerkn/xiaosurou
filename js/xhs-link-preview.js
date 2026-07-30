@@ -28,9 +28,9 @@
 
     const XHS_HOST_PATTERNS = [
         /^https?:\/\/(?:www\.)?xiaohongshu\.com\//i,
-        /^https?:\/\/xhslink\.com\//i,
+        /^https?:\/\/xhslink\.(com|cn)\//i,
     ];
-    const XHS_URL_REGEX = /https?:\/\/(?:www\.)?xiaohongshu\.com\/[^\s<>'"]+|https?:\/\/xhslink\.com\/[^\s<>'"]+/gi;
+    const XHS_URL_REGEX = /https?:\/\/(?:www\.)?xiaohongshu\.com\/[^\s<>'"]+|https?:\/\/xhslink\.(com|cn)\/[^\s<>'"]+/gi;
 
     const SKELETON_ID_PREFIX = 'xhs-preview-skel-';
     const CARD_CLASS = 'xhs-preview-card';
