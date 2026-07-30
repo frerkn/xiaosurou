@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // init-features.js
 // 功能模块：init() 函数后半段
 // 从 init-and-state.js 约 10164~17200 行拆分
@@ -2829,7 +2829,7 @@ ${qaContext}
       truthGameState.abortController = new AbortController();
       const timeoutId = setTimeout(() => truthGameState.abortController.abort(), 45000);
       try {
-        const response = await fetch(`${proxyUrl}/v1/chat/completions`, {
+        const response = await fetch(`${proxyUrl}/chat/completions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
           body: JSON.stringify({ model: model, messages: [{ role: 'user', content: systemPrompt }], temperature: 0.8 }),
@@ -2936,7 +2936,7 @@ ${qaContext}
       const timeoutId = setTimeout(() => truthGameState.abortController.abort(), 60000); // 60秒超时
 
       try {
-        const response = await fetch(`${proxyUrl}/v1/chat/completions`, {
+        const response = await fetch(`${proxyUrl}/chat/completions`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -3149,7 +3149,7 @@ ${qaContext}
       const timeoutId = setTimeout(() => truthGameState.abortController.abort(), 60000); // 60秒超时
 
       try {
-        const response = await fetch(`${proxyUrl}/v1/chat/completions`, {
+        const response = await fetch(`${proxyUrl}/chat/completions`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -3252,7 +3252,7 @@ ${qaContext}
       const timeoutId = setTimeout(() => truthGameState.abortController.abort(), 60000); // 60秒超时
 
       try {
-        const response = await fetch(`${proxyUrl}/v1/chat/completions`, {
+        const response = await fetch(`${proxyUrl}/chat/completions`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -3617,7 +3617,7 @@ ${truthGameHistoryContext}
               return;
             }
 
-            const response = await fetch(`${proxyUrl}/v1/chat/completions`, {
+            const response = await fetch(`${proxyUrl}/chat/completions`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -3715,7 +3715,7 @@ ${truthGameHistoryContext}
           const timeoutId = setTimeout(() => truthGameState.abortController.abort(), 60000); // 60秒超时
 
           try {
-            const response = await fetch(`${proxyUrl}/v1/chat/completions`, {
+            const response = await fetch(`${proxyUrl}/chat/completions`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',

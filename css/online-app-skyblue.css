@@ -164,6 +164,11 @@
 }
 
 /* 3.3 消息气泡（user/friend/system） */
+/* 气泡紧凑化: 原本没设 padding/line-height 走默认太大, 改成跟主屏 1-on-1 接近的紧凑尺寸 */
+#online-app-messages .online-msg {
+    padding: 5px 10px !important;
+    line-height: 1.4 !important;
+}
 #online-app-messages .online-msg.user {
     background-color: #5DADE2 !important;
     color: #FFFFFF !important;
@@ -188,6 +193,7 @@
 #online-app-messages .online-msg .msg-time {
     color: rgba(255, 255, 255, 0.65) !important;
     font-size: 10px !important;
+    margin-top: 2px !important;
 }
 #online-app-messages .online-msg.friend .msg-time {
     color: #8896A6 !important;
@@ -798,4 +804,65 @@
 }
 #online-app-settings-view .settings-item [style*="color:#999"] {
     color: #8896A6 !important;
+}
+
+/* ===========================================================
+   9. 精确引用：消息气泡内的引用块 + 输入区上方的引用预览条 + 长按弹菜单
+   =========================================================== */
+
+/* 消息气泡里的引用块 (在 senderName 下方, content 上方) */
+.online-quoted-msg {
+    background: rgba(74, 144, 226, 0.08) !important;
+    border-left: 3px solid #4a90e2 !important;
+    border-radius: 4px !important;
+    padding: 4px 8px !important;
+    margin: 0 0 6px 0 !important;
+    font-size: 12px !important;
+    line-height: 1.4 !important;
+    color: #5DADE2 !important;
+    max-width: 240px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    cursor: default !important;
+}
+.online-quoted-msg .online-quoted-sender {
+    color: #4a90e2 !important;
+    font-weight: 600 !important;
+    margin-right: 4px !important;
+}
+.online-quoted-msg .online-quoted-content {
+    color: #8896A6 !important;
+}
+
+/* 输入区上方的引用预览条 */
+#online-quote-preview {
+    display: flex !important;
+    align-items: center !important;
+    padding: 8px 12px !important;
+    background: #f0f4ff !important;
+    border-top: 1px solid #D6E5F2 !important;
+    border-bottom: 1px solid #D6E5F2 !important;
+    gap: 8px !important;
+}
+#online-quote-preview .quote-cancel {
+    background: none !important;
+    border: none !important;
+    color: #999 !important;
+    font-size: 22px !important;
+    cursor: pointer !important;
+    padding: 0 4px !important;
+    line-height: 1 !important;
+    flex-shrink: 0 !important;
+}
+#online-quote-preview .quote-cancel:hover {
+    color: #4a90e2 !important;
+}
+
+/* 长按弹菜单 hover */
+#online-msg-action-menu [data-action]:hover {
+    background: #f0f4ff !important;
+}
+#online-msg-action-menu [data-action]:active {
+    background: #D6E5F2 !important;
 }

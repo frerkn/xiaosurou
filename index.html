@@ -34,7 +34,7 @@
   <link rel="stylesheet" href="css/api-settings-skyblue.css?v=0.0.36">
   <link rel="stylesheet" href="css/wallpaper-screen-skyblue.css?v=0.0.36">
   <link rel="stylesheet" href="css/chat-settings-skyblue.css?v=0.0.36">
-  <link rel="stylesheet" href="css/online-app-skyblue.css?v=0.0.97">
+  <link rel="stylesheet" href="css/online-app-skyblue.css?v=0.0.98">
   <!-- chat-list-skyblue.css 暂留空，引入被注释避免重复加载空文件 -->
   <link rel="stylesheet" href="css/long-term-memory-skyblue.css?v=0.0.36">
   <link rel="stylesheet" href="css/world-book-skyblue.css?v=0.0.36">
@@ -123,7 +123,7 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
   <!-- pixi-live2d-display 0.4.0 UMD prebuilt (window.PIXI.live2d.Live2DModel) - v0.1.5 改用 cubism4 子入口 (避开 index.min.js 的 cubism2+4 状态冲突) -->
   <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/cubism4.min.js"></script>
   <script src="prompt-manager.js?v=0.0.37" defer></script>
-  <script src="online-chat-manager.js?v=0.0.44" defer></script>
+  <script src="online-chat-manager.js?v=0.0.49" defer></script>
   <script src="online-chat-integration.js?v=0.0.36" defer></script>
   <script src="sticker-vision.js?v=0.0.36" defer></script>
   <script src="notification-manager.js?v=0.0.36" defer></script>
@@ -2589,68 +2589,13 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
             </div>
         </div>
 
-        <!-- 外卖点单 (麦当劳 MCP + 瑞幸 MCP) · v0.0.78
-             跟 API key 设置同体系（继承 api-settings-skyblue.css 全局样式）；
-             局部差异化样式由 css/mcp-settings-skyblue.css 提供。卸载：删 line + 删 link 即 100% 回滚。 -->
-        <div class="settings-header">外卖点单</div>
+        <!-- MCP 工具（高级）· v1.0.0
+             通用 MCP 工具服务器: 任意第三方 MCP server, 用户自填 URL/Token/代理
+             内容由 js/mcp-ui-list.js 动态渲染到 #mcp-settings-section 容器
+             卸载: 删下方 +3 个 script + sw.js 缓存条目 + system-settings-home.js 卡片 -->
+        <div class="settings-header">MCP 工具（高级）</div>
         <div class="settings-section" id="mcp-settings-section" data-section="sec-mcp-takeout">
-            <div class="mcp-banner">
-                <strong>🍔 新功能</strong> · 让 AI 帮你真点麦当劳/瑞幸。
-                需要先在
-                <a href="https://open.mcd.cn/mcp" target="_blank" rel="noopener">open.mcd.cn/mcp</a> /
-                <a href="https://open.lkcoffee.com" target="_blank" rel="noopener">open.lkcoffee.com</a>
-                申请个人 MCP Token（每人独立）。
-                Token 只存在你浏览器 localStorage，不上服务器。
-            </div>
-
-            <!-- 麦当劳 -->
-            <div class="mcp-merchant">
-                <div class="mcp-merchant-header">
-                    <span class="mcp-merchant-icon mcd">🍔</span>
-                    <span class="mcp-merchant-name">麦当劳 MCP</span>
-                    <span class="mcp-toggle" id="mcd-mcp-toggle" role="switch" aria-checked="false" tabindex="0"></span>
-                </div>
-                <div class="settings-item">
-                    <label>Token</label>
-                    <div class="settings-right" style="flex-grow:1;gap:8px;">
-                        <input type="password" id="mcd-mcp-token-input" placeholder="从 https://open.mcd.cn/mcp 申请的 Token" style="flex-grow:1;min-width:0;">
-                        <button type="button" id="mcd-mcp-test-btn" class="mcp-test-btn">测试连接</button>
-                        <span id="mcd-mcp-status" class="mcp-status pending" style="display:none;"></span>
-                    </div>
-                </div>
-                <div class="mcp-link-row">
-                    没 Token? 去 <a href="https://open.mcd.cn/mcp" target="_blank" rel="noopener">open.mcd.cn/mcp</a> 登录生成 →
-                </div>
-            </div>
-
-            <!-- 瑞幸 -->
-            <div class="mcp-merchant">
-                <div class="mcp-merchant-header">
-                    <span class="mcp-merchant-icon luckin">☕</span>
-                    <span class="mcp-merchant-name">瑞幸咖啡 MCP</span>
-                    <span class="mcp-toggle" id="luckin-mcp-toggle" role="switch" aria-checked="false" tabindex="0"></span>
-                </div>
-                <div class="settings-item">
-                    <label>Token</label>
-                    <div class="settings-right" style="flex-grow:1;gap:8px;">
-                        <input type="password" id="luckin-mcp-token-input" placeholder="从 https://open.lkcoffee.com 登录生成（有效期约 1 个月）" style="flex-grow:1;min-width:0;">
-                        <button type="button" id="luckin-mcp-test-btn" class="mcp-test-btn">测试连接</button>
-                        <span id="luckin-mcp-status" class="mcp-status pending" style="display:none;"></span>
-                    </div>
-                </div>
-                <div class="mcp-link-row">
-                    没 Token? 去 <a href="https://open.lkcoffee.com" target="_blank" rel="noopener">open.lkcoffee.com</a> 登录生成（有效 1 个月）→
-                </div>
-            </div>
-
-            <div class="api-tips" style="margin-top:14px;">
-                <strong>使用方式</strong> · 点完 Token 回聊天面板工具栏，点 🍔/☕ 按钮开启。
-                开启后对 AI 说"帮我点个麦辣鸡腿堡" / "想喝生椰拿铁"就自动跑 MCP。
-                说"取消点麦当劳" / "不要瑞幸了" 即可关闭。
-                <br><br>
-                ⚠️ <strong style="color:#c0392b">真下单会真扣钱</strong> · Token 跟你的麦当劳/瑞幸账号挂钩，
-                下单前请确认你的 App 里设置了默认地址 / 支付方式。
-            </div>
+            <!-- 由 mcp-ui-list.js 动态渲染内容 -->
         </div>
 
         <!-- 云服务与存储 -->
@@ -8380,11 +8325,24 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
           <div id="online-sticker-tabs"></div>
           <div id="online-sticker-grid"></div>
         </div>
+        <!-- 精确引用: 引用预览条 (input-area 上方, 默认隐藏) -->
+        <div id="online-quote-preview" style="display:none; padding:8px 12px; background:#f0f4ff; border-left:3px solid #4a90e2; align-items:center; gap:8px;">
+          <div style="flex:1; min-width:0; overflow:hidden;">
+            <div style="font-size:12px; color:#4a90e2; font-weight:600;">引用 <span class="quote-sender"></span> 的消息</div>
+            <div class="quote-content" style="font-size:13px; color:#666; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
+          </div>
+          <button class="quote-cancel" style="background:none; border:none; color:#999; font-size:18px; cursor:pointer; padding:0 4px; line-height:1;">×</button>
+        </div>
         <div id="online-app-input-area">
           <button id="online-app-sticker-btn" title="表情包" style="background:none;border:none;font-size:24px;cursor:pointer;padding:4px 2px;flex-shrink:0;">😀</button>
           <textarea id="online-app-chat-input" placeholder="输入消息..." rows="1"></textarea>
           <button id="online-app-ai-call-btn" style="display:none;" onclick="onlineChatManager.triggerAiCharacterResponse()">调用AI</button>
           <button id="online-app-send-btn">发送</button>
+        </div>
+        <!-- 精确引用: 长按消息弹菜单 (fixed 定位) -->
+        <div id="online-msg-action-menu" style="display:none; position:fixed; z-index:9999; background:#fff; border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,0.18); padding:4px 0; min-width:120px;">
+          <button data-action="quote" style="display:block; width:100%; padding:10px 16px; background:none; border:none; text-align:left; cursor:pointer; font-size:14px; color:#333;">↩&nbsp; 引用</button>
+          <button data-action="copy" style="display:block; width:100%; padding:10px 16px; background:none; border:none; text-align:left; cursor:pointer; font-size:14px; color:#333;">📋&nbsp; 复制</button>
         </div>
         <input type="file" id="online-sticker-upload-input" accept="image/*" hidden>
       </div>
@@ -9126,12 +9084,18 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
 <!-- 时间感知与自定义时间系统（从内联 script 拆分） -->
 <script src="js/time-system.js?v=0.0.36"></script>
 
-<!-- 外卖点单 (麦当劳 MCP / 瑞幸 MCP) · v0.0.78
-     顺序: 客户端 → Tool Bridge → UI 初始化。同步加载，确保 McpBridge 在主代码里可用。 -->
-<script src="js/mcp-mcd-client.js?v=0.0.78"></script>
-<script src="js/mcp-luckin-client.js?v=0.0.78"></script>
-<script src="js/mcp-tool-bridge.js?v=0.0.78"></script>
-<script src="js/mcp-ui-init.js?v=0.0.78"></script>
+<!-- 通用 MCP 工具 · v1.0.0
+     顺序: 通用 client → Tool Bridge (依赖 client) → UI 列表 (依赖 client)
+     同步加载, 确保 McpBridge 在主代码里可用 -->
+<script src="js/mcp-generic-client.js?v=1.0.0"></script>
+<script src="js/mcp-tool-bridge.js?v=1.0.0"></script>
+<script src="js/mcp-ui-list.js?v=1.0.0"></script>
+<!-- 小红书链接预览 · v1.0.0
+     xhs-link-preview: 监听 #send-btn → 检测小红书链接 → 调后端渲染预览卡
+     xhs-fetch-hook: 拦截 /v1/chat/completions → 把缓存图片 base64 注入到 user 消息
+     卸载: 删下面 2 个 script + sw.js 缓存条目 -->
+<script src="js/xhs-link-preview.js?v=1.0.0"></script>
+<script src="js/xhs-fetch-hook.js?v=1.0.0"></script>
 
 </body>
 </html>

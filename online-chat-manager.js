@@ -44,6 +44,12 @@ class OnlineChatManager {
         //   - 主线程不再被密集切片占用 → 手机 WebView 不会被杀进程
         //   - 字段在这里初始化，避免在 saveChats 里第一次用到时 undefined
         this._saveChatsTimer = null;
+
+        // 【精确引用】当前选中的引用消息（长按消息 → 选"引用"后填这个，发送时塞进 quoted 字段）
+        // 结构: { sender: '昵称', content: '被引用内容' } 或 null
+        this._currentQuote = null;
+        // 长按弹菜单的 press timer（移动端 long-press 用）
+        this._longPressTimer = null;
     }
 
     _getStorageKey(suffix) {
@@ -394,10 +400,145 @@ class OnlineChatManager {
             e.target.value = '';
         });
 
+        // === 精确引用: 引用预览条 × 按钮 + 长按弹菜单交互 ===
+        const quoteCancel = document.querySelector('#online-quote-preview .quote-cancel');
+        if (quoteCancel) quoteCancel.addEventListener('click', () => this.hideQuotePreview());
+
+        const actionMenu = document.getElementById('online-msg-action-menu');
+        if (actionMenu) {
+            // 菜单内点击"引用"/"复制"
+            actionMenu.addEventListener('click', (e) => {
+                const btn = e.target.closest('[data-action]');
+                if (!btn) return;
+                const action = btn.dataset.action;
+                if (action === 'quote') {
+                    this.selectQuoteFromMenu();
+                } else if (action === 'copy') {
+                    const target = actionMenu._targetMsg;
+                    if (target && target.content) {
+                        navigator.clipboard?.writeText(target.content).catch(() => {});
+                    }
+                    this.hideActionMenu();
+                }
+            });
+        }
+        // 点击其他位置/滚动时关掉长按弹菜单
+        document.addEventListener('click', (e) => {
+            if (!actionMenu) return;
+            if (actionMenu.style.display === 'block' && !actionMenu.contains(e.target)) {
+                this.hideActionMenu();
+            }
+        });
+        const msgContainer = document.getElementById('online-app-messages');
+        if (msgContainer) {
+            msgContainer.addEventListener('scroll', () => this.hideActionMenu(), { passive: true });
+        }
+
         this.loadSettings();
         this.setupVisibilityListener();
         this.setupBeforeUnloadListener();
         this.autoReconnectIfNeeded();
+    }
+
+    // === 精确引用：辅助方法 ===
+
+    // 拼装引用块 HTML（在消息气泡顶部显示"被引用人: 内容预览"）
+    _buildQuotedHtml(msg) {
+        if (!msg || !msg.quotedSender || !msg.quotedContent) return '';
+        const preview = msg.quotedContent.length > 60
+            ? msg.quotedContent.slice(0, 60) + '…'
+            : msg.quotedContent;
+        return `<div class="online-quoted-msg">
+            <span class="online-quoted-sender">${this.escapeHtml(msg.quotedSender)}</span>
+            <span class="online-quoted-content">${this.escapeHtml(preview)}</span>
+        </div>`;
+    }
+
+    // 显示/隐藏引用预览条（在输入框上方）
+    showQuotePreview() {
+        const bar = document.getElementById('online-quote-preview');
+        if (!bar || !this._currentQuote) return;
+        bar.querySelector('.quote-sender').textContent = this._currentQuote.sender;
+        bar.querySelector('.quote-content').textContent = this._currentQuote.content;
+        bar.style.display = 'flex';
+    }
+    hideQuotePreview() {
+        const bar = document.getElementById('online-quote-preview');
+        if (bar) bar.style.display = 'none';
+        this._currentQuote = null;
+    }
+
+    // 长按消息弹菜单（"引用" + "复制"）
+    showActionMenu(x, y, msg) {
+        const menu = document.getElementById('online-msg-action-menu');
+        if (!menu) return;
+        // 只对非自己、非 system 的消息允许引用
+        const canQuote = msg && msg.role !== 'user' && msg.role !== 'system';
+        menu.querySelector('[data-action="quote"]').style.display = canQuote ? '' : 'none';
+
+        // 定位（防止溢出屏幕）
+        const menuWidth = 120, menuHeight = 80;
+        const left = Math.min(x, window.innerWidth - menuWidth - 8);
+        const top = Math.min(y, window.innerHeight - menuHeight - 8);
+        menu.style.left = left + 'px';
+        menu.style.top = top + 'px';
+        menu.style.display = 'block';
+
+        // 暂存被操作的 msg
+        menu._targetMsg = msg;
+    }
+    hideActionMenu() {
+        const menu = document.getElementById('online-msg-action-menu');
+        if (menu) {
+            menu.style.display = 'none';
+            menu._targetMsg = null;
+        }
+    }
+
+    // 长按消息 → 弹菜单 → 选"引用"调用这个
+    selectQuoteFromMenu() {
+        const menu = document.getElementById('online-msg-action-menu');
+        const msg = menu && menu._targetMsg;
+        if (!msg) return;
+        this._currentQuote = {
+            sender: msg.senderNickname || '未知',
+            content: msg.content || ''
+        };
+        this.showQuotePreview();
+        this.hideActionMenu();
+        // 自动聚焦输入框
+        const input = document.getElementById('online-app-chat-input');
+        if (input) input.focus();
+    }
+
+    // 给单条消息节点绑定长按/右键事件（用于触发"引用"弹菜单）
+    _bindLongPress(el, msg) {
+        if (!el || !msg) return;
+        // 移动端：touchstart 启动 600ms 计时器
+        const start = (clientX, clientY) => {
+            if (this._longPressTimer) clearTimeout(this._longPressTimer);
+            this._longPressTimer = setTimeout(() => {
+                this.showActionMenu(clientX, clientY, msg);
+            }, 600);
+        };
+        const cancel = () => {
+            if (this._longPressTimer) {
+                clearTimeout(this._longPressTimer);
+                this._longPressTimer = null;
+            }
+        };
+        el.addEventListener('touchstart', (e) => {
+            const t = e.touches[0];
+            if (t) start(t.clientX, t.clientY);
+        }, { passive: true });
+        el.addEventListener('touchend', cancel);
+        el.addEventListener('touchmove', cancel);
+        el.addEventListener('touchcancel', cancel);
+        // 电脑端：右键
+        el.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            this.showActionMenu(e.clientX, e.clientY, msg);
+        });
     }
 
     showView(viewId) {
@@ -1051,7 +1192,9 @@ class OnlineChatManager {
                 message: content,
                 timestamp: timestamp,
                 messageId: messageId,
-                clientMessageId: messageId
+                clientMessageId: messageId,
+                quotedSender: this._currentQuote?.sender || null,
+                quotedContent: this._currentQuote?.content || null
             });
         } else {
             const friendUserId = this.activeChatId.replace('online_', '');
@@ -1060,14 +1203,18 @@ class OnlineChatManager {
                 toUserId: friendUserId,
                 fromUserId: this.userId,
                 message: content,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                quotedSender: this._currentQuote?.sender || null,
+                quotedContent: this._currentQuote?.content || null
             });
         }
 
         const msg = {
             role: 'user',
             content: content,
-            timestamp: timestamp
+            timestamp: timestamp,
+            quotedSender: this._currentQuote?.sender || null,
+            quotedContent: this._currentQuote?.content || null
         };
         if (messageId) {
             msg.messageId = messageId;
@@ -1089,6 +1236,8 @@ class OnlineChatManager {
 
         input.value = '';
         input.style.height = 'auto';
+        // 发送完清空引用预览
+        this.hideQuotePreview();
         input.focus();
     }
 
@@ -1117,7 +1266,7 @@ class OnlineChatManager {
         const isSticker = STICKER_RE.test(data.message);
         const displayMsg = isSticker ? '[表情包]' : data.message;
 
-        const msg = { role: 'ai', content: data.message, timestamp: data.timestamp, stickerName: data.stickerName, stickerMeaning: data.stickerMeaning };
+        const msg = { role: 'ai', content: data.message, timestamp: data.timestamp, stickerName: data.stickerName, stickerMeaning: data.stickerMeaning, quotedSender: data.quotedSender, quotedContent: data.quotedContent };
         chat.history.push(msg);
         chat.lastMessage = displayMsg;
         chat.timestamp = data.timestamp;
@@ -1349,9 +1498,13 @@ renderMessages(chat, force = false) {
             senderNameHtml = `<div class="group-msg-sender">${this.escapeHtml(msg.senderNickname)}</div>`;
         }
 
+        // === 精确引用: 引用块（在消息气泡顶部） ===
+        const quotedHtml = this._buildQuotedHtml(msg);
+
         const bubbleClass = isSticker ? 'online-msg sticker-bubble' : `online-msg ${msg.role === 'user' ? 'user' : 'friend'}`;
         const bubble = `<div class="${bubbleClass}">
             ${senderNameHtml}
+            ${quotedHtml}
             ${contentHtml}
             <div class="msg-time">${this.formatTime(msg.timestamp)}</div>
         </div>`;
@@ -1363,6 +1516,9 @@ renderMessages(chat, force = false) {
         } else {
             container.innerHTML = avatar + bubble;
         }
+
+        // === 精确引用: 绑长按事件 (用于触发"引用"弹菜单) ===
+        this._bindLongPress(container, msg);
 
         return container;
     }
@@ -1407,9 +1563,13 @@ renderMessages(chat, force = false) {
                 senderNameHtml = `<div class="group-msg-sender">${this.escapeHtml(msg.senderNickname)}</div>`;
             }
 
+            // === 精确引用: 引用块 ===
+            const quotedHtml = this._buildQuotedHtml(msg);
+
             const bubbleClass = isSticker ? 'online-msg sticker-bubble' : `online-msg ${msg.role === 'user' ? 'user' : 'friend'}`;
             const bubble = `<div class="${bubbleClass}">
                 ${senderNameHtml}
+                ${quotedHtml}
                 ${contentHtml}
                 <div class="msg-time">${this.formatTime(msg.timestamp)}</div>
             </div>`;
@@ -1423,6 +1583,8 @@ renderMessages(chat, force = false) {
             }
 
             container.appendChild(wrapper);
+            // === 精确引用: 绑长按事件 ===
+            this._bindLongPress(wrapper, msg);
         }
 
         // 【修复 mark 同步】让 renderMessages 守卫知道最新进度，避免下次重复渲染
@@ -1536,7 +1698,9 @@ renderMessages(chat, force = false) {
                 stickerMeaning: sticker.name,
                 timestamp: timestamp,
                 messageId: messageId,
-                clientMessageId: messageId
+                clientMessageId: messageId,
+                quotedSender: this._currentQuote?.sender || null,
+                quotedContent: this._currentQuote?.content || null
             });
         } else {
             const friendUserId = this.activeChatId.replace('online_', '');
@@ -1547,11 +1711,13 @@ renderMessages(chat, force = false) {
                 message: sticker.url,
                 stickerName: sticker.name,
                 stickerMeaning: sticker.name,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                quotedSender: this._currentQuote?.sender || null,
+                quotedContent: this._currentQuote?.content || null
             });
         }
 
-        const msg = { role: 'user', content: sticker.url, timestamp: timestamp };
+        const msg = { role: 'user', content: sticker.url, timestamp: timestamp, stickerName: sticker.name, stickerMeaning: sticker.name, quotedSender: this._currentQuote?.sender || null, quotedContent: this._currentQuote?.content || null };
         if (messageId) {
             msg.messageId = messageId;
             msg.clientMessageId = messageId;
@@ -2171,7 +2337,9 @@ renderMessages(chat, force = false) {
             messageId: messageId,
             clientMessageId: data.clientMessageId || messageId,
             stickerName: data.stickerName,
-            stickerMeaning: data.stickerMeaning
+            stickerMeaning: data.stickerMeaning,
+            quotedSender: data.quotedSender,
+            quotedContent: data.quotedContent
         };
 
         const result = this.addOnlineGroupMessage(chatId, msg, { incrementUnread: true, render: true, renderChatList: true });
@@ -3328,16 +3496,12 @@ ${membersList}
 
 # 重要规则
 1. 你只认识 **${ownerNickname}**，其他群成员你都不认识。
-2. 对不认识的人保持礼貌但有距离感，符合你的人设。
+2. 对不认识的人保持礼貌但热情友好，符合你的人设（跟主屏幕私聊的语气一致）。
 3. 对${ownerNickname}则像平时在主屏幕聊天一样自然亲密。
-4. 你的回复必须是纯文本，可以拆分成多条短消息。
-5. 像真人聊天一样回复，不要太正式。
-6. 禁止透露你是AI。
+4. 禁止透露你是AI。
 
-# 输出格式
-你的回复必须是一个JSON数组，每个元素是一条消息：
-[{"type": "text", "content": "消息内容1"}, {"type": "text", "content": "消息内容2"}]
-只输出JSON数组，不要输出其他内容。`;
+# 回复格式
+像真人微信聊天一样回复：自然用 \n 换行分段，每段一个气泡。不需要 JSON 格式、不需要前缀标签。`;
     }
 
     buildAiCharacterMessages(groupChat, myChar) {
@@ -3345,11 +3509,80 @@ ${membersList}
         const history = (groupChat.history || []).slice(-contextSize);
         const STICKER_RE = /(^https:\/\/i\.postimg\.cc\/.+|^https:\/\/files\.catbox\.moe\/.+|^https?:\/\/sharkpan\.xyz\/.+|^data:image|\.(png|jpg|jpeg|gif|webp)\?.*$|\.(png|jpg|jpeg|gif|webp)$)/i;
 
-        return history.filter(msg => msg.role !== 'system').map(msg => {
+        // === 复读智能检测: 平时 0 压缩, 检测到复读循环时才按需丢 ===
+        // 根因: 联机群聊里 AI 看到自己历史里说过的话会模仿复读 (例: 一旦历史里有"记得多喝水", AI 后续每条都跟着复读)
+        // 设计: 平时 AI 自己的历史 100% 全保留 (不制造"失忆"问题); 只有触发复读模式才丢
+        // 触发条件: 最近 4 条 AI 消息里, 至少 1 条跟"最新基线"字符重合度 > 50%
+        // 触发动作: 跟基线相似度 > 50% 的所有 AI 历史 (除基线本身) 当作复读样本丢弃
+        // 阈值 0.5 是个保守值, 不会误判"我想你"/"我也想你"这种短句相似
+        const ngramSimilarity = (a, b) => {
+            if (!a || !b) return 0;
+            const clean = s => (s || '').replace(/[\s\p{P}\p{S}\p{C}]/gu, '').slice(0, 120);
+            const sa = clean(a), sb = clean(b);
+            if (sa.length < 3 || sb.length < 3) return sa === sb ? 1 : 0;
+            const gramsA = new Set();
+            for (let i = 0; i <= sa.length - 3; i++) gramsA.add(sa.slice(i, i + 3));
+            let hit = 0;
+            for (let i = 0; i <= sb.length - 3; i++) {
+                if (gramsA.has(sb.slice(i, i + 3))) hit++;
+            }
+            return hit / (sb.length - 2);
+        };
+
+        const ECHO_DETECT_WINDOW = 4;        // 检测窗口大小
+        const ECHO_TRIGGER_THRESHOLD = 0.5;  // 触发复读模式的相似度阈值
+        const ECHO_TRIGGER_MIN_HITS = 1;     // 至少几条相似才触发
+
+        const dropAiIndices = new Set();
+        const aiMsgsInSlice = history
+            .map((m, i) => ({ m, i }))
+            .filter(({ m }) => m.senderUserId === myChar.characterId);
+        if (aiMsgsInSlice.length >= 2) {
+            const recent = aiMsgsInSlice.slice(-ECHO_DETECT_WINDOW);
+            const baseline = recent[recent.length - 1].m.content || '';
+            let echoHits = 0;
+            for (let k = 0; k < recent.length - 1; k++) {
+                if (ngramSimilarity(baseline, recent[k].m.content) > ECHO_TRIGGER_THRESHOLD) {
+                    echoHits++;
+                }
+            }
+            if (echoHits >= ECHO_TRIGGER_MIN_HITS) {
+                // 复读模式触发: 把跟基线高度相似的所有 AI 历史 (除基线本身) 都丢
+                const baselineIdx = recent[recent.length - 1].i;
+                for (const { m, i } of aiMsgsInSlice) {
+                    if (i === baselineIdx) continue;
+                    if (ngramSimilarity(baseline, m.content) > ECHO_TRIGGER_THRESHOLD) {
+                        dropAiIndices.add(i);
+                    }
+                }
+            }
+        }
+
+        return history.filter((msg, i) => {
+            if (msg.role === 'system') return false;
+            if (dropAiIndices.has(i)) return false;  // 复读样本丢弃
+            return true;
+        }).map(msg => {
             const sender = msg.senderNickname || (msg.role === 'user' ? this.nickname : '未知');
             const isMyCharMsg = msg.senderUserId === myChar.characterId;
 
             let content = msg.content;
+
+            // === AI 历史 JSON 数组字符串清洗 ===
+            // 防御: parseAiCharacterResponse 没 parse 干净 (markdown fence / 带前缀文字 / 多个 {...} 散落) 时,
+            //       整段 JSON 数组字符串会被原样存进 history → 下一轮 AI 看到自己历史是 JSON 数组就模仿输出 JSON 数组
+            // 修复: 在喂回时尝试 parse, 成功则把 [{type:"text",content:"..."}, ...] 拍平成纯文本
+            if (isMyCharMsg && typeof content === 'string' && content.trim().startsWith('[')) {
+                try {
+                    const parsed = JSON.parse(content);
+                    if (Array.isArray(parsed)) {
+                        content = parsed
+                            .filter(p => p && p.type === 'text' && p.content)
+                            .map(p => p.content)
+                            .join('\n');
+                    }
+                } catch (e) { /* 不是合法 JSON, 保留原样 */ }
+            }
 
             // 检查是否是表情包消息
             if (STICKER_RE.test(msg.content)) {
@@ -3361,9 +3594,17 @@ ${membersList}
                 }
             }
 
+            // === 精确引用: 喂 AI 时标记"被引用内容", 让 AI 知道这条消息在引用谁 ===
+            // 格式: [引用 xxx 的消息 "yyy"] - AI 看到就知道"这条消息在精确指向 yyy 那句话"
+            const quoted = (msg.quotedSender && msg.quotedContent)
+                ? `[引用 ${msg.quotedSender} 的消息 "${msg.quotedContent.length > 60 ? msg.quotedContent.slice(0, 60) + '…' : msg.quotedContent}"]`
+                : '';
+
             return {
                 role: isMyCharMsg ? 'assistant' : 'user',
-                content: isMyCharMsg ? msg.content : `${sender}: ${content}`
+                content: isMyCharMsg
+                    ? (quoted ? `${quoted} ${content}` : content)
+                    : (quoted ? `${sender} ${quoted}: ${content}` : `${sender}: ${content}`)
             };
         });
     }
@@ -3382,6 +3623,14 @@ ${membersList}
         //
         // 出口保持联机群聊的形态：filter(type==='text') → string[]
         if (!content) return [];
+
+        // === 跟主屏对齐: 拿到的 string[] 按 \n 切成多个气泡 ===
+        // 主屏 1-on-1 现在让 AI 自然用 \n 换行分段 (settings-presets.js 0.0.92+ 那次修复), AI 输出什么就显示什么
+        // 联机也改成同样: 拿到 string[] 后统一 \n split
+        const splitToBubbles = (arr) => arr
+            .flatMap(t => String(t).split('\n'))
+            .map(s => s.trim())
+            .filter(Boolean);
 
         // 0. 【照抄 video-voice-call.js:125-136】MinMax 思维链清洗
         //    只对 MinMax provider 跑，非 MinMax 跳过（与主屏/视频通话一致）
@@ -3416,9 +3665,11 @@ ${membersList}
             try {
                 const parsed = JSON.parse(trimmedContent);
                 if (Array.isArray(parsed)) {
-                    return parsed
-                        .filter(item => item.type === 'text' && item.content)
-                        .map(item => String(item.content));
+                    return splitToBubbles(
+                        parsed
+                            .filter(item => item.type === 'text' && item.content)
+                            .map(item => String(item.content))
+                    );
                 }
             } catch (e) {
                 console.warn('联机AI解析: 标准JSON数组解析失败，将尝试强力提取...');
@@ -3435,9 +3686,11 @@ ${membersList}
                 try {
                     const parsed = JSON.parse(arrayString);
                     if (Array.isArray(parsed)) {
-                        return parsed
-                            .filter(item => item.type === 'text' && item.content)
-                            .map(item => String(item.content));
+                        return splitToBubbles(
+                            parsed
+                                .filter(item => item.type === 'text' && item.content)
+                                .map(item => String(item.content))
+                        );
                     }
                 } catch (e) {
                     console.warn('联机AI解析: 强力提取 [..}..] 失败，将尝试提取单个对象...');
@@ -3459,12 +3712,12 @@ ${membersList}
                     // 跳过无效 JSON 片段
                 }
             }
-            if (results.length > 0) return results;
+            if (results.length > 0) return splitToBubbles(results);
         }
 
         // 5. 【照抄主屏 1240-1244】所有解析方案均失败 fallback：返回原 cleaned content
-        // 主屏 fallback 是 [{type:'text', content: originalContent}]；联机群聊要 string[] → [content]
-        return [cleaned];
+        // 主屏 fallback 是 [{type:'text', content: originalContent}]；联机群聊要 string[] → [content] 再 split
+        return splitToBubbles([cleaned]);
     }
 
     toGeminiRequest(model, apiKey, systemPrompt, messages) {

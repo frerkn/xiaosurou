@@ -65,13 +65,14 @@
       highlighted: false
     },
     {
-      // 2026-07-08 v0.0.78 新增：外卖点单（麦当劳 MCP + 瑞幸 MCP）
-      // 卸载：删这一段 + 'mcp-takeout' 映射 + takeout 图标即 100% 回滚
+      // 2026-07-29 v1.0.0 改造: 外卖点单 → 通用 MCP 工具（高级）
+      // 用户自填任意 MCP server 的 URL/Token/代理, 加新 server 不用改代码
+      // 卸载: 删这一段 + 'mcp-takeout' 映射 + takeout 图标 + index.html 的 #mcp-settings-section 即 100% 回滚
       id: 'mcp-takeout',
-      title: '外卖点单',
-      subtitle: '麦当劳 / 瑞幸 AI 真下单',
+      title: 'MCP 工具（高级）',
+      subtitle: 'AI 外接任意 MCP 工具服务器',
       icon: 'takeout',
-      highlighted: false
+      highlighted: true
     }
   ];
 

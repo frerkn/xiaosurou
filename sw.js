@@ -3,7 +3,7 @@
 // 2026-07-09 v0.1.18: 改用 Vercel 默认 bodyParser:true —— req.body 直接是解析后的对象，不用 rawBody 兜底
 // 2026-07-09 v0.1.12: 修致命 bug — runChatWithToolLoop 内部 fetch(url) = window.fetch = wrappedFetch → 无限递归 → OOM 闪退。改用 originalFetch 绕过自己。
 // 2026-07-09 v0.1.11: 修 refreshToolbarActive 闭包 bug — 把 refreshToolbarActive 提升到 IIFE module-scope 让 ensureMiniAppDom 闭包也能访问
-// 2026-07-09 v0.1.8: 双平台部署支持 — Vercel API Routes (/api/mcp-*) + Netlify Functions 兼容；前端自动探测 + localStorage 缓存
+// 2026-07-29 v1.0.0: 通用 MCP 工具服务器 — 删 mcd/luckin 硬编码, 改用 McpGenericClient + 通用 UI 列表
 // 2026-07-09 v0.1.6: 诊断行暴露 preload 错误信息；重连后强制重激活当前 brand + 同步 UI；toggle click 后刷 diag
 // 2026-07-09 v0.1.5: 干净设计 — 去掉"强制开启"按钮；UI 永远服从 storage；toggle 提示文案区分 token 没填/开关没开
 // 2026-07-09 v0.1.4: 修 resetAll() 错误地 setEnabled(false) 残留 bug；UI 加 🔧 强制开启 / 🔄 刷UI 按钮兜底恢复
@@ -32,7 +32,8 @@
 // 2026-07-25 v0.1.46: bump CACHE_VERSION 强制清缓存（语音/视频通话 Gemini 直连修复 — video-voice-call.js 两处 isGemini 兜底：resolveApiSlotConfig 不返回 isGemini, 用 proxyUrl.includes('generativelanguage') 兜底判定）
 // 2026-07-24 v0.1.40: bump CACHE_VERSION 强制清缓存（"无声智能保活"settings-item 改用标准结构 label + .settings-desc，跟其他设置项对齐 — index.html line 3173-3183）
 // 2026-07-24 v0.1.39: bump CACHE_VERSION 强制清缓存（系统设置首页"数据与存储"卡片跳转目标从 sec-cloud-storage 改到 sec-data-management — modules/system-settings-home.js + index.html bump ?v=0.0.37）
-const CACHE_VERSION = 'v0.1.46';
+// 2026-07-30 v0.1.52: bump CACHE_VERSION 强制清缓存（联机群聊气泡紧凑化 — css/online-app-skyblue.css .online-msg 加 padding: 5px 10px + line-height: 1.4 + .msg-time margin-top: 2px, 让气泡上下高度变小, 跟主屏 1-on-1 接近; index.html bump online-app-skyblue.css ?v=0.0.98）
+const CACHE_VERSION = 'v0.1.52';
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [
@@ -49,14 +50,13 @@ const URLS_TO_CACHE = [
   // v0.1.29 新增：AI 原创曲 IndexedDB 持久化层
   './js/ai-songs-store.js',
   './js/netease-music.js',
-  // v0.1.2 新增：外卖点单
-  './css/mcp-settings-skyblue.css',
-  './css/mcp-card.css',
-  './css/mcp-miniapp-pink.css',
-  './js/mcp-mcd-client.js',
-  './js/mcp-luckin-client.js',
+  // v1.0.0 改造: 通用 MCP 工具（删 mcd/luckin 硬编码, 删旧 mcp-ui-init + 3 个 css, 加 generic-client + ui-list）
+  './js/mcp-generic-client.js',
   './js/mcp-tool-bridge.js',
-  './js/mcp-ui-init.js',
+  './js/mcp-ui-list.js',
+  // v1.0.0 新增: 小红书链接预览
+  './js/xhs-link-preview.js',
+  './js/xhs-fetch-hook.js',
   // v0.1.30 新增：Live2D 视频通话（cubism 引擎 + loader + 视频通话主文件）
   './lib/live2dcubismcore.min.js',
   './modules/live2d-loader.js',
@@ -137,14 +137,13 @@ self.addEventListener('fetch', event => {
      url.includes('/js/role-voice-sample-ui.js') ||
      // v0.1.29 新增：AI 原创曲存储层
      url.includes('/js/ai-songs-store.js') ||
-     // v0.1.2 新增：外卖点单文件命中拦截，走缓存（请求带回 ?v= 时也走 fetch）
-     url.includes('/css/mcp-settings-skyblue.css') ||
-     url.includes('/css/mcp-card.css') ||
-     url.includes('/css/mcp-miniapp-pink.css') ||
-     url.includes('/js/mcp-mcd-client.js') ||
-     url.includes('/js/mcp-luckin-client.js') ||
+     // v1.0.0 改造: 通用 MCP 文件命中拦截, 走缓存（请求带回 ?v= 时也走 fetch）
+     url.includes('/js/mcp-generic-client.js') ||
      url.includes('/js/mcp-tool-bridge.js') ||
-     url.includes('/js/mcp-ui-init.js') ||
+     url.includes('/js/mcp-ui-list.js') ||
+     // v1.0.0 新增: 小红书链接预览
+     url.includes('/js/xhs-link-preview.js') ||
+     url.includes('/js/xhs-fetch-hook.js') ||
      // v0.1.30 新增：Live2D 视频通话（引擎 + loader + 模型目录）
      url.includes('/lib/live2dcubismcore.min.js') ||
      url.includes('/modules/live2d-loader.js') ||
