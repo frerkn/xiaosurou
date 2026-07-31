@@ -1,0 +1,289 @@
+/* ====================================================================
+ * MCP 菜单卡片 — 粉白色系 (浮动按钮 + 全屏 sheet)
+ *
+ * 触发: 任何 server 的 menu/query-meals/searchProduct 类工具调用
+ * 设计: 微信式 iOS 风, 浅粉 (#FFF0F5) + 白色 + 圆角, 不破坏聊天
+ *
+ * 跟 mcp-card.css 旧版的差异: 之前只有骨架, 没具体内容; 现在补
+ * 完整样式 (浮动按钮 / sheet / 餐品卡片 / 分类导航)。
+ * ==================================================================== */
+
+/* ========== 浮动入口按钮 (右下角) ========== */
+
+.mcp-menu-fab {
+    position: fixed;
+    right: 16px;
+    bottom: 96px;
+    z-index: 9998;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #FFB6C1, #FF6B9D);
+    box-shadow: 0 4px 14px rgba(255, 107, 157, 0.45);
+    color: #fff;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+    /* 默认隐藏, JS 检测到菜单数据后显示 */
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(20px);
+}
+.mcp-menu-fab.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+.mcp-menu-fab:active {
+    transform: scale(0.92);
+}
+.mcp-menu-fab .mcp-menu-fab-badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: #E74C3C;
+    color: #fff;
+    font-size: 11px;
+    line-height: 18px;
+    text-align: center;
+    font-weight: 600;
+    box-shadow: 0 0 0 2px #fff;
+}
+
+/* ========== 全屏 sheet ========== */
+
+.mcp-menu-sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(0, 0, 0, 0.4);
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    animation: mcp-menu-fade-in 0.18s ease-out;
+}
+.mcp-menu-sheet.is-open {
+    display: flex;
+}
+@keyframes mcp-menu-fade-in {
+    from { background: rgba(0, 0, 0, 0); }
+    to { background: rgba(0, 0, 0, 0.4); }
+}
+
+.mcp-menu-sheet-card {
+    width: 100%;
+    max-width: 480px;
+    max-height: 88vh;
+    background: #FFF8FA;
+    border-radius: 18px 18px 0 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.15);
+    animation: mcp-menu-slide-up 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes mcp-menu-slide-up {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+}
+
+.mcp-menu-sheet-header {
+    flex-shrink: 0;
+    background: linear-gradient(135deg, #FFB6C1, #FF6B9D);
+    color: #fff;
+    padding: 16px 18px 14px;
+    position: relative;
+}
+.mcp-menu-sheet-title {
+    font-size: 17px;
+    font-weight: 600;
+    margin: 0 0 2px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.mcp-menu-sheet-subtitle {
+    font-size: 12px;
+    opacity: 0.9;
+    margin: 0;
+}
+.mcp-menu-sheet-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.25);
+    color: #fff;
+    border: none;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.mcp-menu-sheet-close:active {
+    background: rgba(255, 255, 255, 0.4);
+}
+
+/* ========== 分类导航 (横向滚动) ========== */
+
+.mcp-menu-cats {
+    flex-shrink: 0;
+    background: #fff;
+    padding: 10px 0;
+    border-bottom: 1px solid #FFE4EC;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+}
+.mcp-menu-cats::-webkit-scrollbar { display: none; }
+.mcp-menu-cat-chip {
+    display: inline-block;
+    margin: 0 6px;
+    padding: 6px 14px;
+    border-radius: 16px;
+    background: #FFF0F5;
+    color: #FF6B9D;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid #FFE4EC;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.mcp-menu-cat-chip.is-active {
+    background: linear-gradient(135deg, #FFB6C1, #FF6B9D);
+    color: #fff;
+    border-color: transparent;
+}
+
+/* ========== 餐品列表 (滚动区) ========== */
+
+.mcp-menu-body {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 12px 14px 24px;
+}
+.mcp-menu-cat-section {
+    margin-bottom: 18px;
+}
+.mcp-menu-cat-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #FF6B9D;
+    margin: 0 0 8px;
+    padding-left: 4px;
+    border-left: 3px solid #FF6B9D;
+    line-height: 1.4;
+}
+
+/* ========== 单个餐品卡片 ========== */
+
+.mcp-menu-item {
+    background: #fff;
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    display: flex;
+    gap: 10px;
+    box-shadow: 0 1px 3px rgba(255, 107, 157, 0.08);
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+.mcp-menu-item:active {
+    transform: scale(0.98);
+    box-shadow: 0 1px 2px rgba(255, 107, 157, 0.15);
+}
+.mcp-menu-item-img {
+    flex-shrink: 0;
+    width: 56px;
+    height: 56px;
+    border-radius: 10px;
+    background: #FFF0F5 center/cover no-repeat;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #FF6B9D;
+    font-size: 22px;
+    overflow: hidden;
+}
+.mcp-menu-item-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.mcp-menu-item-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+.mcp-menu-item-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #1F2937;
+    line-height: 1.3;
+    margin: 0 0 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+.mcp-menu-item-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 4px;
+}
+.mcp-menu-item-tag {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: #FFF0F5;
+    color: #FF6B9D;
+    font-size: 10px;
+    line-height: 1.5;
+    border: 1px solid #FFE4EC;
+}
+.mcp-menu-item-price {
+    font-size: 14px;
+    color: #E74C3C;
+    font-weight: 600;
+    line-height: 1.2;
+}
+.mcp-menu-item-price-original {
+    font-size: 11px;
+    color: #B0B0B0;
+    text-decoration: line-through;
+    margin-left: 4px;
+    font-weight: 400;
+}
+.mcp-menu-empty {
+    text-align: center;
+    color: #999;
+    padding: 32px 16px;
+    font-size: 13px;
+}
+
+/* ========== 错误态 ========== */
+
+.mcp-menu-error {
+    text-align: center;
+    padding: 24px 16px;
+    color: #E74C3C;
+    font-size: 13px;
+    line-height: 1.6;
+}

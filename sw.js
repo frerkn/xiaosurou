@@ -32,8 +32,19 @@
 // 2026-07-25 v0.1.46: bump CACHE_VERSION 强制清缓存（语音/视频通话 Gemini 直连修复 — video-voice-call.js 两处 isGemini 兜底：resolveApiSlotConfig 不返回 isGemini, 用 proxyUrl.includes('generativelanguage') 兜底判定）
 // 2026-07-24 v0.1.40: bump CACHE_VERSION 强制清缓存（"无声智能保活"settings-item 改用标准结构 label + .settings-desc，跟其他设置项对齐 — index.html line 3173-3183）
 // 2026-07-24 v0.1.39: bump CACHE_VERSION 强制清缓存（系统设置首页"数据与存储"卡片跳转目标从 sec-cloud-storage 改到 sec-data-management — modules/system-settings-home.js + index.html bump ?v=0.0.37）
-// 2026-07-30 v0.1.53: bump CACHE_VERSION 强制清缓存（小红书链接预览死代码清理 — 删 xhs-link-preview.js / xhs-fetch-hook.js / netlify xhs-card / xhs-images + index.html 2 script + sw.js 缓存条目 + 拦截; 推荐项"小红书 lite"服务 sullymeow.ccwu.cc 已下线, 推荐区 + 教程同步移除）
-const CACHE_VERSION = 'v0.1.53';
+// 2026-08-01 v0.1.56: MCP 菜单卡片 parse bug 修复 + 教程简化
+//   1) mcp-generic-client.js callTool: safeParseJson 失败时改用 extractJsonFromMcpText
+//      brace-match 抽 mcd.cn / 其他 MCP 端点 text 里嵌的 JSON (前面 markdown 描述导致 JSON.parse 整体炸)
+//   2) mcp-menu-card.js parseMcpResult: McpGenericClient 包成 {success,data,rawText} 时
+//      改成 return result.data (而不是 return result), 剥外层包装
+//   3) mcp-menu-card.js onCard: 加诊断 log, 列出 result shape + 没解析出菜单数据时打 rawText 前 200 字符
+//   4) mcp-ui-list.js 教程简化: 删 30 行 WORKER_CODE + 删"5 分钟部署教程"块 + 删"通用流程"块 + 删
+//      "遇到问题"块 + 删 "copy-worker-code" 事件块 (~200 行 → 75 行), 弹窗顶部改成
+//      "代理已部署好, URL 填 https://mcp.lhualan338.workers.dev/" + 2 个服务各 3 步接入
+// 验证: _reports/test-extract-only.mjs 端到端跑通 — 14 分类 116 餐品, 跟用户截图"蘸酱炸鸡五选一 11.9元"对上
+// 2026-08-01 v0.1.56: 修绿江章节删除按钮不响应 - checkbox 点击时同步 selectedChapters
+// 2026-08-01 v0.1.57: 修绿江 AI 续写不接剧情 - prompt 拼接多章 summary + 硬性接续要求 + summary 缺失 fallback
+const CACHE_VERSION = 'v0.1.58';
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [
@@ -54,6 +65,9 @@ const URLS_TO_CACHE = [
   './js/mcp-generic-client.js',
   './js/mcp-tool-bridge.js',
   './js/mcp-ui-list.js',
+  // v0.1.55 新增: MCP 菜单卡片渲染（粉白色系浮动按钮 + 全屏 sheet）
+  './js/mcp-menu-card.js',
+  './css/mcp-miniapp-pink.css',
   // v0.1.30 新增：Live2D 视频通话（cubism 引擎 + loader + 视频通话主文件）
   './lib/live2dcubismcore.min.js',
   './modules/live2d-loader.js',

@@ -1,4 +1,4 @@
-/* ====================================================================
+﻿/* ====================================================================
  * 通用 MCP 设置面板 UI
  *
  * 依赖: McpGenericClient / McpBridge
@@ -83,40 +83,24 @@
         t._timer = setTimeout(function () { t.style.opacity = '0'; }, 3000);
     }
 
-    // ========== 热门 MCP 推荐 (5 分钟接入引导) ==========
+    // ========== 热门 MCP 推荐 (代理已部署好, 填 URL + Token 就完事) ==========
 
     const RECOMMEND_LIST = [
         {
-            icon: '🔍',
-            name: '网页搜索 (Exa AI)',
-            url: 'https://mcp.exa.ai/mcp',
-            tokenHint: '去 exa.ai 注册拿 API Key (免费 1000 次/月)',
-            playTip: '"查一下 XX 最新消息" / "帮我搜 XX 官网"',
-            signUpUrl: 'https://exa.ai',
+            icon: '🍔',
+            name: '麦当劳 MCP',
+            url: 'https://mcp.mcd.cn/',
+            tokenHint: '去 open.mcd.cn/mcp 登录拿 Token',
+            playTip: '"附近有什么麦当劳" / "巨无霸多少钱" / "下一份麦辣鸡腿堡"',
+            signUpUrl: 'https://open.mcd.cn/mcp',
         },
         {
-            icon: '🦁',
-            name: '网页搜索 (Brave)',
-            url: 'https://mcp.brave.com/mcp',
-            tokenHint: '去 brave.com/search/api 注册拿 API Key (免费 2000 次/月)',
-            playTip: '跟 Exa 类似, 备选',
-            signUpUrl: 'https://brave.com/search/api/',
-        },
-        {
-            icon: '🌤',
-            name: '天气查询 (自部署)',
-            url: 'http://localhost:端口/mcp',
-            tokenHint: 'GitHub 搜 mcp-weather 跑本地 (要 Node 环境)',
-            playTip: '"今天 XX 天气怎么样"',
-            signUpUrl: 'https://github.com/modelcontextprotocol/servers',
-        },
-        {
-            icon: '📁',
-            name: '文件系统 (自部署)',
-            url: 'http://localhost:端口/mcp',
-            tokenHint: '@modelcontextprotocol/server-filesystem 跑本地',
-            playTip: '"读一下我桌面上 XX.pdf" / "整理下我下载文件夹"',
-            signUpUrl: 'https://www.npmjs.com/package/@modelcontextprotocol/server-filesystem',
+            icon: '☕',
+            name: '瑞幸咖啡 MCP',
+            url: 'https://gwmcp.lkcoffee.com/order/user/mcp',
+            tokenHint: '去 open.lkcoffee.com 登录拿 Token',
+            playTip: '"来一杯冰美式" / "附近哪几家瑞幸" / "查下最近的订单"',
+            signUpUrl: 'https://open.lkcoffee.com',
         },
     ];
 
@@ -129,11 +113,11 @@
                 '</div>' +
                 '<div style="font-size:11px;color:#6B7280;margin-bottom:8px;line-height:1.6;">' +
                     '<div style="margin-bottom:3px;">🔑 ' + escapeHtml(item.tokenHint) + '</div>' +
-                    '<div>💡 玩法: ' + escapeHtml(item.playTip) + '</div>' +
+                    '<div style="margin-bottom:3px;">💡 玩法: ' + escapeHtml(item.playTip) + '</div>' +
                 '</div>' +
                 '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
                     '<button data-role="copy-url" data-url="' + escapeHtml(item.url) + '" style="padding:4px 10px;background:#fff;color:' + COLORS.primary + ';border:1px solid ' + COLORS.primary + ';border-radius:6px;font-size:11px;cursor:pointer;">📋 复制 URL</button>' +
-                    '<a href="' + escapeHtml(item.signUpUrl) + '" target="_blank" rel="noopener" style="padding:4px 10px;background:#fff;color:#6B7280;border:1px solid ' + COLORS.border + ';border-radius:6px;font-size:11px;text-decoration:none;display:inline-block;">🔗 拿 Token / 注册</a>' +
+                    '<a href="' + escapeHtml(item.signUpUrl) + '" target="_blank" rel="noopener" style="padding:4px 10px;background:#fff;color:#6B7280;border:1px solid ' + COLORS.border + ';border-radius:6px;font-size:11px;text-decoration:none;display:inline-block;">🔗 拿 Token</a>' +
                 '</div>' +
             '</div>';
     }
@@ -144,13 +128,10 @@
             '<div style="background:linear-gradient(135deg,#FEF3C7,#FED7AA);border-radius:10px;padding:12px 14px;margin-bottom:14px;">' +
                 '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">' +
                     '<span style="font-size:16px;">🌟</span>' +
-                    '<strong style="font-size:14px;color:#92400E;">5 分钟接入热门服务</strong>' +
-                    '<button data-role="open-tutorial" style="background:#fff;color:#92400E;border:1px solid #F59E0B;border-radius:6px;padding:3px 10px;font-size:11px;font-weight:600;cursor:pointer;margin-left:auto;">📖 完整图文教程</button>' +
+                    '<strong style="font-size:14px;color:#92400E;">快速接入</strong>' +
+                    '<button data-role="open-tutorial" style="background:#fff;color:#92400E;border:1px solid #F59E0B;border-radius:6px;padding:3px 10px;font-size:11px;font-weight:600;cursor:pointer;margin-left:auto;">📖 接入教程</button>' +
                 '</div>' +
                 '<div style="display:flex;flex-direction:column;gap:8px;">' + items + '</div>' +
-                '<div style="font-size:11px;color:#92400E;margin-top:10px;line-height:1.5;opacity:.85;">' +
-                    '💡 流程: 复制 URL → 去对应网站拿 Token/Cookie → 回这里点"+ 添加 MCP 服务器"粘贴 → 测试连接 → 启用' +
-                '</div>' +
             '</div>';
     }
 
@@ -188,52 +169,26 @@
 
     const TUTORIAL_STEPS = [
         {
-            icon: '🔍',
-            name: '网页搜索 (Exa AI)',
+            icon: '🍔',
+            name: '麦当劳 MCP',
             steps: [
-                '打开 <a href="https://exa.ai" target="_blank" rel="noopener">exa.ai</a> 注册账号 (免费 1000 次/月够用)',
-                '登录后到 Dashboard → API Keys → 复制你的 API Key',
-                '回 330 → 点 "+ 添加 MCP 服务器" → 名称填 "Exa" → URL 粘贴 <code>https://mcp.exa.ai/mcp</code> → Bearer Token 粘贴 API Key',
-                '点 "测试连接" → 看到 "✓ 已连接, N 个工具" → 保存 → 启用开关',
-                '回聊天, 对 AI 说 "查一下 XX 最新消息" 或 "帮我搜 XX 官网"',
+                '<b>拿 Token</b>: 打开 <a href="https://open.mcd.cn/mcp" target="_blank" rel="noopener">open.mcd.cn/mcp</a> → 微信扫码登录 → 点 "生成 Token" → 复制 (1 个月有效)',
+                '<b>回 330 添加</b>: 设置 → MCP → "+ 添加 MCP 服务器" → 名称 "麦当劳" → URL 填 <code>https://mcp.mcd.cn/</code> → Bearer Token 粘上一步的 → 代理 URL 填 <code>https://mcp.lhualan338.workers.dev/</code> (不能漏, 浏览器 CORS 拦)',
+                '点 "测试连接" → 看到 "✓ 已连接, 29 个工具" → 保存 → 启用开关',
+                '回聊天对 AI 说 "附近有什么麦当劳" — AI 自动调工具',
             ],
-            tip: '💡 Exa 是 AI 友好的搜索引擎, 搜出来的内容直接喂给 AI 总结。免费档 1000 次够玩一个月。',
+            tip: '💡 29 个工具: 查门店/菜单/订单/优惠券/积分/外送地址/派对预约。',
         },
         {
-            icon: '🦁',
-            name: '网页搜索 (Brave)',
+            icon: '☕',
+            name: '瑞幸咖啡 MCP',
             steps: [
-                '打开 <a href="https://brave.com/search/api/" target="_blank" rel="noopener">brave.com/search/api</a> 注册 (免费 2000 次/月)',
-                '订阅 Free tier → 拿到 API Key',
-                '回 330 → 名称 "Brave" → URL <code>https://mcp.brave.com/mcp</code> → Bearer Token 填 API Key',
-                '测试连接 → 启用 → 聊天用',
+                '<b>拿 Token</b>: 打开 <a href="https://open.lkcoffee.com" target="_blank" rel="noopener">open.lkcoffee.com</a> → 手机号登录 → 顶部 "MCP" → 复制 Token',
+                '<b>回 330 添加</b>: 设置 → MCP → "+ 添加 MCP 服务器" → 名称 "瑞幸" → URL 填 <code>https://gwmcp.lkcoffee.com/order/user/mcp</code> → Bearer Token 粘贴 → 代理 URL 跟麦当劳填一样的 <code>https://mcp.lhualan338.workers.dev/</code>',
+                '点 "测试连接" → 看到工具清单 → 保存 → 启用',
+                '聊天说 "来一杯冰美式" / "附近哪几家瑞幸" — AI 自动处理',
             ],
-            tip: '💡 Brave 跟 Exa 类似, 二选一即可。Exa 偏 AI 友好, Brave 偏传统搜索。',
-        },
-        {
-            icon: '🌤',
-            name: '天气查询 (自部署)',
-            steps: [
-                '需要你电脑装了 Node.js (没装先装: <a href="https://nodejs.org" target="_blank" rel="noopener">nodejs.org</a>)',
-                '打开终端跑: <code>npx -y @modelcontextprotocol/server-weather</code> (默认监听 stdio, 需要先确认该包支持 Streamable HTTP)',
-                '<b>注意</b>: 多数官方 reference server 是 stdio 模式 (本机子进程), 浏览器调不了. 要么用 npx 包自带的 HTTP 模式, 要么用 <a href="https://github.com/modelcontextprotocol/servers" target="_blank" rel="noopener">社区 HTTP 包装版</a>',
-                '跑起来后看输出: "Listening on http://localhost:3000/mcp"',
-                '回 330 → 名称 "天气" → URL 填 <code>http://localhost:3000/mcp</code> → 测试连接 → 启用',
-                '聊天说 "今天上海天气怎么样" AI 自动查',
-            ],
-            tip: '💡 自部署需要电脑一直开着. 想手机也能用, 套 Cloudflare Tunnel 透传 (零基础参考: <a href="https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/" target="_blank" rel="noopener">Cloudflare 文档</a>)。',
-        },
-        {
-            icon: '📁',
-            name: '文件系统 (自部署)',
-            steps: [
-                '装 Node.js 后跑: <code>npx -y @modelcontextprotocol/server-filesystem /Users/你的用户名/Desktop</code> (Desktop 换成你想让 AI 访问的目录)',
-                '同样多数是 stdio 模式, 找带 HTTP 模式的包装版, 或用 supergateway 包装: <code>npx -y supergateway --stdio "npx -y @modelcontextprotocol/server-filesystem /path/to/dir"</code>',
-                '跑起来后记下 URL (通常是 <code>http://localhost:8000/mcp</code>)',
-                '回 330 → 名称 "文件" → URL 填这个 → 测试连接 → 启用',
-                '聊天说 "读一下我桌面上 XX.pdf" / "整理下我下载文件夹"',
-            ],
-            tip: '💡 <b style="color:#B91C1C">安全警告</b>: AI 能读 / 写 / 删那个目录的文件! 不要指向根目录或敏感文件夹, 建议先开一个专门的 "AI 工作" 文件夹。',
+            tip: '💡 瑞幸点单流程: 找门店 → 选商品 → calculate-price → 你确认后 create-order。下单前会问你要不要用优惠券。',
         },
     ];
 
@@ -263,17 +218,17 @@
             '<div style="padding:20px;">' +
                 '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">' +
                     '<div>' +
-                        '<div style="font-size:17px;font-weight:600;color:' + COLORS.text + ';">📖 MCP 完整图文教程</div>' +
-                        '<div style="font-size:12px;color:' + COLORS.subText + ';margin-top:2px;">5 个常用服务 · 点章节展开看步骤</div>' +
+                        '<div style="font-size:17px;font-weight:600;color:' + COLORS.text + ';">📖 MCP 接入教程</div>' +
+                        '<div style="font-size:12px;color:' + COLORS.subText + ';margin-top:2px;">代理已部署好, 填 URL + Token + 启用就完事</div>' +
                     '</div>' +
                     '<button data-role="tutorial-close" style="background:none;border:none;font-size:22px;cursor:pointer;color:' + COLORS.subText + ';">×</button>' +
                 '</div>' +
-                sections +
-                '<div style="margin-top:14px;padding:12px;background:' + COLORS.bg + ';border-radius:8px;font-size:12px;line-height:1.6;color:' + COLORS.subText + ';">' +
-                    '<b style="color:' + COLORS.text + ';">通用流程</b> (所有服务都适用):<br>' +
-                    '① 拿 URL + Token/Cookie → ② 添加 server → ③ 测试连接看到工具清单 → ④ 启用 → ⑤ 回聊天对 AI 说<br><br>' +
-                    '<b style="color:' + COLORS.text + ';">遇到问题</b>: 报错 "Failed to fetch" 八成是 CORS, 配代理 URL; 报错 401/403 是 Token 错或过期; AI 不调工具是模型不支持 function calling, 关掉 "聊天模型支持 OpenAI function calling" 开关试试。' +
+                '<div style="background:#FEF3C7;border:1px solid #F59E0B;border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12px;line-height:1.6;color:#92400E;">' +
+                    '<b>所有 MCP 服务的代理 URL 都填这个</b> (已部署好, 不用自己跑):<br>' +
+                    '<code style="user-select:all;background:#fff;padding:2px 6px;border-radius:4px;display:inline-block;margin-top:4px;">https://mcp.lhualan338.workers.dev/</code>' +
                 '</div>' +
+                sections +
+
             '</div>' +
         '</div>';
 
@@ -281,6 +236,7 @@
         const closeBtn = modal.querySelector('[data-role="tutorial-close"]');
         if (closeBtn) closeBtn.addEventListener('click', function () { modal.style.display = 'none'; });
         modal.addEventListener('click', function (e) { if (e.target === modal) modal.style.display = 'none'; });
+
     }
 
     // ========== 状态徽章 (enabled / 连接中 / 已连接 / 失败) ==========

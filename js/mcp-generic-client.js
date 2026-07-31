@@ -46,6 +46,48 @@
     function safeParseJson(s, fallback) {
         try { return JSON.parse(s); } catch (e) { return fallback; }
     }
+
+    // 兜底: 很多 MCP 端点 (mcd.cn / 百度 / ...) 的 content[0].text 不是纯 JSON,
+    // 前面会带 markdown 描述 (如 "## 展示规则: ..."), 直接 JSON.parse 会炸.
+    // 用 brace-match 抽最大的 balanced {}/[] 块, 拿真正的数据对象.
+    function extractJsonFromMcpText(text) {
+        if (!text || typeof text !== 'string') return null;
+        // 1. 先试直接 parse
+        try { return JSON.parse(text); } catch (e) {}
+        // 2. markdown ```json ... ``` 围栏
+        const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+        if (fence) {
+            try { return JSON.parse(fence[1].trim()); } catch (e) {}
+        }
+        // 3. brace match 找最大 balanced 块
+        let best = null, bestLen = 0;
+        for (let i = 0; i < text.length; i++) {
+            const ch = text[i];
+            if (ch !== '{' && ch !== '[') continue;
+            const close = ch === '{' ? '}' : ']';
+            let depth = 0, inStr = false, esc = false;
+            for (let j = i; j < text.length; j++) {
+                const c = text[j];
+                if (esc) { esc = false; continue; }
+                if (c === '\\') { esc = true; continue; }
+                if (c === '"') { inStr = !inStr; continue; }
+                if (inStr) continue;
+                if (c === ch) depth++;
+                else if (c === close) {
+                    depth--;
+                    if (depth === 0) {
+                        const slice = text.slice(i, j + 1);
+                        try {
+                            const obj = JSON.parse(slice);
+                            if (slice.length > bestLen) { best = obj; bestLen = slice.length; }
+                        } catch (e) {}
+                        break;
+                    }
+                }
+            }
+        }
+        return best;
+    }
     function isRecord(v) {
         return v != null && typeof v === 'object' && !Array.isArray(v);
     }
@@ -563,7 +605,7 @@
                 if (result.isError) {
                     return finish({ success: false, error: fullText || 'MCP 工具执行失败', rawText: fullText });
                 }
-                const parsed = safeParseJson(fullText, null);
+                const parsed = safeParseJson(fullText, null) || extractJsonFromMcpText(fullText);
                 if (parsed != null) {
                     return finish({ success: true, data: parsed, rawText: fullText });
                 }

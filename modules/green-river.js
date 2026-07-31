@@ -913,12 +913,26 @@
         if (wb) worldBookText += `- 《${wb.name}》设定: ${wb.content.filter(e => e.enabled).map(e => e.content).join(';')}\n`;
       }
 
+      // 拼接最近 N 章的剧情摘要（兜底取章节正文头尾），让 AI 能接续剧情
+      // 之前只取最后一章 summary，前面剧情全丢 → AI 写到第 2 章就忘了开头
+      const recentCount = Math.max(1, Math.min(historyLimit, 10));
+      const recentChapters = (story.chapters || []).slice(-recentCount);
       let prevSummary = "这是故事的开始。";
-      if (story.chapters && story.chapters.length > 0) {
-        const lastChapter = story.chapters[story.chapters.length - 1];
-        if (lastChapter && lastChapter.summary) {
-          prevSummary = lastChapter.summary;
-        }
+      if (recentChapters.length > 0) {
+        const blocks = recentChapters.map((ch, idx) => {
+          const chTitle = ch.title || `第 ${story.chapters.length - recentChapters.length + idx + 1} 章`;
+          let chSummary = (ch.summary || '').trim();
+          if (!chSummary && ch.content) {
+            // 兜底：取章节正文"头 200 + 尾 400 字"，比空 summary 强
+            const content = String(ch.content);
+            const head = content.substring(0, 200);
+            const tailStart = Math.max(0, content.length - 400);
+            chSummary = content.length <= 600 ? content : (head + '…' + content.substring(tailStart));
+          }
+          if (!chSummary) chSummary = '（本章无内容记录）';
+          return `\n[${chTitle}]\n摘要: ${chSummary}`;
+        }).join('\n');
+        prevSummary = blocks;
       }
       let macroContext = "";
       if (story.settings.macroWorldView) {
@@ -957,8 +971,15 @@ ${macroContext}
 ${charsContext}
 
 # 当前进度
-- **前情提要**: ${prevSummary}
+- **前文剧情回顾**（按时间顺序，最新章节在最后）:
+${prevSummary}
 - **用户指示**: ${userDirection || "（无指示，请顺其自然地发展剧情，重点是写够字数！）"}
+
+# 【🔥 接续硬性要求 - 最高优先级】
+1. **必须紧接上一章结尾的场景、人物状态、情绪基调继续写**——不能凭空重置时间、地点、人物关系、已经发生过的事件。
+2. **不能重复上一章已经写过的对话、动作、场景**。
+3. 保持人物关系、立场、情感弧线的连贯——上一章刚吵完架，这一章不能突然和好如初除非有合理过渡。
+4. 如果用户指示与"接续剧情"冲突，**优先遵循用户指示**，但仍需在合理范围内保持连贯。
 
 # 输出格式 (JSON)
 回复必须且只能是一个JSON对象：${(story.settings.readerCommentsEnabled ? `
@@ -1232,8 +1253,15 @@ ${charsContext}
         checkbox.style.cssText = 'width: 18px; height: 18px; margin-right: 12px; cursor: pointer;';
         checkbox.onclick = (e) => {
           e.stopPropagation();
+          // 同步 checkbox 状态到 Set（浏览器已原生 toggle 了 checked）
+          if (checkbox.checked) {
+            chapterDeleteState.selectedChapters.add(index);
+          } else {
+            chapterDeleteState.selectedChapters.delete(index);
+          }
+          renderChapterList(story, listContainer, countEl);
         };
-        
+
         div.onclick = () => {
           if (chapterDeleteState.selectedChapters.has(index)) {
             chapterDeleteState.selectedChapters.delete(index);

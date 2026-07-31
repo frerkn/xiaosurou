@@ -376,6 +376,8 @@
         catch (e) { return String(url); }
     }
     function isLLMRequest(url) {
+        // 2026-07-31: 用户 API proxyUrl 都带 /v1, 实际 URL 是 /v1/chat/completions, 老匹配就是对的
+        // 不动用户接口补全规则, 老逻辑保留
         return typeof url === 'string' && url.indexOf('/v1/chat/completions') >= 0;
     }
 
