@@ -47,6 +47,29 @@ class MockElement {
         node.parent = this;
     }
     appendChild(node) { this.insertBefore(node, null); }
+    get nextElementSibling() {
+        if (!this.parent || !this.parent.children) return null;
+        const idx = this.parent.children.indexOf(this);
+        for (let i = idx + 1; i < this.parent.children.length; i++) {
+            return this.parent.children[i];
+        }
+        return null;
+    }
+    get previousElementSibling() {
+        if (!this.parent || !this.parent.children) return null;
+        const idx = this.parent.children.indexOf(this);
+        for (let i = idx - 1; i >= 0; i--) {
+            return this.parent.children[i];
+        }
+        return null;
+    }
+    querySelectorAll(selector) { return _mockDoc.querySelectorAll(selector).filter(e => this._contains(e)); }
+    querySelector(selector) { const all = this.querySelectorAll(selector); return all.length ? all[0] : null; }
+    _contains(node) {
+        let cur = node;
+        while (cur && cur !== this) cur = cur.parent;
+        return cur === this;
+    }
     closest(selector) {
         let cur = this;
         while (cur) {
@@ -78,6 +101,7 @@ MockElement.callHas = function (el, c) {
 
 const _mockDoc = {
     _all: [],
+    _byId: {},
     createElement(tag) {
         const el = new MockElement(tag);
         this._all.push(el);
@@ -89,16 +113,38 @@ const _mockDoc = {
             const cls = selector.replace(/^\./, '').split(/[\[\.]/)[0];
             return this._all.filter(e => e.attrs && e.attrs.class && e.attrs.class.split(/\s+/).indexOf(cls) >= 0);
         }
+        if (selector.startsWith('#')) {
+            const id = selector.replace(/^#/, '');
+            return this._byId[id] ? [this._byId[id]] : [];
+        }
         return [];
     },
     querySelector(selector) {
         const all = this.querySelectorAll(selector);
         return all.length ? all[0] : null;
     },
+    getElementById(id) {
+        return this._byId[id] || null;
+    },
     body: new MockElement('body'),
 };
 
+// mock MutationObserver
+let _observerCb = null;
+let _observerTarget = null;
+class MockMutationObserver {
+    constructor(cb) { _observerCb = cb; }
+    observe(target) { _observerTarget = target; }
+    disconnect() { _observerCb = null; _observerTarget = null; }
+}
+function triggerObserver(addedNodes) {
+    if (_observerCb && _observerTarget) {
+        _observerCb([{ type: 'childList', addedNodes, target: _observerTarget }]);
+    }
+}
+
 global.document = _mockDoc;
+global.MutationObserver = MockMutationObserver;
 global.requestAnimationFrame = (fn) => setTimeout(fn, 0);
 
 let _cardListener = null;
@@ -107,12 +153,50 @@ global.McpBridge = {
 };
 
 // mock state 让 getCurrentAIName 拿到 "沈清越" (chat.originalName 字段, 聊天设置页"对方本名 (AI识别用)"输入框)
+// mock chat 1 包含 history (用于 findLastAssistantTimestamp 找锚点)
+// mock chat 2 用于"切聊天"测试 (有 mcpToolLogs 历史但 history 不全)
 global.state = {
     activeChatId: 'chat-1',
     chats: {
-        'chat-1': { originalName: '沈清越' },
+        'chat-1': {
+            originalName: '沈清越',
+            history: [
+                { role: 'user', timestamp: 1000, content: '你好' },
+                { role: 'assistant', timestamp: 2000, content: '在的' },
+            ],
+        },
+        'chat-2': {
+            originalName: '李泽',
+            history: [
+                { role: 'assistant', timestamp: 3000, content: 'ok' },
+            ],
+            mcpToolLogs: [
+                { ts: 2500, afterMsgTs: 2000, toolName: 'query-meals', aiName: '沈清越', summary: '3 分类 10 餐品', success: true },
+                { ts: 4000, afterMsgTs: 3000, toolName: 'searchProductForMcp', aiName: '李泽', summary: '5 项', success: true },
+                { ts: 4100, afterMsgTs: 3000, toolName: 'create-order', aiName: '李泽', summary: '订单 A100', success: false },
+            ],
+        },
     },
 };
+
+// mock Dexie db: 记录所有 put 调用
+const _putCalls = [];
+global.window = global;
+global.window.db = {
+    chats: {
+        put: async (chat) => { _putCalls.push(chat); return 'ok'; },
+    },
+};
+// 留一个引用给测试用
+global._putCalls = _putCalls;
+global._mockDoc = _mockDoc;
+
+// ========== 创建 chat-messages 容器 (v0.1.70 持久化用) ==========
+const chatMessagesContainer = new MockElement('div');
+chatMessagesContainer.attrs = { id: 'chat-messages' };
+_mockDoc._all.push(chatMessagesContainer);
+_mockDoc._byId['chat-messages'] = chatMessagesContainer;
+chatMessagesContainer.parent = _mockDoc.body;
 
 new Function('globalThis', code)(globalThis);
 
@@ -127,18 +211,19 @@ let pass = 0, fail = 0;
 
 function setupBubble() {
     _mockDoc._all.length = 0;
-    const chatArea = new MockElement('div');
-    chatArea.attrs = { class: 'chat-area' };
+    // 重新挂 chat-messages 容器
+    _mockDoc._all.push(chatMessagesContainer);
+    _mockDoc._byId['chat-messages'] = chatMessagesContainer;
+    chatMessagesContainer.parent = _mockDoc.body;
+    chatMessagesContainer.children = [];
     const wrapper = new MockElement('div');
     wrapper.attrs = { class: 'message-wrapper' };
     const bubble = new MockElement('div');
     bubble.attrs = { class: 'message-bubble', 'data-timestamp': '99999' };
     bubble.parent = wrapper;
-    wrapper.parent = chatArea;
-    chatArea.parent = _mockDoc.body;
-    chatArea.children = [wrapper];
+    wrapper.parent = chatMessagesContainer;
+    chatMessagesContainer.children = [wrapper];
     wrapper.children = [bubble];
-    _mockDoc._all.push(chatArea);
     _mockDoc._all.push(wrapper);
     _mockDoc._all.push(bubble);
     return wrapper;
@@ -315,6 +400,274 @@ async function main() {
 
     // 9. 多调用堆叠
     await testMultiCalls();
+
+    // ========== v0.1.70 持久化测试 ==========
+
+    // 10. onCard 写持久化 (chat.mcpToolLogs.push + db.chats.put)
+    console.log(`\n========== 10. onCard 写持久化到 chat.mcpToolLogs + db.chats.put ==========`);
+    {
+        _putCalls.length = 0;
+        const chat = global.state.chats['chat-1'];
+        const beforeLen = (chat.mcpToolLogs || []).length;
+        const wrapper = setupBubble();
+        await new Promise(resolve => {
+            _cardListener({
+                toolName: 'query-meals',
+                result: { success: true, data: { categories: [{items:[1,2,3]}, {items:[1,2,3,4]}] } },
+                ts: 1000000,
+            });
+            setTimeout(() => {
+                // 1) chat.mcpToolLogs 应新增 1 条
+                const afterLen = (chat.mcpToolLogs || []).length;
+                if (afterLen === beforeLen + 1) {
+                    console.log('  ✅ chat.mcpToolLogs 新增 1 条');
+                    pass++;
+                } else {
+                    console.log('  ❌ chat.mcpToolLogs 长度不对: before=' + beforeLen + ' after=' + afterLen);
+                    fail++;
+                }
+                // 2) 新增的 entry 字段正确
+                const entry = chat.mcpToolLogs[chat.mcpToolLogs.length - 1];
+                const requiredFields = ['ts', 'afterMsgTs', 'toolName', 'aiName', 'summary', 'success'];
+                let allFields = true;
+                for (const f of requiredFields) {
+                    if (!(f in entry)) { console.log('  ❌ 缺字段: ' + f); allFields = false; fail++; }
+                }
+                if (allFields) { console.log('  ✅ entry 6 字段齐全: ' + JSON.stringify(entry)); pass++; }
+                // 3) afterMsgTs 应该 = 2000 (chat-1 最后一条 assistant)
+                if (entry.afterMsgTs === 2000) { console.log('  ✅ afterMsgTs = 2000 (chat-1 最后 assistant)'); pass++; }
+                else { console.log('  ❌ afterMsgTs 应为 2000, 实际 ' + entry.afterMsgTs); fail++; }
+                // 4) db.chats.put 被调
+                if (_putCalls.length === 1 && _putCalls[0] === chat) { console.log('  ✅ db.chats.put(chat) 调用正确'); pass++; }
+                else { console.log('  ❌ db.chats.put 调用错: ' + _putCalls.length + ' 次'); fail++; }
+                resolve();
+            }, 30);
+        });
+    }
+
+    // 11. renderHistoricalLogs 重新渲染历史 log (模拟切聊天)
+    console.log(`\n========== 11. 切聊天 → renderHistoricalLogs 恢复历史 log ==========`);
+    {
+        // 切到 chat-2 (有 3 条 mcpToolLogs: query-meals + searchProduct + create-order)
+        const oldActive = global.state.activeChatId;
+        global.state.activeChatId = 'chat-2';
+        // 设置 chat-2 的 DOM: 一条 wrapper + bubble (timestamp=3000), 模拟 330 renderChatInterface 渲染完
+        _mockDoc._all.length = 0;
+        _mockDoc._all.push(chatMessagesContainer);
+        _mockDoc._byId['chat-messages'] = chatMessagesContainer;
+        chatMessagesContainer.parent = _mockDoc.body;
+        chatMessagesContainer.children = [];
+        const w2 = new MockElement('div');
+        w2.attrs = { class: 'message-wrapper' };
+        const b2 = new MockElement('div');
+        b2.attrs = { class: 'message-bubble', 'data-timestamp': '3000' };
+        b2.parent = w2;
+        w2.parent = chatMessagesContainer;
+        chatMessagesContainer.children = [w2];
+        w2.children = [b2];
+        _mockDoc._all.push(w2);
+        _mockDoc._all.push(b2);
+
+        // 触发 onCard (它会调内部 renderHistoricalLogs 吗? — 不会, 这个函数需要手动暴露)
+        // 看代码: 我没暴露 renderHistoricalLogs, 只通过 MutationObserver 触发
+        // 那测试直接 triggerObserver 模拟 330 渲染消息后触发
+        triggerObserver([b2]);
+        // 等 debounce 100ms + 一些缓冲
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        const lines = _mockDoc._all.filter(e => e.attrs && e.attrs.class && e.attrs.class.indexOf('mcp-tool-log-line') >= 0);
+        console.log('  → 找到 ' + lines.length + ' 个 .mcp-tool-log-line');
+        if (lines.length === 3) { console.log('  ✅ 3 条历史 log 全部渲染'); pass++; }
+        else { console.log('  ❌ 应为 3 条, 实际 ' + lines.length); fail++; }
+        // 验证: 第一条 (ts=2500, afterMsgTs=2000) 应该找 nearest bubble before 2000 — 找不到 (3000 之后), 兜底到末尾
+        // 第二/三条 (ts=4000/4100, afterMsgTs=3000) 应该插到 b2 后面
+        if (lines.length >= 2) {
+            const tsList = lines.map(l => l.getAttribute('data-ts'));
+            console.log('  → ts 列表: ' + tsList.join(', '));
+            const ok = tsList.indexOf('2500') >= 0 && tsList.indexOf('4000') >= 0 && tsList.indexOf('4100') >= 0;
+            if (ok) { console.log('  ✅ 3 条 ts 都在 DOM 里'); pass++; }
+            else { console.log('  ❌ 缺 ts'); fail++; }
+        }
+        // 验证失败样式: create-order (ts=4100) 应有 mcp-tool-log-err
+        const errLine = lines.find(l => l.getAttribute('data-ts') === '4100');
+        if (errLine && errLine.attrs.class && errLine.attrs.class.indexOf('mcp-tool-log-err') >= 0) {
+            console.log('  ✅ create-order 失败样式正确 (mcp-tool-log-err)');
+            pass++;
+        } else {
+            console.log('  ❌ create-order 失败样式错: ' + (errLine && errLine.attrs.class));
+            fail++;
+        }
+        global.state.activeChatId = oldActive;
+    }
+
+    // 12. renderHistoricalLogs 幂等 (重复 ts 跳过)
+    console.log(`\n========== 12. 幂等: 重复触发不重复渲染 ==========`);
+    {
+        // 复用 chat-2, 再 triggerObserver 一次
+        _mockDoc._all.length = 0;
+        _mockDoc._all.push(chatMessagesContainer);
+        _mockDoc._byId['chat-messages'] = chatMessagesContainer;
+        chatMessagesContainer.parent = _mockDoc.body;
+        // 把上次渲染的 lines 全留 (chatMessagesContainer.children 没被清, 但 _mockDoc._all 清了)
+        // 这里要保留 DOM 结构, 所以重建 wrapper + 之前的 log lines
+        chatMessagesContainer.children = [];
+        const w3 = new MockElement('div');
+        w3.attrs = { class: 'message-wrapper' };
+        const b3 = new MockElement('div');
+        b3.attrs = { class: 'message-bubble', 'data-timestamp': '3000' };
+        b3.parent = w3;
+        w3.parent = chatMessagesContainer;
+        chatMessagesContainer.children = [w3];
+        w3.children = [b3];
+        _mockDoc._all.push(w3);
+        _mockDoc._all.push(b3);
+        // 把之前 3 条 log line 复制回来
+        // 简化: 直接模拟"已经有 3 条 log line"在容器里
+        const oldActive = global.state.activeChatId;
+        global.state.activeChatId = 'chat-2';
+        for (let i = 0; i < 3; i++) {
+            const fakeTs = ['2500', '4000', '4100'][i];
+            const fakeLine = new MockElement('div');
+            fakeLine.attrs = { class: 'mcp-tool-log-line', 'data-ts': fakeTs };
+            // 挂到 chatMessagesContainer (顺序按 ts)
+            chatMessagesContainer.children.push(fakeLine);
+            _mockDoc._all.push(fakeLine);
+        }
+        const beforeCount = chatMessagesContainer.children.length;
+        // 触发 observer
+        triggerObserver([b3]);
+        await new Promise(resolve => setTimeout(resolve, 200));
+        const afterCount = chatMessagesContainer.children.length;
+        if (afterCount === beforeCount) {
+            console.log('  ✅ 重复触发不新增 log (before=' + beforeCount + ' after=' + afterCount + ')');
+            pass++;
+        } else {
+            console.log('  ❌ 重复触发多渲染了 (before=' + beforeCount + ' after=' + afterCount + ')');
+            fail++;
+        }
+        global.state.activeChatId = oldActive;
+    }
+
+    // 13. 完全没锚点气泡的兜底
+    console.log(`\n========== 13. 找不到锚点气泡 → 兜底到末尾 ==========`);
+    {
+        // 新聊天: chat-3 只有 mcpToolLogs, 没 history 也没 DOM
+        global.state.chats['chat-3'] = {
+            originalName: '小王',
+            mcpToolLogs: [
+                { ts: 5000, afterMsgTs: 9999, toolName: 'geocodes', aiName: '小王', summary: '3 地址候选', success: true },
+            ],
+        };
+        _mockDoc._all.length = 0;
+        _mockDoc._all.push(chatMessagesContainer);
+        _mockDoc._byId['chat-messages'] = chatMessagesContainer;
+        chatMessagesContainer.parent = _mockDoc.body;
+        chatMessagesContainer.children = [];  // 空容器, 无气泡
+        const oldActive = global.state.activeChatId;
+        global.state.activeChatId = 'chat-3';
+        // 模拟 330 切聊天后渲染消息: triggerObserver 传一个 addNode
+        triggerObserver([new MockElement('div')]);
+        await new Promise(resolve => setTimeout(resolve, 200));
+        const lines = _mockDoc._all.filter(e => e.attrs && e.attrs.class && e.attrs.class.indexOf('mcp-tool-log-line') >= 0);
+        if (lines.length === 1) {
+            console.log('  ✅ 找不到锚点时, 兜底渲染 1 条 log (插到容器末尾)');
+            pass++;
+        } else {
+            console.log('  ❌ 应渲染 1 条, 实际 ' + lines.length);
+            fail++;
+        }
+        global.state.activeChatId = oldActive;
+        delete global.state.chats['chat-3'];
+    }
+
+    // 14. 没 mcpToolLogs 字段时不报错
+    console.log(`\n========== 14. 老聊天 (没 mcpToolLogs 字段) 不报错 ==========`);
+    {
+        // chat-1 没 mcpToolLogs 字段 (v0.1.63 之前建的)
+        const chat1 = global.state.chats['chat-1'];
+        delete chat1.mcpToolLogs;
+        const oldActive = global.state.activeChatId;
+        global.state.activeChatId = 'chat-1';
+        _mockDoc._all.length = 0;
+        _mockDoc._all.push(chatMessagesContainer);
+        _mockDoc._byId['chat-messages'] = chatMessagesContainer;
+        chatMessagesContainer.parent = _mockDoc.body;
+        chatMessagesContainer.children = [];
+        const w4 = new MockElement('div');
+        w4.attrs = { class: 'message-wrapper' };
+        const b4 = new MockElement('div');
+        b4.attrs = { class: 'message-bubble', 'data-timestamp': '2000' };
+        b4.parent = w4; w4.parent = chatMessagesContainer;
+        chatMessagesContainer.children = [w4]; w4.children = [b4];
+        _mockDoc._all.push(w4); _mockDoc._all.push(b4);
+        let errored = false;
+        try {
+            triggerObserver([b4]);
+            await new Promise(resolve => setTimeout(resolve, 200));
+        } catch (e) {
+            errored = true;
+        }
+        if (!errored) {
+            console.log('  ✅ 老聊天没 mcpToolLogs 也不报错');
+            pass++;
+        } else {
+            console.log('  ❌ 老聊天报错');
+            fail++;
+        }
+        global.state.activeChatId = oldActive;
+    }
+
+    // 15. 实时 onCard summary 正确 (amount 优先于 orderId — v0.1.63 numberKeys 顺序)
+    console.log(`\n========== 15. 实时 onCard summary 正确 ==========`);
+    {
+        const chat = global.state.chats['chat-1'];
+        if (!chat.mcpToolLogs) chat.mcpToolLogs = [];
+        setupBubble();
+        await new Promise(resolve => {
+            _cardListener({
+                toolName: 'query-store-coupons',
+                result: { success: true, data: { orderId: 'MCD999', amount: 45.5 } },
+                ts: 2000000,
+            });
+            setTimeout(() => {
+                const entry = chat.mcpToolLogs[chat.mcpToolLogs.length - 1];
+                if (entry.toolName === 'query-store-coupons' && entry.summary === '¥45.5' && entry.success === true) {
+                    console.log('  ✅ 实时 entry 字段/summary/success 都对');
+                    pass++;
+                } else {
+                    console.log('  ❌ 实时 entry 错: ' + JSON.stringify(entry));
+                    fail++;
+                }
+                resolve();
+            }, 30);
+        });
+    }
+
+    // 16. 纯 status 字段 → "状态: xxx" summary
+    console.log(`\n========== 16. 纯 status → "状态: xxx" summary ==========`);
+    {
+        const chat = global.state.chats['chat-1'];
+        if (!chat.mcpToolLogs) chat.mcpToolLogs = [];
+        setupBubble();
+        await new Promise(resolve => {
+            _cardListener({
+                toolName: 'query-order',
+                result: { success: true, data: { status: 'paid' } },
+                ts: 3000000,
+            });
+            setTimeout(() => {
+                const entry = chat.mcpToolLogs[chat.mcpToolLogs.length - 1];
+                if (entry.toolName === 'query-order' && entry.summary === '状态: paid' && entry.success === true) {
+                    console.log('  ✅ 纯 status → "状态: paid"');
+                    pass++;
+                } else {
+                    console.log('  ❌ 期望 "状态: paid", 实际: ' + entry.summary);
+                    fail++;
+                }
+                resolve();
+            }, 30);
+        });
+    }
 
     console.log(`\n========== 总结 ==========`);
     console.log(`通过 ${pass}, 失败 ${fail}`);

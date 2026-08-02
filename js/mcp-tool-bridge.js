@@ -339,353 +339,6 @@
         return true;
     }
 
-    // OpenAI tools → Gemini functionDeclarations
-    // Gemini 原生 API type 是 proto3 枚举大写: "STRING" / "NUMBER" / "INTEGER" / "BOOLEAN" / "OBJECT" / "ARRAY" / "TYPE_UNSPECIFIED"
-    // OpenAI 工具传过来是 OpenAPI Schema 小写, 要递归转换所有 type 字段
-    function convertSchemaToGemini(schema) {
-        if (!schema || typeof schema !== 'object') return { type: 'OBJECT', properties: {} };
-        const typeMap = {
-            'string': 'STRING', 'number': 'NUMBER', 'integer': 'INTEGER',
-            'boolean': 'BOOLEAN', 'object': 'OBJECT', 'array': 'ARRAY',
-            'STRING': 'STRING', 'NUMBER': 'NUMBER', 'INTEGER': 'INTEGER',
-            'BOOLEAN': 'BOOLEAN', 'OBJECT': 'OBJECT', 'ARRAY': 'ARRAY',
-        };
-        const rawType = schema.type || 'object';
-        const out = { type: typeMap[String(rawType).toLowerCase()] || 'TYPE_UNSPECIFIED' };
-        if (schema.description) out.description = schema.description;
-        if (Array.isArray(schema.enum)) out.enum = schema.enum;
-        if (schema.properties) {
-            out.properties = {};
-            for (const k in schema.properties) {
-                out.properties[k] = convertSchemaToGemini(schema.properties[k]);
-            }
-        }
-        if (Array.isArray(schema.required)) out.required = schema.required;
-        if (schema.items) out.items = convertSchemaToGemini(schema.items);
-        return out;
-    }
-
-    function openAIToolsToGemini(openAITools) {
-        const declarations = (openAITools || []).map(function (t) {
-            if (!t || t.type !== 'function') return null;
-            const f = t.function || {};
-            return {
-                name: f.name,
-                description: f.description || '',
-                parameters: convertSchemaToGemini(f.parameters || { type: 'object', properties: {} })
-            };
-        }).filter(Boolean);
-        if (!declarations.length) return undefined;
-        return [{ functionDeclarations: declarations }];
-    }
-
-    // Gemini body → OpenAI body (messages + tools + generationConfig)
-    // geminiBody.contents: [{role: "user"/"model"/"function", parts: [{text}|{functionCall}|{functionResponse}]}]
-    function geminiBodyToOpenAI(geminiBody, sysBlock) {
-        const messages = [];
-        // systemInstruction → 第一个 system message
-        let sysText = '';
-        if (geminiBody.systemInstruction && Array.isArray(geminiBody.systemInstruction.parts)) {
-            sysText = geminiBody.systemInstruction.parts.map(function (p) { return p.text || ''; }).join('\n');
-        }
-        if (sysText && sysBlock) sysText = sysText + '\n\n' + sysBlock;
-        else if (sysBlock) sysText = sysBlock;
-        if (sysText) messages.push({ role: 'system', content: sysText });
-
-        const contents = Array.isArray(geminiBody.contents) ? geminiBody.contents : [];
-        for (let i = 0; i < contents.length; i++) {
-            const c = contents[i];
-            const parts = Array.isArray(c.parts) ? c.parts : [];
-            if (c.role === 'user') {
-                const text = parts.filter(function (p) { return p.text; }).map(function (p) { return p.text; }).join('\n');
-                messages.push({ role: 'user', content: text });
-            } else if (c.role === 'model') {
-                const text = parts.filter(function (p) { return p.text; }).map(function (p) { return p.text; }).join('\n');
-                const functionCalls = parts.filter(function (p) { return p.functionCall; }).map(function (p) { return p.functionCall; });
-                const msg = { role: 'assistant' };
-                if (text) msg.content = text;
-                if (functionCalls.length) {
-                    msg.tool_calls = functionCalls.map(function (fc, idx) {
-                        return {
-                            id: 'call_' + Date.now() + '_' + idx + '_' + i,
-                            type: 'function',
-                            function: {
-                                name: fc.name,
-                                arguments: JSON.stringify(fc.args || {})
-                            }
-                        };
-                    });
-                }
-                if (!msg.content && !msg.tool_calls) msg.content = '';
-                messages.push(msg);
-            } else if (c.role === 'function') {
-                // Gemini function response message: parts[].functionResponse = {name, response}
-                for (let j = 0; j < parts.length; j++) {
-                    const p = parts[j];
-                    if (!p || !p.functionResponse) continue;
-                    const fr = p.functionResponse;
-                    const responseObj = fr.response || {};
-                    // Gemini 接受 string 或 object 作为 response.content, 但 OpenAI tool content 是 string
-                    let contentStr = '';
-                    if (typeof responseObj === 'string') contentStr = responseObj;
-                    else if (responseObj.content != null) contentStr = typeof responseObj.content === 'string' ? responseObj.content : JSON.stringify(responseObj.content);
-                    else contentStr = JSON.stringify(responseObj);
-                    messages.push({
-                        role: 'tool',
-                        // 用 function name 当 tool_call_id, 转换回去时靠 name 关联
-                        tool_call_id: fr.name || ('call_' + j),
-                        content: contentStr
-                    });
-                }
-            }
-        }
-
-        const out = { messages: messages };
-        // generationConfig → openai style
-        if (geminiBody.generationConfig && typeof geminiBody.generationConfig === 'object') {
-            const gc = geminiBody.generationConfig;
-            if (gc.temperature != null) out.temperature = gc.temperature;
-            if (gc.maxOutputTokens != null) out.max_tokens = gc.maxOutputTokens;
-            if (gc.topP != null) out.top_p = gc.topP;
-            if (Array.isArray(gc.stopSequences)) out.stop = gc.stopSequences;
-        }
-        return out;
-    }
-
-    // OpenAI messages → Gemini contents (下轮迭代用)
-    function openAIMessagesToGeminiContents(messages) {
-        const contents = [];
-        for (let i = 0; i < messages.length; i++) {
-            const m = messages[i];
-            if (m.role === 'system' || m.role === 'developer') continue; // systemInstruction 单独存
-            if (m.role === 'user') {
-                contents.push({ role: 'user', parts: [{ text: m.content || '' }] });
-            } else if (m.role === 'assistant') {
-                const parts = [];
-                if (m.content) parts.push({ text: m.content });
-                if (Array.isArray(m.tool_calls)) {
-                    for (let j = 0; j < m.tool_calls.length; j++) {
-                        const tc = m.tool_calls[j];
-                        let args = {};
-                        try { args = tc.function && tc.function.arguments ? JSON.parse(tc.function.arguments) : {}; } catch (e) { args = {}; }
-                        parts.push({ functionCall: { name: tc.function && tc.function.name, args: args } });
-                    }
-                }
-                contents.push({ role: 'model', parts: parts.length ? parts : [{ text: '' }] });
-            } else if (m.role === 'tool') {
-                // 把 OpenAI tool message 转 Gemini function response parts
-                // 一个 OpenAI tool message 对应一个 function response
-                contents.push({
-                    role: 'function',
-                    parts: [{ functionResponse: { name: m.tool_call_id, response: { content: m.content || '' } } }]
-                });
-            }
-        }
-        return contents;
-    }
-
-    // OpenAI chat completion response → Gemini generateContent response
-    function openAIResponseToGemini(openAIData, model) {
-        const choice = (openAIData.choices && openAIData.choices[0]) || null;
-        if (!choice) {
-            return { candidates: [], modelVersion: model || 'gemini' };
-        }
-        const msg = choice.message || {};
-        const parts = [];
-        if (msg.content) parts.push({ text: msg.content });
-        if (Array.isArray(msg.tool_calls)) {
-            for (let i = 0; i < msg.tool_calls.length; i++) {
-                const tc = msg.tool_calls[i];
-                let args = {};
-                try { args = tc.function && tc.function.arguments ? JSON.parse(tc.function.arguments) : {}; } catch (e) { args = {}; }
-                parts.push({
-                    functionCall: {
-                        name: tc.function && tc.function.name,
-                        args: args
-                    }
-                });
-            }
-        }
-        if (!parts.length) parts.push({ text: '' });
-
-        const finishMap = {
-            'stop': 'STOP',
-            'length': 'MAX_TOKENS',
-            'tool_calls': 'STOP',
-            'content_filter': 'SAFETY',
-            'function_call': 'STOP',
-        };
-        const candidates = [{
-            content: { parts: parts, role: 'model' },
-            finishReason: finishMap[choice.finish_reason] || 'STOP',
-            index: 0,
-        }];
-        const result = {
-            candidates: candidates,
-            modelVersion: model || 'gemini',
-            responseId: 'resp_' + Date.now(),
-        };
-        if (openAIData.usage && typeof openAIData.usage === 'object') {
-            result.usageMetadata = {
-                promptTokenCount: openAIData.usage.prompt_tokens || 0,
-                candidatesTokenCount: openAIData.usage.completion_tokens || 0,
-                totalTokenCount: openAIData.usage.total_tokens || 0,
-            };
-        }
-        return result;
-    }
-
-    // Gemini 原生 API 端点的 chat 循环
-    // 关键: 直接用 Gemini 风格 body/contents 跟 Gemini API 通信, 不走 OpenAI 中转
-    // (Gemini 收到 OpenAI 风格 body 返 400, 必须用 {contents, tools:[{functionDeclarations}]})
-    async function runChatWithToolLoopGemini(url, init) {
-        if (!global.McpGenericClient) {
-            return (originalFetch || fetch)(url, init);
-        }
-        const sysBlock = (typeof buildMcpSystemBlock === 'function' ? buildMcpSystemBlock() : '') + '\n' + MCP_TAIL_REMINDER;
-
-        // 解析 Gemini body
-        const origBody = safeParseJson(init && init.body) || {};
-        const model = origBody.model || 'gemini';
-
-        // 准备 MCP 工具 (OpenAI 风格)
-        const built = buildMcpOpenAITools();
-        const openAITools = built.tools;
-        const resolveMap = built.resolve;
-        if (!openAITools.length) {
-            return (originalFetch || fetch)(url, init);
-        }
-
-        // Gemini 工具 (functionDeclarations)
-        const geminiTools = openAIToolsToGemini(openAITools);
-
-        // 维护 Gemini 风格的 contents (从原始 body 复制)
-        let geminiContents = Array.isArray(origBody.contents) ? origBody.contents.slice() : [];
-
-        // Gemini systemInstruction (保留原 systemInstruction + 追加 sysBlock)
-        let sysInstruction = origBody.systemInstruction;
-        if (sysBlock) {
-            const extraPart = { text: sysBlock };
-            if (sysInstruction && Array.isArray(sysInstruction.parts)) {
-                sysInstruction = { parts: sysInstruction.parts.concat([extraPart]) };
-            } else {
-                sysInstruction = { parts: [extraPart] };
-            }
-        }
-
-        // 其他 metadata (generationConfig / safetySettings 等) 保留
-        const baseMeta = {};
-        for (const k of Object.keys(origBody)) {
-            if (k === 'contents' || k === 'systemInstruction' || k === 'tools') continue;
-            baseMeta[k] = origBody[k];
-        }
-
-        emitProgress({ phase: 'session_start', summary: '已合并 ' + openAITools.length + ' 个 MCP 工具 (Gemini 原生模式)' });
-
-        const fetchForLLM = originalFetch || fetch;
-        const maxIter = (typeof TOOL_LOOP_MAX === 'number') ? TOOL_LOOP_MAX : 6;
-        let iteration = 0;
-        let lastGeminiResp = null;
-
-        while (iteration < maxIter) {
-            iteration++;
-            // 组装 Gemini body (保留所有元数据 + 注入 tools + systemInstruction)
-            const geminiBody = Object.assign({}, baseMeta, {
-                contents: geminiContents,
-                tools: geminiTools,
-            });
-            if (sysInstruction) geminiBody.systemInstruction = sysInstruction;
-            // Gemini native 强制 non-stream (stream 解析逻辑另写)
-            if (geminiBody.stream) delete geminiBody.stream;
-
-            const iterInit = Object.assign({}, init, {
-                body: JSON.stringify(geminiBody),
-                headers: Object.assign({}, init.headers || {}, { 'Content-Type': 'application/json' }),
-            });
-            const resp = await fetchForLLM(url, iterInit);
-            if (!resp.ok) {
-                emitProgress({ phase: 'session_done', summary: 'Gemini API 返 ' + resp.status });
-                return resp;
-            }
-            const data = await resp.json();
-            if (!data) {
-                emitProgress({ phase: 'session_done', summary: 'Gemini 响应空' });
-                return wrapAsJsonResp({ candidates: [] }, resp);
-            }
-            lastGeminiResp = data;
-
-            // 解析 Gemini 风格响应
-            const candidate = data.candidates && data.candidates[0];
-            if (!candidate) {
-                // 异常 (safety block / no candidate)
-                emitProgress({ phase: 'session_done', summary: 'Gemini 无 candidate (finishReason=' + (data.candidates && data.candidates[0]?.finishReason) + ')' });
-                return wrapAsJsonResp(data, resp);
-            }
-            const parts = (candidate.content && candidate.content.parts) || [];
-            const functionCalls = parts.filter(function (p) { return p && p.functionCall; }).map(function (p) { return p.functionCall; });
-            const text = parts.filter(function (p) { return p && p.text; }).map(function (p) { return p.text; }).join('\n');
-
-            if (!functionCalls.length) {
-                // 没 function call, 循环结束 (返 Gemini 响应原样)
-                if (text) geminiContents.push({ role: 'model', parts: [{ text: text }] });
-                emitProgress({ phase: 'session_done', summary: 'AI 已完成 (Gemini)' });
-                return wrapAsJsonResp(data, resp);
-            }
-
-            // 有 function call, 把 model 消息 (Gemini 风格) 加到 contents
-            const assistantParts = [];
-            if (text) assistantParts.push({ text: text });
-            for (let i = 0; i < functionCalls.length; i++) {
-                const fc = functionCalls[i];
-                assistantParts.push({ functionCall: { name: fc.name, args: fc.args || {} } });
-            }
-            geminiContents.push({ role: 'model', parts: assistantParts });
-
-            // 执行每个 function call
-            for (let i = 0; i < functionCalls.length; i++) {
-                const fc = functionCalls[i];
-                const fnName = fc.name;
-                const fnArgs = fc.args || {};
-                const resolved = resolveMap.get(fnName);
-                if (!resolved) {
-                    emitProgress({ phase: 'tool_err', toolName: fnName, summary: '工具未注册: ' + fnName });
-                    geminiContents.push({
-                        role: 'function',
-                        parts: [{ functionResponse: { name: fnName, response: { content: 'error: 工具 ' + fnName + ' 未在当前会话注册' } } }]
-                    });
-                    continue;
-                }
-                emitProgress({ phase: 'tool_start', toolName: fnName, summary: summarizeToolAction(resolved.toolName, fnArgs) });
-                let callResult;
-                try {
-                    callResult = await global.McpGenericClient.callTool(resolved.server, resolved.toolName, fnArgs);
-                } catch (toolErr) {
-                    callResult = { success: false, error: '工具调用异常: ' + ((toolErr && toolErr.message) || String(toolErr)) };
-                }
-                emitCardMessage(resolved.server, resolved.toolName, fnArgs, callResult);
-                emitProgress({
-                    phase: callResult.success ? 'tool_ok' : 'tool_err',
-                    toolName: fnName,
-                    summary: callResult.success
-                        ? summarizeToolResult(resolved.toolName, callResult)
-                        : ('失败: ' + ((callResult.error || '')).slice(0, 80)),
-                });
-                const content = callResult.success
-                    ? formatMcpToolResult(callResult.data)
-                    : ('error: ' + callResult.error);
-                // Gemini function response 存到 contents
-                geminiContents.push({
-                    role: 'function',
-                    parts: [{ functionResponse: { name: fnName, response: { content: content } } }]
-                });
-            }
-        }
-
-        emitProgress({ phase: 'session_done', summary: '达到工具循环上限 (Gemini), 安全退出' });
-        if (lastGeminiResp) return wrapAsJsonResp(lastGeminiResp, null);
-        return wrapAsJsonResp({ candidates: [] }, null);
-    }
-
     function wrapAsJsonResp(data, originalResp) {
         const status = originalResp ? originalResp.status : 200;
         const statusText = originalResp ? originalResp.statusText : 'OK';
@@ -860,41 +513,41 @@
         const wrappedFetch = async function (input, init) {
             const url = (typeof input === 'string' ? input : (input && input.url)) || '';
             const method = (init && init.method) || (input && input.method) || 'GET';
-            const isJsonBody = init && init.body && typeof init.body === 'string';
 
-            // 检测请求体里 stream: true (流式响应) — 不进工具循环 (工具循环解析 JSON 响应, stream 是 SSE)
-            // 修前 bug: runChatWithToolLoopGemini 强制把 stream 删了返 non-stream JSON, 破坏 330 主聊天/总结记忆的 stream 处理
-            let isStream = false;
-            if (isJsonBody) {
-                try {
-                    const body = JSON.parse(init.body);
-                    if (body && body.stream) isStream = true;
-                } catch (e) { /* 解析失败不算 stream */ }
+            // 拦截判断 (按优先级, 越前越安全):
+            // 1. Gemini native 端点 (generativelanguage.googleapis.com/v1beta/models/.../generateContent) 永远 bypass
+            //    — 普通聊天 + 总结记忆 都是 native 端点 (body 不带 stream 字段), 拦截后强制 non-stream + 注入 tools 会破坏 330 原生行为
+            //    — 想用 Gemini 调工具的, 改用 OpenAI 兼容端点 (generativelanguage.googleapis.com/v1beta/openai) 走下面分支
+            // 2. 非 POST 请求 (GET/HEAD 等) 跳过
+            // 3. 配了 enabled MCP server 才走工具循环, 否则走 originalFetch
+            if (method.toUpperCase() !== 'POST') {
+                return originalFetch.apply(this, arguments);
+            }
+            if (isGeminiNativeRequest(url)) {
+                // Gemini native 端点永远 bypass (普通聊天 + 总结记忆 用)
+                return originalFetch.apply(this, arguments);
+            }
+            if (!isLLMRequest(url)) {
+                return originalFetch.apply(this, arguments);
             }
 
-            if (method.toUpperCase() === 'POST' && isLLMRequest(url) && !isStream) {
-                const servers = global.McpGenericClient.getEnabledServers();
-                const toolsReady = servers.length > 0;
-                pushIntercept({
-                    at: 'hook',
-                    kind: toolsReady ? 'intercepted' : 'no-tools',
-                    url: describeUrl(url),
-                    toolsReady: toolsReady,
-                    serverCount: servers.length,
-                    mode: isGeminiNativeRequest(url) ? 'gemini-native' : 'openai',
-                    stream: isStream
-                });
+            const servers = global.McpGenericClient.getEnabledServers();
+            const toolsReady = servers.length > 0;
+            pushIntercept({
+                at: 'hook',
+                kind: toolsReady ? 'intercepted' : 'no-tools',
+                url: describeUrl(url),
+                toolsReady: toolsReady,
+                serverCount: servers.length,
+                mode: 'openai'
+            });
 
-                if (toolsReady) {
-                    try {
-                        if (isGeminiNativeRequest(url)) {
-                            return await runChatWithToolLoopGemini(url, init);
-                        }
-                        return await runChatWithToolLoop(url, init);
-                    } catch (e) {
-                        console.warn('[McpBridge] 工具循环出错, 回退原 fetch:', e);
-                        return originalFetch.apply(this, arguments);
-                    }
+            if (toolsReady) {
+                try {
+                    return await runChatWithToolLoop(url, init);
+                } catch (e) {
+                    console.warn('[McpBridge] 工具循环出错, 回退原 fetch:', e);
+                    return originalFetch.apply(this, arguments);
                 }
             }
             return originalFetch.apply(this, arguments);

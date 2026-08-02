@@ -543,6 +543,19 @@
                 return normalizeValueBySchema(item, schema.items, rootSchema, depth + 1);
             });
         }
+
+        // enum 类型自动转换: Gemini 输出 string (因为 enum 转 string 给 Gemini), mcd.cn 端点期望 number/integer
+        if (Array.isArray(schema && schema.enum) && schema.enum.length > 0 && typeof normalized !== 'undefined' && normalized !== null) {
+            const sampleType = typeof schema.enum[0];
+            const valueType = typeof normalized;
+            if (sampleType === 'number' && valueType === 'string') {
+                const n = Number(normalized);
+                if (!isNaN(n) && Number.isFinite(n)) normalized = n;
+            } else if (sampleType === 'boolean' && valueType === 'string') {
+                if (normalized === 'true') normalized = true;
+                else if (normalized === 'false') normalized = false;
+            }
+        }
         return normalized;
     }
 

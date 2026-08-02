@@ -1,45 +1,34 @@
-// 端到端验证: wrappedFetch 检测 stream: true → 不进工具循环 (走 originalFetch)
-// 修前 bug: runChatWithToolLoopGemini 强删 stream 返 non-stream JSON, 330 stream 处理挂掉
-// 修后: wrappedFetch 检测到 body.stream = true → 直接走 originalFetch
+// 端到端验证: wrappedFetch v0.1.69 简化
+// 核心: Gemini native 端点 永远 bypass (普通聊天 + 总结记忆 不被破坏)
+// 调工具 改用 OpenAI 兼容端点 (已 work)
+// 修前: v0.1.58 拦截所有 Gemini 请求, 强制 non-stream + 注入 tools, 破坏 330 原生行为
+// 修后: Gemini native 走 originalFetch, OpenAI 兼容端点 + M3 走工具循环
 
-import { readFileSync } from 'fs';
-import { resolve, dirname } from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = resolve(__dirname, '..');
-
-// 加载 mcp-tool-bridge.js 的关键部分
-// 太复杂, 单独测 wrappedFetch 的 stream 判定逻辑
-// 复制 wrappedFetch 的核心判定
-
+let _origCalls = [];
 let _intercepted = false;
-let _stream = null;
 
-async function wrappedFetch(input, init, originalFetch, isLLMRequest, isGeminiNativeRequest) {
+async function wrappedFetch(input, init, originalFetch, isGeminiNativeRequest, isLLMRequest) {
     const url = (typeof input === 'string' ? input : (input && input.url)) || '';
     const method = (init && init.method) || (input && input.method) || 'GET';
-    const isJsonBody = init && init.body && typeof init.body === 'string';
 
-    let isStream = false;
-    if (isJsonBody) {
-        try {
-            const body = JSON.parse(init.body);
-            if (body && body.stream) isStream = true;
-        } catch (e) {}
+    if (method.toUpperCase() !== 'POST') {
+        return originalFetch(url, init);
+    }
+    if (isGeminiNativeRequest(url)) {
+        // Gemini native 永远 bypass
+        _origCalls.push({ url, bypass: 'gemini-native' });
+        return originalFetch(url, init);
+    }
+    if (!isLLMRequest(url)) {
+        _origCalls.push({ url, bypass: 'not-llm' });
+        return originalFetch(url, init);
     }
 
-    if (method.toUpperCase() === 'POST' && isLLMRequest(url) && !isStream) {
-        _intercepted = true;
-        // 这里调工具循环 (省略, 测绕过)
-        return { mode: 'tool-loop' };
-    }
-    _intercepted = false;
-    _stream = isStream;
-    return originalFetch(url, init);
+    // 这里模拟 toolsReady = true 进工具循环
+    _intercepted = true;
+    return { mode: 'tool-loop' };
 }
 
-// mock 工具函数
 function isLLMRequest(url) {
     if (typeof url !== 'string') return false;
     if (url.indexOf('/v1/chat/completions') >= 0) return true;
@@ -55,16 +44,14 @@ function isGeminiNativeRequest(url) {
     return true;
 }
 
-// mock originalFetch
-const _origCalls = [];
-async function originalFetch(url, init) {
-    _origCalls.push({ url, body: init && init.body });
+const _realFetch = async (url, init) => {
+    _origCalls.push({ url, body: init && init.body, real: true });
     return { mode: 'original' };
-}
+};
 
 let pass = 0, fail = 0;
 async function test(label, fn) {
-    _intercepted = false; _stream = null; _origCalls.length = 0;
+    _origCalls = []; _intercepted = false;
     try {
         await fn();
         console.log('  ✅ pass: ' + label);
@@ -76,76 +63,74 @@ async function test(label, fn) {
 }
 
 async function main() {
-    // 1. Gemini native 端点 + stream: true → 走 originalFetch, 不拦截
-    await test('Gemini native stream → 不拦截, 走 original', async () => {
+    // Gemini native 端点永远 bypass (普通聊天 + 总结记忆)
+    await test('Gemini native (普通聊天) → bypass, 走 original', async () => {
         const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=AIza';
-        const init = { method: 'POST', body: JSON.stringify({ contents: [], stream: true }) };
-        const r = await wrappedFetch(url, init, originalFetch, isLLMRequest, isGeminiNativeRequest);
-        if (_intercepted) throw new Error('应该不被拦截');
+        const r = await wrappedFetch(url, { method: 'POST', body: JSON.stringify({ contents: [{role:'user',parts:[{text:'hi'}]}] }) }, _realFetch, isGeminiNativeRequest, isLLMRequest);
+        if (_intercepted) throw new Error('不应该被拦截');
         if (r.mode !== 'original') throw new Error('应该走 original');
-        if (_origCalls.length !== 1) throw new Error('originalFetch 应该被调');
-        if (!_stream) throw new Error('应该识别到 stream');
+        if (_origCalls.length === 0) throw new Error('originalFetch 应该被调');
+        if (_origCalls[0].bypass !== 'gemini-native') throw new Error('应该标记为 gemini-native bypass');
     });
 
-    // 2. Gemini native 端点 + stream: false → 进工具循环
-    await test('Gemini native non-stream → 进工具循环', async () => {
+    // Gemini native stream 模式
+    await test('Gemini native stream → bypass', async () => {
         const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=AIza';
-        const init = { method: 'POST', body: JSON.stringify({ contents: [], stream: false }) };
-        const r = await wrappedFetch(url, init, originalFetch, isLLMRequest, isGeminiNativeRequest);
-        if (!_intercepted) throw new Error('应该被拦截');
-        if (r.mode !== 'tool-loop') throw new Error('应该走 tool-loop');
+        const r = await wrappedFetch(url, { method: 'POST', body: JSON.stringify({ contents: [], stream: true }) }, _realFetch, isGeminiNativeRequest, isLLMRequest);
+        if (_intercepted) throw new Error('不应该被拦截');
+        if (r.mode !== 'original') throw new Error('应该走 original');
     });
 
-    // 3. Gemini OpenAI 兼容端点 + stream: true → 走 originalFetch
-    await test('Gemini OpenAI 兼容 stream → 不拦截', async () => {
+    // Gemini OpenAI 兼容端点 (调工具) → 进工具循环
+    await test('Gemini OpenAI 兼容 (调工具) → 进工具循环', async () => {
         const url = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
-        const init = { method: 'POST', body: JSON.stringify({ messages: [], stream: true }) };
-        const r = await wrappedFetch(url, init, originalFetch, isLLMRequest, isGeminiNativeRequest);
-        if (_intercepted) throw new Error('应该不被拦截');
-        if (r.mode !== 'original') throw new Error('应该走 original');
-    });
-
-    // 4. 普通 M3 端点 + stream: true → 走 originalFetch
-    await test('M3 端点 stream → 不拦截', async () => {
-        const url = 'https://api.minimaxi.com/v1/chat/completions';
-        const init = { method: 'POST', body: JSON.stringify({ messages: [], stream: true }) };
-        const r = await wrappedFetch(url, init, originalFetch, isLLMRequest, isGeminiNativeRequest);
-        if (_intercepted) throw new Error('应该不被拦截');
-        if (r.mode !== 'original') throw new Error('应该走 original');
-    });
-
-    // 5. 普通 M3 端点 + stream: false → 进工具循环
-    await test('M3 端点 non-stream → 进工具循环', async () => {
-        const url = 'https://api.minimaxi.com/v1/chat/completions';
-        const init = { method: 'POST', body: JSON.stringify({ messages: [], stream: false }) };
-        const r = await wrappedFetch(url, init, originalFetch, isLLMRequest, isGeminiNativeRequest);
+        const r = await wrappedFetch(url, { method: 'POST', body: JSON.stringify({ messages: [{role:'user',content:'hi'}] }) }, _realFetch, isGeminiNativeRequest, isLLMRequest);
         if (!_intercepted) throw new Error('应该被拦截');
         if (r.mode !== 'tool-loop') throw new Error('应该走 tool-loop');
     });
 
-    // 6. body 不是 JSON 字符串 → 不算 stream
-    await test('body 不是 JSON → 不算 stream', async () => {
+    // M3 端点 → 进工具循环
+    await test('M3 端点 (调工具) → 进工具循环', async () => {
         const url = 'https://api.minimaxi.com/v1/chat/completions';
-        const init = { method: 'POST', body: 'plain text' };
-        const r = await wrappedFetch(url, init, originalFetch, isLLMRequest, isGeminiNativeRequest);
-        if (!_intercepted) throw new Error('应该被拦截 (非 stream, 走 tool-loop)');
-    });
-
-    // 7. body 解析失败 → 不算 stream, 也不抛错
-    await test('body 解析失败 → 不算 stream, 不抛错', async () => {
-        const url = 'https://api.minimaxi.com/v1/chat/completions';
-        const init = { method: 'POST', body: '{ invalid json' };
-        const r = await wrappedFetch(url, init, originalFetch, isLLMRequest, isGeminiNativeRequest);
-        if (!_intercepted) throw new Error('应该被拦截');
-    });
-
-    // 8. Gemini native + 没 stream 字段 → 不算 stream, 进工具循环
-    await test('Gemini native + 没 stream 字段 → 进工具循环', async () => {
-        const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=AIza';
-        const init = { method: 'POST', body: JSON.stringify({ contents: [] }) };
-        const r = await wrappedFetch(url, init, originalFetch, isLLMRequest, isGeminiNativeRequest);
+        const r = await wrappedFetch(url, { method: 'POST', body: JSON.stringify({ messages: [] }) }, _realFetch, isGeminiNativeRequest, isLLMRequest);
         if (!_intercepted) throw new Error('应该被拦截');
         if (r.mode !== 'tool-loop') throw new Error('应该走 tool-loop');
+    });
+
+    // 非 LLM URL → bypass
+    await test('非 LLM URL → bypass', async () => {
+        const url = 'https://example.com/some-api';
+        const r = await wrappedFetch(url, { method: 'POST' }, _realFetch, isGeminiNativeRequest, isLLMRequest);
+        if (_intercepted) throw new Error('不应该被拦截');
+        if (r.mode !== 'original') throw new Error('应该走 original');
+    });
+
+    // GET 请求 → bypass
+    await test('GET 请求 → bypass', async () => {
+        const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro';
+        const r = await wrappedFetch(url, { method: 'GET' }, _realFetch, isGeminiNativeRequest, isLLMRequest);
+        if (_intercepted) throw new Error('不应该被拦截');
+        if (r.mode !== 'original') throw new Error('应该走 original');
+    });
+
+    // 公益站 Gemini (OpenAI 兼容) → 进工具循环
+    await test('公益站 Gemini (OpenAI 兼容) → 进工具循环', async () => {
+        const url = 'https://some-gongyi-station.com/v1/chat/completions';
+        const r = await wrappedFetch(url, { method: 'POST', body: JSON.stringify({ messages: [] }) }, _realFetch, isGeminiNativeRequest, isLLMRequest);
+        if (!_intercepted) throw new Error('应该被拦截');
+        if (r.mode !== 'tool-loop') throw new Error('应该走 tool-loop');
+    });
+
+    // 公益站 Gemini (native) → bypass
+    await test('公益站 Gemini (native) → bypass', async () => {
+        // 公益站可能用 native 端点
+        const url = 'https://some-gongyi-station.com/v1beta/models/gemini-pro:generateContent';
+        // 但不是 generativelanguage.googleapis.com, 所以 isGeminiNativeRequest 返 false
+        // 同时也不是 /v1/chat/completions
+        // 所以 isLLMRequest 返 false → bypass
+        const r = await wrappedFetch(url, { method: 'POST' }, _realFetch, isGeminiNativeRequest, isLLMRequest);
+        if (_intercepted) throw new Error('不应该被拦截');
+        if (r.mode !== 'original') throw new Error('应该走 original');
     });
 
     console.log('\n========== 总结 ==========');

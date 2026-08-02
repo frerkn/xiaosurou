@@ -16,6 +16,14 @@
 //   [AI: 帮您下好啦, 扫这个码]
 //     🔧 create-order · 订单 MCD20260802
 //   [支付卡片]
+//
+// 持久化 (v0.1.70):
+//   - 写: onCard 时同时 push 到 chat.mcpToolLogs + db.chats.put(chat)
+//   - 读: MutationObserver 监控 #chat-messages, 容器有 childList 变化就重渲染历史 log
+//   - 锚点: 每条 log 记 afterMsgTs (= 当时最近一条 assistant 消息 timestamp)
+//           重新渲染时用这个 ts 找目标气泡, 插在它后面
+//   - 字段: { ts, afterMsgTs, toolName, aiName, summary, success }
+//   - 重复跳过: 渲染时检查 DOM .mcp-tool-log-line[data-ts], 已存在则跳过
 
 (function (global) {
     'use strict';
@@ -26,17 +34,14 @@
         try {
             const st = (typeof window !== 'undefined' ? window : global).state;
             if (!st) return 'AI';
-            // 1) 优先通过 activeChatId 找 chat.originalName (聊天设置页的 AI 名字)
             const activeId = st.activeChatId;
             if (activeId && st.chats && st.chats[activeId]) {
                 const chat = st.chats[activeId];
                 if (chat.originalName) return String(chat.originalName);
             }
-            // 2) 兜底: state.currentChat.originalName
             if (st.currentChat && st.currentChat.originalName) {
                 return String(st.currentChat.originalName);
             }
-            // 3) 兜底: 直接读 input 框 (万一 state 没及时同步)
             if (typeof document !== 'undefined') {
                 const input = document.getElementById('ai-original-name-input');
                 if (input && input.value && input.value.trim()) return input.value.trim();
@@ -46,14 +51,12 @@
     }
 
     // ========== 摘要生成: 从 result.data 抽关键信息 ==========
-    // 通用规则: 优先看常见数组字段, 数字字段, 字符串
     function summarizeResult(toolName, data) {
         if (!data || typeof data !== 'object') {
             if (typeof data === 'string') return data.slice(0, 40);
             if (typeof data === 'number') return String(data);
             return '';
         }
-        // 1) 常见数组字段 (返回长度 + 提示)
         const arrayKeys = ['pois', 'stores', 'meals', 'items', 'products', 'results',
             'coupons', 'addresses', 'orders', 'forecasts', 'lives', 'casts',
             'geocodes', 'routes', 'paths'];
@@ -61,18 +64,12 @@
             const k = arrayKeys[i];
             if (Array.isArray(data[k]) && data[k].length) {
                 let extra = '';
-                // 一些特殊处理
                 if (k === 'pois' && data.count) extra = ' (共 ' + data.count + ')';
-                if (k === 'meals') {
-                    // 麦当劳 query-meals 返的是 categories 数组, 每个有 items
-                    // 但有时候直接返 items
-                    extra = ' (' + data[k].length + ' 项)';
-                }
+                if (k === 'meals') extra = ' (' + data[k].length + ' 项)';
                 if (k === 'geocodes') extra = ' (地址候选)';
                 return data[k].length + ' 项' + extra;
             }
         }
-        // 麦当劳 query-meals: 实际结构是 { categories: [...] }, 需要递归
         if (Array.isArray(data.categories)) {
             let totalItems = 0;
             for (let i = 0; i < data.categories.length; i++) {
@@ -81,7 +78,6 @@
             }
             if (totalItems) return data.categories.length + ' 分类 ' + totalItems + ' 餐品';
         }
-        // 2) 数字字段
         const numberKeys = [
             { k: 'count', prefix: '共 ' },
             { k: 'amount', prefix: '¥' },
@@ -97,14 +93,12 @@
                 return prefix + data[k] + (suffix || '');
             }
         }
-        // 3) 订单类
         if (data.orderId || data.orderNo) {
             return '订单 ' + (data.orderId || data.orderNo);
         }
         if (data.status && typeof data.status === 'string') {
             return '状态: ' + data.status;
         }
-        // 4) 兜底: 对象顶层 key 数量
         const keys = Object.keys(data);
         if (keys.length <= 3) {
             return keys.map(function (k) {
@@ -127,26 +121,21 @@
             .replace(/'/g, '&#39;');
     }
 
-    // ========== 渲染单行 (像网易云切歌提示: 浅色小字) ==========
-    // 格式: [角色名] 调用了 [toolName] · [summary]
-    // 失败时: [角色名] 调用失败 · [toolName] · [error]
-    function renderLogLine(card) {
-        const result = card && card.result;
-        const toolName = card.toolName || '';
-        const aiName = getCurrentAIName();
+    // ========== 渲染单行 DOM (网易云切歌提示风格) ==========
+    // 接受规范化后的 log 数据 (从历史或新 card 都能渲染)
+    function renderLogLineFromData(log) {
+        const toolName = log.toolName || '';
+        const aiName = log.aiName || 'AI';
         let verb = '调用了';
-        let summary = '';
+        let summary = log.summary || '';
         let cls = 'mcp-tool-log-line';
 
-        if (!result) {
-            verb = '调用';
-            summary = '无结果';
-        } else if (result.success === false) {
+        if (log.success === false) {
             verb = '调用失败';
-            summary = (result.error || '失败').slice(0, 60);
+            if (!summary) summary = '失败';
             cls += ' mcp-tool-log-err';
-        } else if (result.success === true) {
-            summary = summarizeResult(toolName, result.data);
+        } else if (log.success === true) {
+            // summary 已经有
         } else {
             verb = '调用中';
             summary = '';
@@ -155,10 +144,8 @@
         const line = document.createElement('div');
         line.className = cls;
         line.setAttribute('data-tool', toolName);
-        line.setAttribute('data-ts', String(card.ts || Date.now()));
+        line.setAttribute('data-ts', String(log.ts || Date.now()));
 
-        // 显示: [角色名] [verb] [toolName] · [summary]
-        // 比如: "沈清越 调用了 query-meals · 14 分类 116 餐品"
         const summaryHtml = summary
             ? ' · <span class="mcp-tool-log-summary">' + escapeHtml(summary) + '</span>'
             : '';
@@ -171,7 +158,110 @@
         return line;
     }
 
-    // ========== 找最近一条 AI 消息气泡, 紧跟其后追加日志行 ==========
+    // ========== 渲染单行 (从 card 对象, 给 onCard 实时调用) ==========
+    function renderLogLine(card) {
+        const result = card && card.result;
+        const toolName = card.toolName || '';
+        const aiName = getCurrentAIName();
+        let success;
+        let summary = '';
+
+        if (!result) {
+            success = null;
+        } else if (result.success === false) {
+            success = false;
+            summary = (result.error || '失败').slice(0, 60);
+        } else if (result.success === true) {
+            success = true;
+            summary = summarizeResult(toolName, result.data);
+        } else {
+            success = null;
+        }
+
+        return renderLogLineFromData({
+            ts: card.ts || Date.now(),
+            toolName: toolName,
+            aiName: aiName,
+            summary: summary,
+            success: success,
+        });
+    }
+
+    // ========== 找最近一条 assistant 消息气泡的 timestamp (作为 log 锚点) ==========
+    function findLastAssistantTimestamp(chat) {
+        if (!chat || !Array.isArray(chat.history)) return null;
+        // 倒序找最近一条 role==='assistant' 的消息
+        for (let i = chat.history.length - 1; i >= 0; i--) {
+            const m = chat.history[i];
+            if (m && m.role === 'assistant' && m.timestamp) return m.timestamp;
+        }
+        return null;
+    }
+
+    // ========== DOM 工具 ==========
+    function getChatContainer() {
+        return document.getElementById('chat-messages');
+    }
+
+    // 找 timestamp 等于 ts 的消息气泡 (chat-interface.js:690-693 bubble.dataset.timestamp = msg.timestamp)
+    function findBubbleByTimestamp(container, ts) {
+        if (!container || ts == null) return null;
+        // 优先 .message-bubble[data-timestamp]
+        let el = container.querySelector('.message-bubble[data-timestamp="' + ts + '"]');
+        if (el) return el;
+        // 兜底: wrapper 也可能带 timestamp
+        el = container.querySelector('.message-wrapper[data-timestamp="' + ts + '"]');
+        if (el) {
+            const bubble = el.querySelector('.message-bubble');
+            if (bubble) return bubble;
+            return el;
+        }
+        return null;
+    }
+
+    // 找 timestamp 之前的最近一条消息气泡 (找不到精确匹配时的兜底)
+    function findNearestBubbleBefore(container, ts) {
+        if (!container || ts == null) return null;
+        const bubbles = container.querySelectorAll('.message-bubble[data-timestamp]');
+        let nearest = null;
+        for (let i = 0; i < bubbles.length; i++) {
+            const t = Number(bubbles[i].getAttribute('data-timestamp'));
+            if (t <= ts) nearest = bubbles[i];
+            else break;
+        }
+        return nearest;
+    }
+
+    // 把 lineEl 插到 bubble 后面 (group 复用逻辑)
+    function insertLogAfterBubble(bubble, lineEl) {
+        if (!bubble) {
+            const container = getChatContainer();
+            if (container) container.appendChild(lineEl);
+            return;
+        }
+        // 优先找已有的 .mcp-tool-log-group 紧跟在 bubble 之后, 有就追加
+        const wrapper = bubble.closest('.message-wrapper') || bubble.parentNode;
+        if (wrapper && wrapper.parentNode) {
+            // 找 wrapper 后面第一个 .mcp-tool-log-group
+            let group = wrapper.nextElementSibling;
+            while (group && !group.classList.contains('mcp-tool-log-group')) {
+                group = group.nextElementSibling;
+            }
+            if (group) {
+                group.appendChild(lineEl);
+                return;
+            }
+            // 没有就新建一个 group, 插到 wrapper 后面
+            const newGroup = document.createElement('div');
+            newGroup.className = 'mcp-tool-log-group';
+            newGroup.appendChild(lineEl);
+            wrapper.parentNode.insertBefore(newGroup, wrapper.nextSibling);
+        } else {
+            bubble.parentNode.insertBefore(lineEl, bubble.nextSibling);
+        }
+    }
+
+    // ========== 找最近一条 AI 消息气泡, 紧跟其后追加日志行 (实时用) ==========
     function appendAfterLastMessage(lineEl) {
         const bubbles = document.querySelectorAll('.message-bubble[data-timestamp]');
         const lastBubble = bubbles[bubbles.length - 1];
@@ -180,22 +270,16 @@
             chatArea.appendChild(lineEl);
             return;
         }
-        // 找全局最后一个 .mcp-tool-log-group, 验证它在 lastBubble 之后 (或同一个 wrapper 之后)
-        // 因为同时间 AI 消息只有一个, 最后一个 group 就是当前 AI 消息的
         const allGroups = document.querySelectorAll('.mcp-tool-log-group');
         if (allGroups.length > 0) {
             const lastGroup = allGroups[allGroups.length - 1];
-            // 检查 lastGroup 是不是在 lastBubble 之后 (用 document order 比较)
-            // Node.DOCUMENT_POSITION_FOLLOWING = 4
             const pos = lastBubble.compareDocumentPosition(lastGroup);
             if (pos & 4) { // DOCUMENT_POSITION_FOLLOWING
-                // lastGroup 在 lastBubble 之后, 追加到 lastGroup
                 lastGroup.appendChild(lineEl);
                 scrollChatToBottom();
                 return;
             }
         }
-        // 没有现成 group, 新建一个, 插在 wrapper 后面
         const wrapper = lastBubble.closest('.message-wrapper') || lastBubble.parentNode;
         if (wrapper && wrapper.parentNode) {
             const group = document.createElement('div');
@@ -213,21 +297,148 @@
         if (scroller) scroller.scrollTop = scroller.scrollHeight;
     }
 
-    // ========== card 监听器 ==========
+    // ========== 历史 log 重渲染 (持久化恢复) ==========
+    // chat.mcpToolLogs 里的每条 log, 按 afterMsgTs 找对应气泡插入
+    // 已存在 (data-ts 重复) 的跳过
+    function renderHistoricalLogs(chatId) {
+        const st = (typeof window !== 'undefined' ? window : global).state;
+        if (!st || !chatId) return 0;
+        const chat = st.chats && st.chats[chatId];
+        if (!chat || !Array.isArray(chat.mcpToolLogs) || !chat.mcpToolLogs.length) return 0;
+        const container = getChatContainer();
+        if (!container) return 0;
+
+        // 收集已渲染的 ts
+        const existingTs = new Set();
+        const existingLines = document.querySelectorAll('.mcp-tool-log-line');
+        existingLines.forEach(function (el) {
+            const ts = el.getAttribute('data-ts');
+            if (ts) existingTs.add(String(ts));
+        });
+
+        // 按 ts 升序
+        const sorted = chat.mcpToolLogs.slice().sort(function (a, b) {
+            return (a.ts || 0) - (b.ts || 0);
+        });
+
+        let rendered = 0;
+        for (let i = 0; i < sorted.length; i++) {
+            const log = sorted[i];
+            const ts = String(log.ts || '');
+            if (!ts || existingTs.has(ts)) continue;
+            // 找锚点气泡
+            let bubble = findBubbleByTimestamp(container, log.afterMsgTs);
+            if (!bubble) {
+                bubble = findNearestBubbleBefore(container, log.afterMsgTs);
+            }
+            const line = renderLogLineFromData(log);
+            insertLogAfterBubble(bubble, line);
+            existingTs.add(ts);
+            rendered++;
+        }
+        return rendered;
+    }
+
+    // ========== 写入持久化 (Dexie / IndexedDB) ==========
+    function persistLog(chat, logEntry) {
+        if (!chat || !logEntry) return;
+        try {
+            if (!Array.isArray(chat.mcpToolLogs)) chat.mcpToolLogs = [];
+            chat.mcpToolLogs.push(logEntry);
+            // 写库 (window.db 是 init-db-schema.js 暴露的 Dexie 实例)
+            if (typeof window !== 'undefined' && window.db && window.db.chats) {
+                window.db.chats.put(chat).catch(function (err) {
+                    console.warn('[McpToolLog] persist failed:', err);
+                });
+            }
+        } catch (e) {
+            console.warn('[McpToolLog] persist error:', e);
+        }
+    }
+
+    // ========== 实时 card 处理 (实时 DOM 渲染 + 持久化) ==========
     function onCard(card) {
         if (!card || !card.toolName) return;
         try {
+            const st = (typeof window !== 'undefined' ? window : global).state;
             const line = renderLogLine(card);
             requestAnimationFrame(function () { appendAfterLastMessage(line); });
+
+            // 持久化
+            if (st && st.activeChatId && st.chats && st.chats[st.activeChatId]) {
+                const chat = st.chats[st.activeChatId];
+                const result = card.result;
+                let success;
+                let summary = '';
+                if (!result) {
+                    success = null;
+                } else if (result.success === false) {
+                    success = false;
+                    summary = (result.error || '失败').slice(0, 60);
+                } else if (result.success === true) {
+                    success = true;
+                    summary = summarizeResult(card.toolName, result.data);
+                }
+                persistLog(chat, {
+                    ts: card.ts || Date.now(),
+                    afterMsgTs: findLastAssistantTimestamp(chat),
+                    toolName: card.toolName,
+                    aiName: getCurrentAIName(),
+                    summary: summary,
+                    success: success,
+                });
+            }
         } catch (e) {
             console.warn('[McpToolLog] 渲染失败:', e);
         }
+    }
+
+    // ========== DOM 监控: chat-messages 子节点变化时重渲染历史 log ==========
+    // 切聊天 / appendMessage / loadMore 都会触发, 我们做幂等 (按 ts 跳过已渲染)
+    let observerInstalled = false;
+    let renderTimer = null;
+    function installHistoryObserver() {
+        if (observerInstalled) return;
+        if (typeof document === 'undefined') return;
+        const container = getChatContainer();
+        if (!container) {
+            // 容器还没准备好, 重试
+            setTimeout(installHistoryObserver, 500);
+            return;
+        }
+        observerInstalled = true;
+        const observer = new MutationObserver(function (mutations) {
+            // 只关心 childList 变化 (有添加子节点, 通常是 330 渲染消息)
+            let hasAdded = false;
+            for (let i = 0; i < mutations.length; i++) {
+                if (mutations[i].type === 'childList' && mutations[i].addedNodes.length > 0) {
+                    hasAdded = true;
+                    break;
+                }
+            }
+            if (!hasAdded) return;
+            // debounce 100ms, 让 330 渲染完再处理
+            if (renderTimer) clearTimeout(renderTimer);
+            renderTimer = setTimeout(function () {
+                const st = (typeof window !== 'undefined' ? window : global).state;
+                if (!st || !st.activeChatId) return;
+                const n = renderHistoricalLogs(st.activeChatId);
+                if (n > 0) {
+                    // 仅调试时输出
+                    // console.log('[McpToolLog] 渲染了 ' + n + ' 条历史 log');
+                }
+            }, 100);
+        });
+        observer.observe(container, { childList: true, subtree: false });
+        console.log('[McpToolLog] DOM observer 已安装 (chat-messages 变化 → 重渲染历史 log)');
     }
 
     // ========== 初始化 ==========
     if (global.McpBridge && typeof global.McpBridge.onCard === 'function') {
         global.McpBridge.onCard(onCard);
         console.log('[McpToolLog] 已注册 card listener, 监听所有 MCP 工具调用 (覆盖 mcd/luckin/amap/任意通用 MCP)');
+        // 启动 DOM 观察, 切聊天/loadMore 时恢复历史 log
+        installHistoryObserver();
     } else {
         console.warn('[McpToolLog] McpBridge not loaded, skip init');
     }

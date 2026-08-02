@@ -903,12 +903,16 @@ async function cleanupRedundantData() {
                   // 如果是群聊，只清空聊天记录，保留其他信息
                   if (chat.isGroup) {
                     chat.history = [];
+                    // MCP 工具调用日志跟 history 联动清空 (v0.1.70), 否则锚点 ts 全失效
+                    chat.mcpToolLogs = [];
                     // 保留群设置、成员等信息
                     await db.chats.put(chat);
                     console.log(`已清空群聊 ${chat.name} 的聊天记录`);
                   } else {
                     // 单聊的处理逻辑（清空更多信息）
                     chat.history = [];
+                    // MCP 工具调用日志跟 history 联动清空 (v0.1.70)
+                    chat.mcpToolLogs = [];
                     chat.heartfeltVoice = '...';
                     chat.randomJottings = '...';
                     chat.customThoughts = {};

@@ -1,7 +1,21 @@
 // Service Worker file (sw.js)
 // Whitelist cache strategy: cache only known static assets; API requests pass through.
-// 2026-08-02 v0.1.67: bump CACHE_VERSION 强制清缓存（Gemini 直连正常聊天/总结记忆回归 bug — v0.1.58 写的 runChatWithToolLoopGemini 强制把 body.stream 删了返 non-stream JSON, 破坏 330 主聊天 (ai-response.js:969) 和总结记忆 (memory-summary.js) 的 stream 处理, 用户报"主 API 谷歌直连聊天 + 副 API 总结记忆用的谷歌直连都失败"。修法: wrappedFetch 检测 body.stream = true → 直接走 originalFetch, 不进工具循环 (工具循环只能解析 JSON 响应, stream 是 SSE)。端到端 8/8 通过 (Gemini native stream 绕过 + Gemini OpenAI 兼容 stream 绕过 + M3 stream 绕过 + non-stream 进工具循环 + body 解析失败兜底)）
-// 2026-08-02 v0.1.66: bump CACHE_VERSION 强制清缓存（FAB 长按关闭 bug 修复 v2 — v0.1.64 在 touchstart 用 e.preventDefault() 阻止浏览器长按系统菜单, 但同时阻止了 click 事件, 短按也无法 openSheet (用户报告"打开都打不开")。修法: 移除 click 监听器, mouseup/touchend 端自己控制 openSheet/hideFab (touchstart preventDefault 仍然保留以阻止 iOS 长按弹系统菜单); touchend 时根据 longpressTriggered 决定短按开 sheet 还是长按完成关闭。端到端 7/7 通过 (含关键 case 7: 短按 touch 0.3s + touchend → 调 openSheet 创建 sheet, 验证点击功能 work)）
+// 2026-08-02 v0.1.70: bump CACHE_VERSION 强制清缓存（MCP 工具调用日志持久化 + v0.1.58 死代码彻底清理 —
+//   (1) js/mcp-tool-call-log.js: 实时 onCard 时 push 到 chat.mcpToolLogs (新字段, chat 对象下独立数组) + db.chats.put(chat) 写 IndexedDB;
+//       持久化 entry = { ts, afterMsgTs, toolName, aiName, summary, success } (afterMsgTs = 当时最近一条 assistant 消息 timestamp 作锚点);
+//       MutationObserver 监控 #chat-messages 容器 childList 变化, debounce 100ms 后调 renderHistoricalLogs(activeChatId)
+//       把当前聊天 mcpToolLogs 重新按 afterMsgTs 锚点插入 DOM (按 data-ts 跳过已渲染, 幂等);
+//       找不到精确锚点气泡时兜底找 ts 之前最近一条, 仍找不到就插到 chat-messages 容器末尾;
+//       老聊天 (没 mcpToolLogs 字段) 兼容不报错 (test case 14 验证);
+//   (2) js/mcp-tool-bridge.js: 删除 v0.1.58 死代码 ~200 行 (convertSchemaToGemini / openAIToolsToGemini / geminiBodyToOpenAI /
+//       openAIMessagesToGeminiContents / openAIResponseToGemini / runChatWithToolLoopGemini), 保留 isGeminiNativeRequest (v0.1.69 wrappedFetch 用)
+//       和 wrapAsJsonResp (runChatWithToolLoop 用);
+//       v0.1.69 行为完全保留 (test-stream-bypass.mjs 8/8 仍然通过);
+//   端到端验证 23/23 通过 (实时渲染 9 + 多调用堆叠 2 + 持久化写入 4 + 切聊天恢复 4 + 幂等 1 + 兜底 1 + 老聊天兼容 1 + 实时 summary 2);
+//   modules/data-management.js type='chat' 分支已联动: 群聊 + 单聊清空 history 时同步 chat.mcpToolLogs = [], 避免锚点孤立;
+//   charId==='user' 分支不动 mcpToolLogs (那个分支是过滤 user 消息保留 assistant 消息, afterMsgTs 锚点指向 assistant 不受影响)
+// 2026-08-02 v0.1.69: bump CACHE_VERSION 强制清缓存（Gemini 直连普通聊天全断 v3 — v0.1.58 写的 wrappedFetch + runChatWithToolLoopGemini 拦截所有 Gemini 请求, 强制 non-stream + 注入 tools + systemInstruction, 破坏 330 主聊天/总结记忆的原生行为。v0.1.67 试图加 stream bypass 但只对 body.stream === true 有效, Gemini native 端点 body 不带 stream 字段所以 bypass 不生效。v0.1.69 根本性修复: wrappedFetch 简化 — Gemini native 端点 (generativelanguage.googleapis.com/v1beta/models/.../generateContent) 永远 bypass 走 originalFetch (普通聊天 + 总结记忆 work), 想用 Gemini 调工具改用 OpenAI 兼容端点 (generativelanguage.googleapis.com/v1beta/openai) 走工具循环 (已验证 work)。v0.1.65 + v0.1.68 仍然有效 (调 mcd 工具 work)。端到端 8/8 通过 (Gemini native bypass + Gemini OpenAI 兼容进工具循环 + M3 进工具循环 + 非 LLM bypass + GET bypass + 公益站 Gemini 两种模式都 work)）
+// 2026-08-02 v0.1.68: bump CACHE_VERSION 强制清缓存（Gemini enum 元素 number → string + 类型回转 — mcd 工具真实 inputSchema 里 enum 是 number 数组 (e.g. beType: enum=[1,5] type=integer), Gemini API 期望 enum 是 repeated string 不接受 number, 报 400 Invalid value at 'enum[0]'。修法: (1) mcp-tool-bridge.js convertSchemaToGemini 转换时把 enum 元素全部 toString, (2) mcp-generic-client.js normalizeValueBySchema 加 enum 类型回转 — AI 输出 string "1" → mcd.cn 端点期望 number 1, 自动转回。端到端 12/12 通过 (含 mcd query-nearby-stores 真实 beType=[1,5]/searchType=[1,2] number enum 转换 + 类型回转测试)）
 // 2026-08-02 v0.1.65: bump CACHE_VERSION 强制清缓存（Gemini 原生 API type 大写 bug 修复 — openAIToolsToGemini 加 convertSchemaToGemini() 递归转换 OpenAPI Schema 小写 (string/number/integer/boolean/object/array) 为 Gemini proto3 枚举大写 (STRING/NUMBER/INTEGER/BOOLEAN/OBJECT/ARRAY)。修前: Gemini 直连调工具报 400 Invalid value at 'tools[0].function_declarations[1].parameters.properties.X.type' (TYPE_STRING)。修后端到端 11/11 通过 (mcd 真实参数 + 嵌套 object/array + enum + description/required 保留)）
 // 2026-08-02 v0.1.63: bump CACHE_VERSION 强制清缓存（MCP 工具调用日志 — 新建 js/mcp-tool-call-log.js 监听所有 onCard, 覆盖所有通用 MCP 工具 (不限 mcd/luckin/amap), inline 渲染简洁文字行紧跟最后一条 AI 消息: "[emoji] [toolName] · [摘要]"。跟 mcp-menu-card / mcp-pay-card 共存互补 — 菜单/支付是大卡片, 日志是文字证据, 用户看日志就知道 AI 真调了工具不是瞎编。摘要逻辑通用: 优先看 pois/stores/meals/items 等数组长度 → 数字字段 (count/amount/distance) → 订单号 → 兜底字段数。css/mcp-miniapp-pink.css 加 .mcp-tool-log-group / .mcp-tool-log-line / .mcp-tool-log-ok/err 样式）
 // 2026-08-02 v0.1.62: bump CACHE_VERSION 强制清缓存（inline 支付卡片 — 新建 js/mcp-pay-card.js + css/mcp-miniapp-pink.css 加 .mcp-pay-card 系列样式 + index.html 加载 + 麦当劳/瑞幸教程加"系统自动 inline 渲染支付卡片, AI 自由发挥不重复"提示。监听 create-order/createOrder/mall-create-order, 提取 payUrl/payOrderUrl/payOrderQrCodeUrl, 紧跟最后一条 AI 消息气泡后面渲染。设计原则: 不弹全屏 (破坏"AI 帮你下单"代入感), 只 inline 渲染支付信息让用户能扫/点。不规定 AI 说话, AI 用人设自由发挥）
@@ -93,7 +107,7 @@
 //   https://restapi.amap.com/v3/geocode/geo?address=...&key=server.bearerToken
 //   把 REST 的 {geocodes: [...]} 转成 MCP 风格 {results: [...]}, AI 完全无感
 //   其他 bug 端点 (text_search/around_search/weather) 暂不兜底, 走教程引导 REST 路径
-const CACHE_VERSION = 'v0.1.67';
+const CACHE_VERSION = 'v0.1.70';
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [

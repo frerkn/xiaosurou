@@ -14,7 +14,9 @@ function convertSchemaToGemini(schema) {
     const rawType = schema.type || 'object';
     const out = { type: typeMap[String(rawType).toLowerCase()] || 'TYPE_UNSPECIFIED' };
     if (schema.description) out.description = schema.description;
-    if (Array.isArray(schema.enum)) out.enum = schema.enum;
+    if (Array.isArray(schema.enum)) {
+        out.enum = schema.enum.map(function (v) { return String(v); });
+    }
     if (schema.properties) {
         out.properties = {};
         for (const k in schema.properties) {
@@ -136,7 +138,7 @@ test('嵌套 object + array + integer 全转大写', () => {
     return true;
 });
 
-test('enum 字段保留', () => {
+test('enum 字段保留 + 元素 toString (Gemini 限制 repeated string)', () => {
     const oaTools = [{
         type: 'function',
         function: {
@@ -152,9 +154,36 @@ test('enum 字段保留', () => {
     }];
     const gemini = openAIToolsToGemini(oaTools);
     const p = gemini[0].functionDeclarations[0].parameters.properties;
-    console.log('    enum:', JSON.stringify(p.color));
+    console.log('    enum (string):', JSON.stringify(p.color));
     if (p.color.type !== 'STRING') return false;
     if (JSON.stringify(p.color.enum) !== '["red","green","blue"]') return false;
+    return true;
+});
+
+test('enum 元素 number → string (mcd integer enum 真实场景)', () => {
+    // mcd query-nearby-stores beType: type=integer, enum=[1, 5]
+    const oaTools = [{
+        type: 'function',
+        function: {
+            name: 'mcd-test',
+            description: '',
+            parameters: {
+                type: 'object',
+                properties: {
+                    beType: { type: 'integer', enum: [1, 5] },
+                    orderType: { type: 'integer', enum: [1, 2] },
+                },
+            }
+        }
+    }];
+    const gemini = openAIToolsToGemini(oaTools);
+    const p = gemini[0].functionDeclarations[0].parameters.properties;
+    console.log('    mcd enum:', JSON.stringify(p));
+    // 验证 type 转大写
+    if (p.beType.type !== 'INTEGER') return false;
+    // 验证 enum 元素全部转 string
+    if (JSON.stringify(p.beType.enum) !== '["1","5"]') return false;
+    if (JSON.stringify(p.orderType.enum) !== '["1","2"]') return false;
     return true;
 });
 
