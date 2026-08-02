@@ -101,6 +101,11 @@
             const names = (s.tools || []).map(function (t) { return t.name; }).filter(Boolean).join(', ');
             return '- ' + s.name + ': ' + (names || '(无工具)');
         });
+        // 端点使用教程 (按 server.url 识别, 只 include 已知 MCP 服务的踩坑指南, 避免 context 爆炸)
+        const guides = servers.map(function (s) { return getServerUsageGuide(s.url); }).filter(Boolean);
+        const guideText = guides.length
+            ? '\n\n**端点使用教程** (踩过的坑, 不同模型都按这个调):\n' + guides.join('\n\n')
+            : '';
         return '\n\n---\n' +
             '[外部工具已接入] 用户在设置里给你接了 MCP 工具服务器。\n\n' +
             '**核心**: 你还是原来的角色、原来的语气、原来的记忆。工具只是你顺手能用的能力, **每轮都要有角色化的文本**, 别乾巴巴复报结果。\n' +
@@ -110,8 +115,105 @@
             '- 工具必须通过系统的 function calling 接口发起, **绝对不要把工具名和参数写进聊天正文**（比如输出 `工具名(参数)` 这种文字），用户会看到乱码一样的东西。\n' +
             '- 工具结果只写与对话相关的部分, 用角色语气转述, **别整段复述 JSON**。\n' +
             '- 工具失败就如实说, 并根据报错调整参数重试或换个方法, **别编造结果**。\n' +
-            '- 涉及真实世界副作用的操作（发布内容、下单、删除等），先跟用户确认一句再动手。\n' +
-            '---\n';
+            '- 涉及真实世界副作用的操作（发布内容、下单、删除等），先跟用户确认一句再动手。' +
+            guideText + '\n---\n';
+    }
+
+    // ========== 端点使用教程 (按 server.url 匹配, 注入到 system prompt) ==========
+    // 解决不同模型调工具能力差异大问题 (Gemini 漏参数, Deepseek 流程不对, M3 较稳) —
+    // 把踩过的坑明确写出来, 三个模型都按这个调
+
+    const SERVER_USAGE_GUIDES = [
+        {
+            match: 'mcp.mcd.cn',
+            guide: '【麦当劳 MCP 调用流程 (2026-08-02 按官方文档 https://open.mcd.cn/mcp/guide.md 重写, 共 21 个工具)】\n' +
+                '⚠️ 协议版本: 文档说支持 2025-06-18 及之前, 330 用 2024-11-05 兼容, 实测 work\n' +
+                '⚠️ 限流: 600 次/分钟/Token, 超了返 429\n' +
+                '\n' +
+                '========== 到店自提 / 得来速流程 ==========\n' +
+                '① 查门店 query-nearby-stores(beType=1到店自提/5得来速, searchType=2按位置, city+keyword):\n' +
+                '   · keyword 填地址或店名都行 (如 "青羊区洛阳路" / "青龙街餐厅"), 内部自动 geocoding + 距离排序\n' +
+                '   · ⚠️ 实测 longitude/latitude 全 0.0 (坐标脱敏防爬), 别靠坐标判断距离, 靠返回的 distance 字段\n' +
+                '   · 返 storeCode + businessStartTime/EndTime (营业时段, 0:00-24:00 是 24h店) + distance, 记 storeCode\n' +
+                '② 查菜单 query-meals(storeCode, orderType=1堂食/2外送, beType):\n' +
+                '   · ⚠️ 凌晨/非营业时段必加 reservationDate="yyyy-MM-dd HH:mm" (不带秒!), 否则返"门店已关闭" code:600057\n' +
+                '   · 到店自提: orderType=1, beType=1, 不传 beCode / 得来速: orderType=1, beType=5, 传 beCode (从步骤①拿)\n' +
+                '   · 返 14 个分类 116 个餐品, 每项有 mealCode + price + tags\n' +
+                '③ (可选) 查套餐详情 query-meal-detail(mealCode): 套餐组成 / 默认选择 / 配料, 复杂套餐才需要\n' +
+                '④ 算价 calculate-price(选中的商品列表, 优惠券ID?): 返 amount / 优惠 / 应付\n' +
+                '⑤ 下单 create-order(有副作用, 必先跟用户确认整份订单): 返订单详情 + 支付链接. 系统会自动 inline 渲染支付卡片, AI 自由发挥确认话术, **不要复述链接/描述支付方式/复述订单内容** —— 那是系统渲染的\n' +
+                '\n' +
+                '========== 外送流程 ==========\n' +
+                '① 查用户地址 delivery-query-addresses: 看用户已有的可配送地址 (可跳过)\n' +
+                '② (首次/换地址) 新增地址 delivery-create-address(联系人, 电话, 地址详情): 创建配送地址\n' +
+                '③ 查可配送门店 delivery-query-stores(用户地址ID): 外送场景下, 哪些门店能配送到这个地址\n' +
+                '④ 查菜单 query-meals(storeCode, orderType=2外送, beType): 同到店流程, 但 orderType 改 2\n' +
+                '⑤ 算价 + 下单 (同上)\n' +
+                '\n' +
+                '========== 优惠券工具 ==========\n' +
+                '· query-store-coupons(storeCode): 当前门店可用券 (下单时挑哪张)\n' +
+                '· available-coupons: 麦麦省可领取的券 (营销活动)\n' +
+                '· auto-bind-coupons: 一键领所有当前可用的麦麦省券 (用户说"把能领的券都领了"用这个)\n' +
+                '· query-my-coupons: 我的所有券 (跟 query-store-coupons 区别: 后者限定当前门店)\n' +
+                '\n' +
+                '========== 订单管理 ==========\n' +
+                '· create-order: 下单 (有副作用, 必先确认)\n' +
+                '· query-order(orderId): 查订单状态 / 取餐码 / 配送信息 — 文档里有, 不是没做!\n' +
+                '· 文档没列 cancel-order 工具, 取消订单走 query-order 看实际状态再告知用户怎么操作\n' +
+                '\n' +
+                '========== 辅助工具 ==========\n' +
+                '· now-time-info: 当前时间 — 调 reservationDate 前先拿时间 (避免用错日期)\n' +
+                '· list-nutrition-foods: 餐品营养信息 (能量/蛋白/脂肪/碳水/钠/钙)\n' +
+                '· campaign-calendar: 当月营销活动日历\n' +
+                '· query-meal-assistance: 企业团餐助餐服务 (个人用户用不到)\n' +
+                '· query-my-account: 我的积分账户信息\n' +
+                '· mall-points-products: 麦麦商城可积分兑换的餐品券\n' +
+                '· mall-product-detail(productId): 积分兑换商品详情\n' +
+                '· mall-create-order: 积分兑换下单 (有副作用)\n' +
+                '\n' +
+                '========== 数据依赖链 ==========\n' +
+                '· storeCode (query-nearby-stores/delivery-query-stores → query-meals/calculate-price/create-order)\n' +
+                '· mealCode (query-meals → query-meal-detail/calculate-price/create-order)\n' +
+                '· 用户地址ID (delivery-query-stores → 外送下单)\n' +
+                '· orderId (create-order → query-order)'
+        },
+        {
+            match: 'lkcoffee.com',
+            guide: '【瑞幸 MCP 完整调用流程】 (按顺序, 别跳步; 必填参数漏了会返 code:1000 非法参数)\n' +
+                '① 查门店 queryShopList(longitude, latitude): 必填经纬度, 没 city/keyword 字段. 没经纬度先用高德 geocode("地址") 拿. 返 deptId (不是 storeCode) + workTimeStart/End\n' +
+                '② 搜商品 searchProductForMcp(deptId, query): 必填 2 个, 缺一非法参数. query 是用户原始文本 (如 "生椰拿铁"). 没"列全量菜单"工具, 搜啥返啥, 2-3 个最相关就是真没货, 别瞎试\n' +
+                '③ 切属性 switchProduct(deptId, productId, skuCode, attrOperationParam, amount): 必填 5 个, attrOperationParam = { attributeId: 属性组ID, subAttr: { attributeId: 属性值ID, operation: 3(选中) } }\n' +
+                '④ 查详情 queryProductDetailInfo(deptId, productId): 拿完整 productAttrs + 价格\n' +
+                '⑤ 算价 previewOrder(deptId, productList: [{amount, productId, skuCode}]): 必填 2 个, 返 discountPrice(实付价) + couponCodeList\n' +
+                '⑥ 下单 createOrder(deptId, productList, longitude, latitude, couponCodeList?, remark?): ⚠️ longitude/latitude 必填, couponCodeList 从 ⑤ 拿 (选哪张传哪张), 返 payOrderUrl + payOrderQrCodeUrl. 系统会自动 inline 渲染支付卡片 (含可点链接 + 二维码), AI 自由发挥确认话术, **不要复述链接/解释二维码/复述订单内容** —— 那是系统渲染的\n' +
+                '   · 副作用大, 必先跟用户确认 (商品/数量/价格/优惠券/备注) 再调\n' +
+                '⑦ 查订单 queryOrderDetailInfo(orderId): orderStatus 10待付/20下单/30制作/60取餐/80完成/100取消, 60 时 takeMealCodeInfo.code 是取餐码, 告诉用户\n' +
+                '⑧ 取消 cancelOrder(orderId): 仅待付/下单状态能取消\n' +
+                '⚠️ 数据依赖链: deptId (①→所有) / productId+skuCode (②→③④⑤⑥) / couponCodeList (⑤→⑥)'
+        },
+        {
+            match: 'mcp.amap.com',
+            guide: '【高德 MCP 调用流程】 (2026-08-01 实测, 部分端点 MCP 有 bug)\n' +
+                '✅ WORK 的端点 (实测正常):\n' +
+                '① 算距离 maps_distance(origins, destination, type): type 1驾车/2直线/3步行 (string!), 返 {results: [{origin_id, dest_id, distance, duration}]}\n' +
+                '② 查经纬度 maps_geo(address, city?): 必填 address, city 选填提高精度. ⚠️ MCP 端点偶发 ENGINE_RESPONSE_DATA_ERROR, 失败让用户调高德 REST API 兜底 (https://restapi.amap.com/v3/geocode/geo?address=...&key=...)\n' +
+                '③ 逆地址解析 maps_regeocode(location): 必填 location (经纬度)\n' +
+                '④ 路径规划: walking/driving/bicycling(origin, destination) / transit_integrated(origin, destination, city, cityd) — 后者还要起终点城市名\n' +
+                '⑤ IP 定位 maps_ip_location(ip)\n' +
+                '❌ 端点 BUG (实测, MCP 端点坏, 2026-08-01 测两 key 都坏):\n' +
+                '· maps_text_search (返空) / maps_around_search (返空) / maps_weather (返 null)\n' +
+                '· 这 3 个别走 MCP, 让用户调高德 REST API: https://restapi.amap.com/v3/place/text?keywords=...&city=...&key=... (POI 搜索) / .../v3/place/around?keywords=...&location=...&key=... (周边) / .../v3/weather/weatherInfo?city=...&key=... (天气)\n' +
+                '⚠️ 数据依赖: 大多数工具必填经纬度 (lng,lat), 没经纬度先调 maps_geo. location 字段统一 "lng,lat" 字符串 (不是 lat,lng). 距离/方向/逆地址都靠经纬度串联'
+        },
+    ];
+
+    function getServerUsageGuide(url) {
+        if (!url || typeof url !== 'string') return null;
+        const u = url.toLowerCase();
+        for (let i = 0; i < SERVER_USAGE_GUIDES.length; i++) {
+            if (u.indexOf(SERVER_USAGE_GUIDES[i].match) >= 0) return SERVER_USAGE_GUIDES[i].guide;
+        }
+        return null;
     }
 
     const MCP_TAIL_REMINDER = '[MCP 工具 ON · 永远用角色语气回复别空回; 工具只能走 function calling 接口、严禁写成正文文字; 工具结果别整段复述 JSON; 有副作用的操作先确认再执行]';
@@ -222,6 +324,341 @@
 
     function safeParseJson(s) {
         try { return JSON.parse(s); } catch (e) { return null; }
+    }
+
+    // ========== Gemini 原生 API 格式转换 (OpenAI ↔ Gemini) ==========
+    // 解决 Gemini 直连原生 API (:generateContent) 看不到工具的 bug
+    // 策略: Gemini body → OpenAI body → 复用 OpenAI 内部逻辑 → OpenAI response → Gemini response
+    // 工具结果按 Gemini 风格 role:function + parts:[{functionResponse}] 存
+
+    function isGeminiNativeRequest(url) {
+        if (typeof url !== 'string') return false;
+        if (url.indexOf('generativelanguage.googleapis.com') < 0) return false;
+        // OpenAI 兼容端点走老逻辑, 不算原生
+        if (url.indexOf('/v1beta/openai/chat/completions') >= 0) return false;
+        return true;
+    }
+
+    // OpenAI tools → Gemini functionDeclarations
+    function openAIToolsToGemini(openAITools) {
+        const declarations = (openAITools || []).map(function (t) {
+            if (!t || t.type !== 'function') return null;
+            const f = t.function || {};
+            return {
+                name: f.name,
+                description: f.description || '',
+                parameters: f.parameters || { type: 'object', properties: {} }
+            };
+        }).filter(Boolean);
+        if (!declarations.length) return undefined;
+        return [{ functionDeclarations: declarations }];
+    }
+
+    // Gemini body → OpenAI body (messages + tools + generationConfig)
+    // geminiBody.contents: [{role: "user"/"model"/"function", parts: [{text}|{functionCall}|{functionResponse}]}]
+    function geminiBodyToOpenAI(geminiBody, sysBlock) {
+        const messages = [];
+        // systemInstruction → 第一个 system message
+        let sysText = '';
+        if (geminiBody.systemInstruction && Array.isArray(geminiBody.systemInstruction.parts)) {
+            sysText = geminiBody.systemInstruction.parts.map(function (p) { return p.text || ''; }).join('\n');
+        }
+        if (sysText && sysBlock) sysText = sysText + '\n\n' + sysBlock;
+        else if (sysBlock) sysText = sysBlock;
+        if (sysText) messages.push({ role: 'system', content: sysText });
+
+        const contents = Array.isArray(geminiBody.contents) ? geminiBody.contents : [];
+        for (let i = 0; i < contents.length; i++) {
+            const c = contents[i];
+            const parts = Array.isArray(c.parts) ? c.parts : [];
+            if (c.role === 'user') {
+                const text = parts.filter(function (p) { return p.text; }).map(function (p) { return p.text; }).join('\n');
+                messages.push({ role: 'user', content: text });
+            } else if (c.role === 'model') {
+                const text = parts.filter(function (p) { return p.text; }).map(function (p) { return p.text; }).join('\n');
+                const functionCalls = parts.filter(function (p) { return p.functionCall; }).map(function (p) { return p.functionCall; });
+                const msg = { role: 'assistant' };
+                if (text) msg.content = text;
+                if (functionCalls.length) {
+                    msg.tool_calls = functionCalls.map(function (fc, idx) {
+                        return {
+                            id: 'call_' + Date.now() + '_' + idx + '_' + i,
+                            type: 'function',
+                            function: {
+                                name: fc.name,
+                                arguments: JSON.stringify(fc.args || {})
+                            }
+                        };
+                    });
+                }
+                if (!msg.content && !msg.tool_calls) msg.content = '';
+                messages.push(msg);
+            } else if (c.role === 'function') {
+                // Gemini function response message: parts[].functionResponse = {name, response}
+                for (let j = 0; j < parts.length; j++) {
+                    const p = parts[j];
+                    if (!p || !p.functionResponse) continue;
+                    const fr = p.functionResponse;
+                    const responseObj = fr.response || {};
+                    // Gemini 接受 string 或 object 作为 response.content, 但 OpenAI tool content 是 string
+                    let contentStr = '';
+                    if (typeof responseObj === 'string') contentStr = responseObj;
+                    else if (responseObj.content != null) contentStr = typeof responseObj.content === 'string' ? responseObj.content : JSON.stringify(responseObj.content);
+                    else contentStr = JSON.stringify(responseObj);
+                    messages.push({
+                        role: 'tool',
+                        // 用 function name 当 tool_call_id, 转换回去时靠 name 关联
+                        tool_call_id: fr.name || ('call_' + j),
+                        content: contentStr
+                    });
+                }
+            }
+        }
+
+        const out = { messages: messages };
+        // generationConfig → openai style
+        if (geminiBody.generationConfig && typeof geminiBody.generationConfig === 'object') {
+            const gc = geminiBody.generationConfig;
+            if (gc.temperature != null) out.temperature = gc.temperature;
+            if (gc.maxOutputTokens != null) out.max_tokens = gc.maxOutputTokens;
+            if (gc.topP != null) out.top_p = gc.topP;
+            if (Array.isArray(gc.stopSequences)) out.stop = gc.stopSequences;
+        }
+        return out;
+    }
+
+    // OpenAI messages → Gemini contents (下轮迭代用)
+    function openAIMessagesToGeminiContents(messages) {
+        const contents = [];
+        for (let i = 0; i < messages.length; i++) {
+            const m = messages[i];
+            if (m.role === 'system' || m.role === 'developer') continue; // systemInstruction 单独存
+            if (m.role === 'user') {
+                contents.push({ role: 'user', parts: [{ text: m.content || '' }] });
+            } else if (m.role === 'assistant') {
+                const parts = [];
+                if (m.content) parts.push({ text: m.content });
+                if (Array.isArray(m.tool_calls)) {
+                    for (let j = 0; j < m.tool_calls.length; j++) {
+                        const tc = m.tool_calls[j];
+                        let args = {};
+                        try { args = tc.function && tc.function.arguments ? JSON.parse(tc.function.arguments) : {}; } catch (e) { args = {}; }
+                        parts.push({ functionCall: { name: tc.function && tc.function.name, args: args } });
+                    }
+                }
+                contents.push({ role: 'model', parts: parts.length ? parts : [{ text: '' }] });
+            } else if (m.role === 'tool') {
+                // 把 OpenAI tool message 转 Gemini function response parts
+                // 一个 OpenAI tool message 对应一个 function response
+                contents.push({
+                    role: 'function',
+                    parts: [{ functionResponse: { name: m.tool_call_id, response: { content: m.content || '' } } }]
+                });
+            }
+        }
+        return contents;
+    }
+
+    // OpenAI chat completion response → Gemini generateContent response
+    function openAIResponseToGemini(openAIData, model) {
+        const choice = (openAIData.choices && openAIData.choices[0]) || null;
+        if (!choice) {
+            return { candidates: [], modelVersion: model || 'gemini' };
+        }
+        const msg = choice.message || {};
+        const parts = [];
+        if (msg.content) parts.push({ text: msg.content });
+        if (Array.isArray(msg.tool_calls)) {
+            for (let i = 0; i < msg.tool_calls.length; i++) {
+                const tc = msg.tool_calls[i];
+                let args = {};
+                try { args = tc.function && tc.function.arguments ? JSON.parse(tc.function.arguments) : {}; } catch (e) { args = {}; }
+                parts.push({
+                    functionCall: {
+                        name: tc.function && tc.function.name,
+                        args: args
+                    }
+                });
+            }
+        }
+        if (!parts.length) parts.push({ text: '' });
+
+        const finishMap = {
+            'stop': 'STOP',
+            'length': 'MAX_TOKENS',
+            'tool_calls': 'STOP',
+            'content_filter': 'SAFETY',
+            'function_call': 'STOP',
+        };
+        const candidates = [{
+            content: { parts: parts, role: 'model' },
+            finishReason: finishMap[choice.finish_reason] || 'STOP',
+            index: 0,
+        }];
+        const result = {
+            candidates: candidates,
+            modelVersion: model || 'gemini',
+            responseId: 'resp_' + Date.now(),
+        };
+        if (openAIData.usage && typeof openAIData.usage === 'object') {
+            result.usageMetadata = {
+                promptTokenCount: openAIData.usage.prompt_tokens || 0,
+                candidatesTokenCount: openAIData.usage.completion_tokens || 0,
+                totalTokenCount: openAIData.usage.total_tokens || 0,
+            };
+        }
+        return result;
+    }
+
+    // Gemini 原生 API 端点的 chat 循环
+    // 关键: 直接用 Gemini 风格 body/contents 跟 Gemini API 通信, 不走 OpenAI 中转
+    // (Gemini 收到 OpenAI 风格 body 返 400, 必须用 {contents, tools:[{functionDeclarations}]})
+    async function runChatWithToolLoopGemini(url, init) {
+        if (!global.McpGenericClient) {
+            return (originalFetch || fetch)(url, init);
+        }
+        const sysBlock = (typeof buildMcpSystemBlock === 'function' ? buildMcpSystemBlock() : '') + '\n' + MCP_TAIL_REMINDER;
+
+        // 解析 Gemini body
+        const origBody = safeParseJson(init && init.body) || {};
+        const model = origBody.model || 'gemini';
+
+        // 准备 MCP 工具 (OpenAI 风格)
+        const built = buildMcpOpenAITools();
+        const openAITools = built.tools;
+        const resolveMap = built.resolve;
+        if (!openAITools.length) {
+            return (originalFetch || fetch)(url, init);
+        }
+
+        // Gemini 工具 (functionDeclarations)
+        const geminiTools = openAIToolsToGemini(openAITools);
+
+        // 维护 Gemini 风格的 contents (从原始 body 复制)
+        let geminiContents = Array.isArray(origBody.contents) ? origBody.contents.slice() : [];
+
+        // Gemini systemInstruction (保留原 systemInstruction + 追加 sysBlock)
+        let sysInstruction = origBody.systemInstruction;
+        if (sysBlock) {
+            const extraPart = { text: sysBlock };
+            if (sysInstruction && Array.isArray(sysInstruction.parts)) {
+                sysInstruction = { parts: sysInstruction.parts.concat([extraPart]) };
+            } else {
+                sysInstruction = { parts: [extraPart] };
+            }
+        }
+
+        // 其他 metadata (generationConfig / safetySettings 等) 保留
+        const baseMeta = {};
+        for (const k of Object.keys(origBody)) {
+            if (k === 'contents' || k === 'systemInstruction' || k === 'tools') continue;
+            baseMeta[k] = origBody[k];
+        }
+
+        emitProgress({ phase: 'session_start', summary: '已合并 ' + openAITools.length + ' 个 MCP 工具 (Gemini 原生模式)' });
+
+        const fetchForLLM = originalFetch || fetch;
+        const maxIter = (typeof TOOL_LOOP_MAX === 'number') ? TOOL_LOOP_MAX : 6;
+        let iteration = 0;
+        let lastGeminiResp = null;
+
+        while (iteration < maxIter) {
+            iteration++;
+            // 组装 Gemini body (保留所有元数据 + 注入 tools + systemInstruction)
+            const geminiBody = Object.assign({}, baseMeta, {
+                contents: geminiContents,
+                tools: geminiTools,
+            });
+            if (sysInstruction) geminiBody.systemInstruction = sysInstruction;
+            // Gemini native 强制 non-stream (stream 解析逻辑另写)
+            if (geminiBody.stream) delete geminiBody.stream;
+
+            const iterInit = Object.assign({}, init, {
+                body: JSON.stringify(geminiBody),
+                headers: Object.assign({}, init.headers || {}, { 'Content-Type': 'application/json' }),
+            });
+            const resp = await fetchForLLM(url, iterInit);
+            if (!resp.ok) {
+                emitProgress({ phase: 'session_done', summary: 'Gemini API 返 ' + resp.status });
+                return resp;
+            }
+            const data = await resp.json();
+            if (!data) {
+                emitProgress({ phase: 'session_done', summary: 'Gemini 响应空' });
+                return wrapAsJsonResp({ candidates: [] }, resp);
+            }
+            lastGeminiResp = data;
+
+            // 解析 Gemini 风格响应
+            const candidate = data.candidates && data.candidates[0];
+            if (!candidate) {
+                // 异常 (safety block / no candidate)
+                emitProgress({ phase: 'session_done', summary: 'Gemini 无 candidate (finishReason=' + (data.candidates && data.candidates[0]?.finishReason) + ')' });
+                return wrapAsJsonResp(data, resp);
+            }
+            const parts = (candidate.content && candidate.content.parts) || [];
+            const functionCalls = parts.filter(function (p) { return p && p.functionCall; }).map(function (p) { return p.functionCall; });
+            const text = parts.filter(function (p) { return p && p.text; }).map(function (p) { return p.text; }).join('\n');
+
+            if (!functionCalls.length) {
+                // 没 function call, 循环结束 (返 Gemini 响应原样)
+                if (text) geminiContents.push({ role: 'model', parts: [{ text: text }] });
+                emitProgress({ phase: 'session_done', summary: 'AI 已完成 (Gemini)' });
+                return wrapAsJsonResp(data, resp);
+            }
+
+            // 有 function call, 把 model 消息 (Gemini 风格) 加到 contents
+            const assistantParts = [];
+            if (text) assistantParts.push({ text: text });
+            for (let i = 0; i < functionCalls.length; i++) {
+                const fc = functionCalls[i];
+                assistantParts.push({ functionCall: { name: fc.name, args: fc.args || {} } });
+            }
+            geminiContents.push({ role: 'model', parts: assistantParts });
+
+            // 执行每个 function call
+            for (let i = 0; i < functionCalls.length; i++) {
+                const fc = functionCalls[i];
+                const fnName = fc.name;
+                const fnArgs = fc.args || {};
+                const resolved = resolveMap.get(fnName);
+                if (!resolved) {
+                    emitProgress({ phase: 'tool_err', toolName: fnName, summary: '工具未注册: ' + fnName });
+                    geminiContents.push({
+                        role: 'function',
+                        parts: [{ functionResponse: { name: fnName, response: { content: 'error: 工具 ' + fnName + ' 未在当前会话注册' } } }]
+                    });
+                    continue;
+                }
+                emitProgress({ phase: 'tool_start', toolName: fnName, summary: summarizeToolAction(resolved.toolName, fnArgs) });
+                let callResult;
+                try {
+                    callResult = await global.McpGenericClient.callTool(resolved.server, resolved.toolName, fnArgs);
+                } catch (toolErr) {
+                    callResult = { success: false, error: '工具调用异常: ' + ((toolErr && toolErr.message) || String(toolErr)) };
+                }
+                emitCardMessage(resolved.server, resolved.toolName, fnArgs, callResult);
+                emitProgress({
+                    phase: callResult.success ? 'tool_ok' : 'tool_err',
+                    toolName: fnName,
+                    summary: callResult.success
+                        ? summarizeToolResult(resolved.toolName, callResult)
+                        : ('失败: ' + ((callResult.error || '')).slice(0, 80)),
+                });
+                const content = callResult.success
+                    ? formatMcpToolResult(callResult.data)
+                    : ('error: ' + callResult.error);
+                // Gemini function response 存到 contents
+                geminiContents.push({
+                    role: 'function',
+                    parts: [{ functionResponse: { name: fnName, response: { content: content } } }]
+                });
+            }
+        }
+
+        emitProgress({ phase: 'session_done', summary: '达到工具循环上限 (Gemini), 安全退出' });
+        if (lastGeminiResp) return wrapAsJsonResp(lastGeminiResp, null);
+        return wrapAsJsonResp({ candidates: [] }, null);
     }
 
     function wrapAsJsonResp(data, originalResp) {
@@ -378,7 +815,14 @@
     function isLLMRequest(url) {
         // 2026-07-31: 用户 API proxyUrl 都带 /v1, 实际 URL 是 /v1/chat/completions, 老匹配就是对的
         // 不动用户接口补全规则, 老逻辑保留
-        return typeof url === 'string' && url.indexOf('/v1/chat/completions') >= 0;
+        if (typeof url !== 'string') return false;
+        // 1. OpenAI 风格 (老规则, 不动 — M3/MiniMax/Deepseek 都用)
+        if (url.indexOf('/v1/chat/completions') >= 0) return true;
+        // 2. Gemini OpenAI 兼容端点 (新增, 2026-08-01, Gemini 直连修)
+        if (url.indexOf('/v1beta/openai/chat/completions') >= 0) return true;
+        // 3. Gemini 原生 API 域名 (新增, 2026-08-01, Gemini 直连修)
+        if (url.indexOf('generativelanguage.googleapis.com') >= 0) return true;
+        return false;
     }
 
     function installHook() {
@@ -402,10 +846,14 @@
                     url: describeUrl(url),
                     toolsReady: toolsReady,
                     serverCount: servers.length,
+                    mode: isGeminiNativeRequest(url) ? 'gemini-native' : 'openai'
                 });
 
                 if (toolsReady) {
                     try {
+                        if (isGeminiNativeRequest(url)) {
+                            return await runChatWithToolLoopGemini(url, init);
+                        }
                         return await runChatWithToolLoop(url, init);
                     } catch (e) {
                         console.warn('[McpBridge] 工具循环出错, 回退原 fetch:', e);

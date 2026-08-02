@@ -552,6 +552,167 @@
 
     // ========== 工具调用 ==========
 
+    // 高德 maps_geo REST 兜底 (mcp.amap.com/mcp 端点坏, 返 ENGINE_RESPONSE_DATA_ERROR)
+    // AI 完全无感 — 拿到跟 MCP 端点同结构的 {results: [...]}
+    function amapGeoRestFallback(server, args, originalError) {
+        const key = server.bearerToken;
+        const address = (args && args.address) || '';
+        const city = (args && args.city) || '';
+        if (!address || !key) {
+            return Promise.resolve({
+                success: false,
+                error: '高德 maps_geo REST 兜底失败: 缺 address 或 key. 原 MCP 错误: ' + originalError,
+                rawText: originalError,
+            });
+        }
+        let url = 'https://restapi.amap.com/v3/geocode/geo?address=' + encodeURIComponent(address) +
+                  '&key=' + encodeURIComponent(key);
+        if (city) url += '&city=' + encodeURIComponent(city);
+        return fetch(url, { method: 'GET' }).then(function (r) { return r.json(); }).then(function (j) {
+            if (j && j.status === '1' && j.geocodes && j.geocodes.length) {
+                // 转成 MCP 端点 maps_geo 风格: {results: [...]}
+                const mcpStyle = { results: j.geocodes };
+                console.info('🗺️ [MCP] 高德 maps_geo REST 兜底成功, address="' + address + '" → ' + j.geocodes.length + ' 个候选');
+                return { success: true, data: mcpStyle, rawText: JSON.stringify(mcpStyle) };
+            }
+            return {
+                success: false,
+                error: '高德 REST API 也无结果 (status=' + (j && j.status) + ', info=' + (j && j.info) + '). 原 MCP 错误: ' + originalError,
+                rawText: originalError,
+            };
+        }).catch(function (e) {
+            return {
+                success: false,
+                error: '高德 REST 兜底异常: ' + ((e && e.message) || String(e)) + '. 原 MCP 错误: ' + originalError,
+                rawText: originalError,
+            };
+        });
+    }
+
+    // 高德 maps_text_search REST 兜底 (MCP 端点返 {pois:[]} 空数组)
+    // 直接返 REST 原 JSON, AI 看到 data.pois 即可
+    function amapTextSearchRestFallback(server, args, originalError) {
+        const key = server.bearerToken;
+        const keywords = (args && args.keywords) || '';
+        if (!key || !keywords) {
+            return Promise.resolve({
+                success: false,
+                error: 'maps_text_search REST 兜底失败: 缺 key 或 keywords. 原 MCP 数据: ' + originalError,
+            });
+        }
+        let url = 'https://restapi.amap.com/v3/place/text?keywords=' + encodeURIComponent(keywords) +
+                  '&key=' + encodeURIComponent(key);
+        if (args.city) url += '&city=' + encodeURIComponent(args.city);
+        if (args.types) url += '&types=' + encodeURIComponent(args.types);
+        if (args.page) url += '&page=' + encodeURIComponent(args.page);
+        if (args.offset) url += '&offset=' + encodeURIComponent(args.offset);
+        if (args.extensions) url += '&extensions=' + encodeURIComponent(args.extensions);
+        return fetch(url, { method: 'GET' }).then(function (r) { return r.json(); }).then(function (j) {
+            if (j && j.status === '1') {
+                const n = (j.pois || []).length;
+                console.info('🗺️ [MCP] maps_text_search REST 兜底成功, keywords="' + keywords + '" → ' + n + ' 个 POI');
+                return { success: true, data: j, rawText: JSON.stringify(j) };
+            }
+            return {
+                success: false,
+                error: 'maps_text_search REST 兜底失败: status=' + (j && j.status) + ' info=' + (j && j.info),
+            };
+        }).catch(function (e) {
+            return { success: false, error: 'maps_text_search REST 兜底异常: ' + ((e && e.message) || String(e)) };
+        });
+    }
+
+    // 高德 maps_around_search REST 兜底 (MCP 端点返 {pois:[]} 空数组)
+    function amapAroundSearchRestFallback(server, args, originalError) {
+        const key = server.bearerToken;
+        const location = (args && args.location) || '';
+        if (!key || !location) {
+            return Promise.resolve({
+                success: false,
+                error: 'maps_around_search REST 兜底失败: 缺 key 或 location. 原 MCP 数据: ' + originalError,
+            });
+        }
+        let url = 'https://restapi.amap.com/v3/place/around?location=' + encodeURIComponent(location) +
+                  '&key=' + encodeURIComponent(key);
+        if (args.keywords) url += '&keywords=' + encodeURIComponent(args.keywords);
+        if (args.types) url += '&types=' + encodeURIComponent(args.types);
+        if (args.radius) url += '&radius=' + encodeURIComponent(args.radius);
+        if (args.page) url += '&page=' + encodeURIComponent(args.page);
+        if (args.offset) url += '&offset=' + encodeURIComponent(args.offset);
+        if (args.extensions) url += '&extensions=' + encodeURIComponent(args.extensions);
+        return fetch(url, { method: 'GET' }).then(function (r) { return r.json(); }).then(function (j) {
+            if (j && j.status === '1') {
+                const n = (j.pois || []).length;
+                console.info('🗺️ [MCP] maps_around_search REST 兜底成功, location="' + location + '" keywords="' + (args.keywords || '') + '" → ' + n + ' 个 POI');
+                return { success: true, data: j, rawText: JSON.stringify(j) };
+            }
+            return {
+                success: false,
+                error: 'maps_around_search REST 兜底失败: status=' + (j && j.status) + ' info=' + (j && j.info),
+            };
+        }).catch(function (e) {
+            return { success: false, error: 'maps_around_search REST 兜底异常: ' + ((e && e.message) || String(e)) };
+        });
+    }
+
+    // 高德 maps_weather REST 兜底 (MCP 端点返 {city:null, forecasts:null})
+    function amapWeatherRestFallback(server, args, originalError) {
+        const key = server.bearerToken;
+        const city = (args && args.city) || '';
+        if (!key || !city) {
+            return Promise.resolve({
+                success: false,
+                error: 'maps_weather REST 兜底失败: 缺 key 或 city. 原 MCP 数据: ' + originalError,
+            });
+        }
+        // city 可以是 adcode (数字) 或 城市名, REST 都接受
+        let url = 'https://restapi.amap.com/v3/weather/weatherInfo?city=' + encodeURIComponent(city) +
+                  '&key=' + encodeURIComponent(key);
+        if (args.extensions) url += '&extensions=' + encodeURIComponent(args.extensions);
+        return fetch(url, { method: 'GET' }).then(function (r) { return r.json(); }).then(function (j) {
+            if (j && j.status === '1') {
+                const hasLives = (j.lives || []).length;
+                const hasForecasts = (j.forecasts || []).length;
+                console.info('🌤️ [MCP] maps_weather REST 兜底成功, city="' + city + '" → lives=' + hasLives + ' forecasts=' + hasForecasts);
+                return { success: true, data: j, rawText: JSON.stringify(j) };
+            }
+            return {
+                success: false,
+                error: 'maps_weather REST 兜底失败: status=' + (j && j.status) + ' info=' + (j && j.info),
+            };
+        }).catch(function (e) {
+            return { success: false, error: 'maps_weather REST 兜底异常: ' + ((e && e.message) || String(e)) };
+        });
+    }
+
+    // 高德 4 个已知 bug 端点 — 集中分发
+    function tryAmapRestFallback(toolName, server, args, originalError) {
+        if (toolName === 'maps_geo') return amapGeoRestFallback(server, args, originalError);
+        if (toolName === 'maps_text_search') return amapTextSearchRestFallback(server, args, originalError);
+        if (toolName === 'maps_around_search') return amapAroundSearchRestFallback(server, args, originalError);
+        if (toolName === 'maps_weather') return amapWeatherRestFallback(server, args, originalError);
+        return Promise.resolve({ success: false, error: 'tryAmapRestFallback: 未知 toolName ' + toolName, rawText: originalError });
+    }
+
+    // 高德 4 个已知 bug 端点 — 是不是"返空数据"? (注意 maps_geo 是 isError=true, 走另一条分支)
+    function amapMcpDataIsEmpty(toolName, data) {
+        if (!data || typeof data !== 'object') return true;
+        if (toolName === 'maps_text_search' || toolName === 'maps_around_search') {
+            return !Array.isArray(data.pois) || data.pois.length === 0;
+        }
+        if (toolName === 'maps_weather') {
+            const livesEmpty = !Array.isArray(data.lives) || data.lives.length === 0;
+            const forecastsEmpty = !Array.isArray(data.forecasts) || data.forecasts.length === 0;
+            return livesEmpty && forecastsEmpty;
+        }
+        return false;
+    }
+
+    function isAmapBugTool(toolName) {
+        return toolName === 'maps_geo' || toolName === 'maps_text_search' ||
+               toolName === 'maps_around_search' || toolName === 'maps_weather';
+    }
+
     function callTool(server, toolName, args) {
         args = args || {};
         const inputSchema = (server.tools || []).find(function (t) { return t.name === toolName; });
@@ -603,9 +764,19 @@
                     .map(function (c) { return c.text || ''; });
                 const fullText = textParts.join('\n').trim();
                 if (result.isError) {
+                    // 高德 4 个端点 bug: isError=true (maps_geo 返 ENGINE_RESPONSE_DATA_ERROR), 自动 fallback 到 REST API
+                    if (isAmapBugTool(toolName) && server.bearerToken) {
+                        return tryAmapRestFallback(toolName, server, normalizedArgs, fullText).then(finish);
+                    }
                     return finish({ success: false, error: fullText || 'MCP 工具执行失败', rawText: fullText });
                 }
                 const parsed = safeParseJson(fullText, null) || extractJsonFromMcpText(fullText);
+                // 高德 3 个端点 bug: success=true 但 data 空 (text_search/around_search 返 {pois:[]}, weather 返 {city:null,forecasts:null})
+                // 也触发 REST 兜底 — AI 完全无感
+                if (isAmapBugTool(toolName) && server.bearerToken && amapMcpDataIsEmpty(toolName, parsed)) {
+                    console.info('🗺️ [MCP] 高德 ' + toolName + ' MCP 端点返空数据, 触发 REST 兜底. parsed=' + JSON.stringify(parsed).slice(0, 200));
+                    return tryAmapRestFallback(toolName, server, normalizedArgs, '').then(finish);
+                }
                 if (parsed != null) {
                     return finish({ success: true, data: parsed, rawText: fullText });
                 }

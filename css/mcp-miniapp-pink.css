@@ -41,6 +41,27 @@
 .mcp-menu-fab:active {
     transform: scale(0.92);
 }
+
+/* ========== FAB 长按关闭 (1.5s 持续按, 视觉反馈) ========== */
+
+/* 长按中: 缩小 + 阴影加强 + 微微抖动, 让用户知道"在识别" */
+.mcp-menu-fab.is-longpressing {
+    transform: scale(0.82);
+    box-shadow: 0 8px 24px rgba(255, 107, 139, 0.5);
+    transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
+}
+
+/* 长按完成: 短暂闪烁 + 准备消失 */
+.mcp-menu-fab.is-longpress-done {
+    transform: scale(0.6);
+    opacity: 0.3;
+    transition: transform 0.2s ease-in, opacity 0.2s ease-in;
+}
+
+/* 隐藏状态 */
+.mcp-menu-fab {
+    transition: opacity 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+}
 .mcp-menu-fab .mcp-menu-fab-badge {
     position: absolute;
     top: -2px;
@@ -286,4 +307,218 @@
     color: #E74C3C;
     font-size: 13px;
     line-height: 1.6;
+}
+
+/* ========== inline 支付卡片 (create-order 后系统自动渲染, AI 不要复述) ========== */
+
+.mcp-pay-card {
+    display: inline-block;
+    max-width: 320px;
+    margin: 6px 0 10px;
+    padding: 14px 16px 12px;
+    background: linear-gradient(135deg, #FFF5F7 0%, #FFE4EC 100%);
+    border: 1px solid #FFCDD8;
+    border-radius: 14px;
+    box-shadow: 0 2px 10px rgba(255, 138, 162, 0.12);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 14px;
+    color: #2D2D2D;
+}
+
+.mcp-pay-card .mcp-pay-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+    font-weight: 600;
+    font-size: 15px;
+    color: #C0392B;
+}
+
+.mcp-pay-card .mcp-pay-icon {
+    font-size: 18px;
+}
+
+.mcp-pay-card .mcp-pay-title {
+    color: #C0392B;
+}
+
+.mcp-pay-card .mcp-pay-amount {
+    font-size: 18px;
+    font-weight: 700;
+    color: #E74C3C;
+    margin-bottom: 10px;
+    letter-spacing: 0.5px;
+}
+
+.mcp-pay-card .mcp-pay-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    margin: 6px 0 8px;
+    background: linear-gradient(135deg, #FF8FA3 0%, #FF6B8B 100%);
+    color: #FFFFFF;
+    text-decoration: none;
+    border-radius: 10px;
+    font-weight: 500;
+    font-size: 14px;
+    box-shadow: 0 2px 6px rgba(255, 107, 139, 0.3);
+    transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.mcp-pay-card .mcp-pay-link:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(255, 107, 139, 0.4);
+    color: #FFFFFF;
+}
+
+.mcp-pay-card .mcp-pay-link:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 3px rgba(255, 107, 139, 0.3);
+}
+
+.mcp-pay-card .mcp-pay-link-icon {
+    font-size: 16px;
+}
+
+.mcp-pay-card .mcp-pay-link-text {
+    flex: 1;
+    text-align: center;
+}
+
+.mcp-pay-card .mcp-pay-qr-wrap {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 10px auto 6px;
+    padding: 8px;
+    background: #FFFFFF;
+    border-radius: 10px;
+    width: fit-content;
+    box-shadow: inset 0 0 0 1px #FFCDD8;
+}
+
+.mcp-pay-card .mcp-pay-qr {
+    display: block;
+    width: 160px;
+    height: 160px;
+    object-fit: contain;
+    image-rendering: pixelated;
+}
+
+.mcp-pay-card .mcp-pay-qr-fail {
+    width: 160px;
+    height: 160px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: #999;
+    text-align: center;
+    line-height: 1.5;
+}
+
+.mcp-pay-card .mcp-pay-qr-hint {
+    text-align: center;
+    font-size: 12px;
+    color: #8B6B70;
+    margin-top: 4px;
+}
+
+.mcp-pay-card .mcp-pay-orderid {
+    margin-top: 8px;
+    font-size: 11px;
+    color: #A08285;
+    text-align: center;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    word-break: break-all;
+}
+
+/* ========== 工具调用日志 (覆盖所有通用 MCP, 浅色小字像网易云切歌提示) ========== */
+
+.mcp-tool-log-group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end; /* 默认 AI 消息在右, 日志跟在右侧 */
+    margin: 4px 0 6px;
+    padding: 0;
+    max-width: 90%;
+    margin-left: auto;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 12px;
+    line-height: 1.7;
+}
+
+.mcp-tool-log-line {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0;
+    padding: 2px 0;
+    margin: 0;
+    background: transparent;
+    color: #B0B4BC; /* 浅灰主色, 跟网易云切歌提示一样 */
+    border: none;
+    border-radius: 0;
+    font-size: 11px;
+    line-height: 1.5;
+    white-space: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-sizing: border-box;
+    font-weight: 400;
+    letter-spacing: 0.2px;
+    opacity: 0.85;
+    transition: opacity 0.2s;
+}
+
+.mcp-tool-log-line:hover {
+    opacity: 1;
+}
+
+.mcp-tool-log-line .mcp-tool-log-name {
+    color: #8E8E93; /* 角色名, 稍深一点 */
+    font-weight: 500;
+    flex-shrink: 0;
+}
+
+.mcp-tool-log-line .mcp-tool-log-verb {
+    color: #B0B4BC;
+    font-weight: 400;
+    flex-shrink: 0;
+}
+
+.mcp-tool-log-line .mcp-tool-log-tool {
+    color: #6B7280; /* 工具名, 稍深 */
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 10.5px;
+    font-weight: 500;
+    flex-shrink: 0;
+}
+
+.mcp-tool-log-line .mcp-tool-log-summary {
+    color: #B0B4BC;
+    font-weight: 400;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 失败时: 只把"调用失败"几个字变深灰, 整体保持低调不抢眼 */
+.mcp-tool-log-line.mcp-tool-log-err {
+    color: #8B5C5C;
+    opacity: 0.9;
+}
+
+.mcp-tool-log-line.mcp-tool-log-err .mcp-tool-log-verb {
+    color: #B45858;
+    font-weight: 500;
+}
+
+.mcp-tool-log-line.mcp-tool-log-err .mcp-tool-log-tool {
+    color: #6B5C5C;
+}
+
+.mcp-tool-log-line.mcp-tool-log-err .mcp-tool-log-summary {
+    color: #8B5C5C;
 }

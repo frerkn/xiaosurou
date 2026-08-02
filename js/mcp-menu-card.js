@@ -34,10 +34,13 @@
         '瑞幸咖啡': '☕',
     };
     const MENU_TOOL_PATTERNS = [
+        // 麦当劳
         /^query[-_]?meals?$/i,
-        /^searchProduct$/i,
+        // 瑞幸 (注意: 工具名带后缀, 不是 searchProduct 而是 searchProductForMcp)
+        /^searchProductForMcp$/i,
+        /^queryProductDetailInfo$/i,
         /^switchProduct$/i,
-        /^queryProductDetail$/i,
+        // 通用兜底 (有 schema 也不一定真用, 留作扩展)
         /^listProducts?$/i,
         /^listMeals?$/i,
     ];
@@ -167,12 +170,51 @@
         return Object.keys(byCat).map(function (k) { return { name: k, items: byCat[k] }; });
     }
 
+    // 瑞幸 searchProductForMcp / queryProductDetailInfo / switchProduct
+    // 返 {code, msg, data, success}, data 是商品数组 (扁平, 没分类)
+    // 每项: {productId, productName, skuCode, pictureUrl, productAttrs[], tags[], initialPrice, estimatePrice}
+    // 注意: 瑞幸没"全量菜单"工具, 只能 searchProductForMcp(query="关键词") 拿相关商品
+    function parseLuckinMenu(json) {
+        const data = (json && (json.data || json.result || json));
+        if (!data) return [];
+        const products = Array.isArray(data) ? data
+                       : Array.isArray(data.products) ? data.products
+                       : Array.isArray(data.items) ? data.items
+                       : [];
+        if (!products.length) return [];
+        const items = products.map(function (p) {
+            // 属性折叠成可读字符串 (杯型/温度/糖度/奶油...)
+            const attrText = Array.isArray(p.productAttrs)
+                ? p.productAttrs.map(function (a) {
+                    const sub = Array.isArray(a.productSubAttrs)
+                        ? a.productSubAttrs.map(function (s) { return s.attributeName; }).join('/')
+                        : '';
+                    return a.attributeName + ': ' + (sub || '默认');
+                }).join(' · ')
+                : '';
+            return {
+                code: String(p.productId || p.skuCode || ''),
+                name: p.productName || p.name || '未命名',
+                image: p.pictureUrl || p.image || '',
+                currentPrice: p.estimatePrice != null ? String(p.estimatePrice) : (p.currentPrice || ''),
+                originalPrice: p.initialPrice != null ? String(p.initialPrice) : (p.originalPrice || ''),
+                tags: Array.isArray(p.tags) ? p.tags : [],
+                attrs: attrText,
+            };
+        });
+        // 瑞幸没分类, 包成单分类 (用 query 文本或 "商品推荐")
+        return [{ name: '商品推荐', items: items }];
+    }
+
     function parseMenu(card) {
         const json = parseMcpResult(card);
         if (!json) return [];
         const toolName = (card.toolName || '').toLowerCase();
         if (toolName === 'query-meals' || toolName === 'query_meals') {
             return parseMcdMeals(json);
+        }
+        if (toolName === 'searchproductformcp' || toolName === 'queryproductdetailinfo' || toolName === 'switchproduct') {
+            return parseLuckinMenu(json);
         }
         return parseGenericMenu(json);
     }
@@ -189,16 +231,89 @@
 
     // ========== 渲染 ==========
 
+    // ========== 长按关闭 FAB (1.5s 持续按, 松手太早取消) ==========
+    const LONGPRESS_MS = 1500;
+    let longpressTimer = null;
+    let longpressTriggered = false;
+    let longpressStartX = 0;
+    let longpressStartY = 0;
+
+    function onLongPressStart(e) {
+        const fab = document.getElementById('mcp-menu-fab');
+        if (!fab) return;
+        // 阻止 click (避免点开 sheet)
+        e.preventDefault();
+        e.stopPropagation();
+        longpressTriggered = false;
+        const pt = e.touches ? e.touches[0] : e;
+        longpressStartX = pt.clientX || 0;
+        longpressStartY = pt.clientY || 0;
+        fab.classList.add('is-longpressing');
+        longpressTimer = setTimeout(function () {
+            longpressTriggered = true;
+            fab.classList.remove('is-longpressing');
+            fab.classList.add('is-longpress-done');
+            // 触发关闭 (0.2s 后淡出, 让动画跑完)
+            setTimeout(function () { hideFab(); }, 200);
+        }, LONGPRESS_MS);
+    }
+
+    function onLongPressEnd(e) {
+        const fab = document.getElementById('mcp-menu-fab');
+        if (!fab) return;
+        // 移动超过 10px 算滑动, 取消
+        if (e.changedTouches && e.changedTouches[0]) {
+            const dx = (e.changedTouches[0].clientX || 0) - longpressStartX;
+            const dy = (e.changedTouches[0].clientY || 0) - longpressStartY;
+            if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+                clearTimeout(longpressTimer);
+                fab.classList.remove('is-longpressing');
+                return;
+            }
+        }
+        if (longpressTriggered) {
+            // 长按完成触发了关闭, 这里不再处理
+            setTimeout(function () { fab.classList.remove('is-longpress-done'); }, 600);
+            return;
+        }
+        // 还没到时间就松手 = 取消长按, 还原
+        clearTimeout(longpressTimer);
+        fab.classList.remove('is-longpressing');
+    }
+
+    function onLongPressCancel() {
+        const fab = document.getElementById('mcp-menu-fab');
+        if (!fab) return;
+        clearTimeout(longpressTimer);
+        fab.classList.remove('is-longpressing');
+    }
+
     function ensureFab() {
         let fab = document.getElementById('mcp-menu-fab');
         if (fab) return fab;
         fab = document.createElement('button');
         fab.id = 'mcp-menu-fab';
         fab.className = 'mcp-menu-fab';
-        fab.setAttribute('aria-label', '查看菜单');
+        fab.setAttribute('aria-label', '查看菜单 (长按可关闭)');
         fab.innerHTML = FAB_ICON + '<span class="mcp-menu-fab-badge" style="display:none;">0</span>';
         document.body.appendChild(fab);
-        fab.addEventListener('click', openSheet);
+        // 单击 = 打开 sheet (只有非长按完成的 click 才生效)
+        fab.addEventListener('click', function (e) {
+            if (longpressTriggered) {
+                longpressTriggered = false;
+                e.stopPropagation();
+                e.preventDefault();
+                return;
+            }
+            openSheet();
+        });
+        // 长按检测: touch (mobile) + mouse (PC 调试)
+        fab.addEventListener('touchstart', onLongPressStart, { passive: false });
+        fab.addEventListener('touchend', onLongPressEnd);
+        fab.addEventListener('touchcancel', onLongPressCancel);
+        fab.addEventListener('mousedown', onLongPressStart);
+        fab.addEventListener('mouseup', onLongPressEnd);
+        fab.addEventListener('mouseleave', onLongPressCancel);
         return fab;
     }
 
@@ -282,6 +397,7 @@
                     '<div class="mcp-menu-item-info">' +
                         '<div class="mcp-menu-item-name">' + escapeHtml(it.name) + '</div>' +
                         (tagsHtml ? '<div class="mcp-menu-item-tags">' + tagsHtml + '</div>' : '') +
+                        (it.attrs ? '<div class="mcp-menu-item-attrs" style="font-size:11px;color:#9CA3AF;line-height:1.5;margin-top:2px;">' + escapeHtml(it.attrs) + '</div>' : '') +
                         '<div>' + priceHtml + origHtml + '</div>' +
                     '</div>' +
                 '</div>';

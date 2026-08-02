@@ -1,5 +1,11 @@
 // Service Worker file (sw.js)
 // Whitelist cache strategy: cache only known static assets; API requests pass through.
+// 2026-08-02 v0.1.64: bump CACHE_VERSION 强制清缓存（FAB 长按关闭 — mcp-menu-card.js 加 1.5s 长按检测 (touchstart/touchend/mousedown/mouseup + setTimeout), 长按中 FAB 缩小 + 阴影加强 (is-longpressing), 长按完成 0.2s 后调 hideFab (is-longpress-done 短暂闪烁后淡出), 松手太早 / 滑动 > 10px / mouseleave 取消。closeSheet() 不再调 hideFab (用户可能想再次打开看)。css/mcp-miniapp-pink.css 加 .mcp-menu-fab.is-longpressing / .is-longpress-done 状态样式。aria-label 加 "(长按可关闭)" 提示）
+// 2026-08-02 v0.1.63: bump CACHE_VERSION 强制清缓存（MCP 工具调用日志 — 新建 js/mcp-tool-call-log.js 监听所有 onCard, 覆盖所有通用 MCP 工具 (不限 mcd/luckin/amap), inline 渲染简洁文字行紧跟最后一条 AI 消息: "[emoji] [toolName] · [摘要]"。跟 mcp-menu-card / mcp-pay-card 共存互补 — 菜单/支付是大卡片, 日志是文字证据, 用户看日志就知道 AI 真调了工具不是瞎编。摘要逻辑通用: 优先看 pois/stores/meals/items 等数组长度 → 数字字段 (count/amount/distance) → 订单号 → 兜底字段数。css/mcp-miniapp-pink.css 加 .mcp-tool-log-group / .mcp-tool-log-line / .mcp-tool-log-ok/err 样式）
+// 2026-08-02 v0.1.62: bump CACHE_VERSION 强制清缓存（inline 支付卡片 — 新建 js/mcp-pay-card.js + css/mcp-miniapp-pink.css 加 .mcp-pay-card 系列样式 + index.html 加载 + 麦当劳/瑞幸教程加"系统自动 inline 渲染支付卡片, AI 自由发挥不重复"提示。监听 create-order/createOrder/mall-create-order, 提取 payUrl/payOrderUrl/payOrderQrCodeUrl, 紧跟最后一条 AI 消息气泡后面渲染。设计原则: 不弹全屏 (破坏"AI 帮你下单"代入感), 只 inline 渲染支付信息让用户能扫/点。不规定 AI 说话, AI 用人设自由发挥）
+// 2026-08-02 v0.1.61: bump CACHE_VERSION 强制清缓存（备份模块漏掉悬浮球/生图/MCP 修复 — modules/backup-import-export.js 抽 EXTRA_LOCALSTORAGE_PREFIXES 列表统一管理 8 类 localStorage key（couple/floating-ball/novelai-/google-imagen-/pollinations-/openaiCompatImage/ephone.mcp./aphone.mcp.），重构 exportExtraLocalStorage / clearExtraLocalStorage / restoreExtraLocalStorage 三个函数。import 路径全部更新（importStreamedBackup/importLegacyBackup/handleSelectiveImport 3 处），旧名 exportCoupleSpaceLocalStorage 等保留做兼容转发。_reports/test-extra-localstorage.mjs 端到端验证 94/94 通过）
+// 2026-08-02 v0.1.60: bump CACHE_VERSION 强制清缓存（麦当劳教程按官方文档 https://open.mcd.cn/mcp/guide.md 重写 — 21 个工具全覆盖：到店流程 5 步 / 外送流程 5 步 / 优惠券 4 工具 / 订单管理 2 工具 / 辅助 7 工具。修之前"🚫 官方没做查订单工具"的错误（实际有 query-order），加协议版本兼容说明 + 限流 600/分 提示 + 数据依赖链 storeCode/mealCode/订单ID）
+// 2026-08-02 v0.1.59: bump CACHE_VERSION 强制清缓存（高德 3 个端点 REST 兜底: maps_text_search / maps_around_search / maps_weather — mcp-generic-client.js 新增 amapTextSearchRestFallback / amapAroundSearchRestFallback / amapWeatherRestFallback + tryAmapRestFallback 集中分发 + amapMcpDataIsEmpty 空数据检测 + isAmapBugTool 判断，callTool 在 isError / 空数据两种分支都触发 REST 兜底。AI 完全无感，端到端验证 4/4 通过：成都搜麦当劳 20 个 POI / 周边 2km 7 个 POI / 成都实况小雨 22°C / 洛阳路 3 个候选）
 // 2026-07-09 v0.1.18: 改用 Vercel 默认 bodyParser:true —— req.body 直接是解析后的对象，不用 rawBody 兜底
 // 2026-07-09 v0.1.12: 修致命 bug — runChatWithToolLoop 内部 fetch(url) = window.fetch = wrappedFetch → 无限递归 → OOM 闪退。改用 originalFetch 绕过自己。
 // 2026-07-09 v0.1.11: 修 refreshToolbarActive 闭包 bug — 把 refreshToolbarActive 提升到 IIFE module-scope 让 ensureMiniAppDom 闭包也能访问
@@ -44,7 +50,48 @@
 // 验证: _reports/test-extract-only.mjs 端到端跑通 — 14 分类 116 餐品, 跟用户截图"蘸酱炸鸡五选一 11.9元"对上
 // 2026-08-01 v0.1.56: 修绿江章节删除按钮不响应 - checkbox 点击时同步 selectedChapters
 // 2026-08-01 v0.1.57: 修绿江 AI 续写不接剧情 - prompt 拼接多章 summary + 硬性接续要求 + summary 缺失 fallback
-const CACHE_VERSION = 'v0.1.58';
+// 2026-08-01 (合并到 v0.1.58) MCP 端点使用教程注入: mcp-tool-bridge.js buildMcpSystemBlock
+//   按 server.url 识别, 注入对应端点的踩坑使用教程 (麦当劳: reservationDate/营业时段, 瑞幸:
+//   keyword 写法/菜单只有 2-3 个是真没货). 解决 Gemini 漏参数 / Deepseek 流程不对 / M3 较稳
+//   的模型差异大问题. 不再 bump 版本号, 跟 v0.1.58 一起发, 避免 SW 缓存反复失效
+// 2026-08-01 (合并到 v0.1.58) 瑞幸菜单卡片: mcp-menu-card.js
+//   1) MENU_TOOL_PATTERNS 加 searchProductForMcp / queryProductDetailInfo (实际工具名, 不是猜的 searchProduct)
+//   2) 加 parseLuckinMenu 函数, 解析瑞幸的扁平商品数组 (data[].productId/productName/pictureUrl/initialPrice/estimatePrice/productAttrs)
+//   3) 商品卡片加 .mcp-menu-item-attrs 渲染杯型/温度/糖度等属性折叠文字
+//   4) 端到端验证: _reports/test-luckin-parse.mjs 跑通, 拿到 2 个生椰拿铁商品
+//   5) 教程改: 瑞幸 searchProductForMcp(deptId+query) / queryShopList(longitude+latitude) / previewOrder 不是 calculate-price
+// 2026-08-01 (合并到 v0.1.58) 瑞幸教程按官方文档完整重写: 8 步骤全流程
+//   1) 查门店 (经纬度) / 2) 搜商品 (关键词) / 3) 切属性 (operation=3) / 4) 查详情
+//   5) 算价 (返 couponCodeList) / 6) 下单 (⚠️ longitude/latitude 必填 + couponCodeList 从 ⑤ 拿, 返 payOrderUrl 给用户扫)
+//   7) 查订单 (orderStatus 10-100) / 8) 取消 (待付/下单才能取消)
+//   数据依赖链: deptId (①→所有) / productId+skuCode (②→⑤⑥) / couponCodeList (⑤→⑥)
+// 2026-08-01 (合并到 v0.1.58) Gemini 直连 MCP 工具修复: mcp-tool-bridge.js isLLMRequest
+//   原版只匹配 /v1/chat/completions (OpenAI 风格), Gemini 走 generativelanguage.googleapis.com
+//   完全不匹配, hook 跳过 → AI 看不到 tools → 拉不到菜单. 修法: 新增 OR 匹配
+//   /v1beta/openai/chat/completions (Gemini OpenAI 兼容) + generativelanguage.googleapis.com (Gemini 原生)
+//   老匹配 /v1/chat/completions 完全保留, M3/MiniMax/Deepseek 不受影响. 安全性: 新加字符串都是 Google
+//   域名专属, 不会误匹配其他 LLM. 可回退: 把 if 那几行删了恢复原版
+// 2026-08-01 (合并到 v0.1.58) Gemini 原生 API 工具循环: mcp-tool-bridge.js runChatWithToolLoopGemini
+//   原计划: Gemini body 转 OpenAI body → 复用 OpenAI 内部逻辑 (错! Gemini API 收到 OpenAI 风格 body
+//   返 400, 两种协议完全不兼容). 现: 直接用 Gemini 风格 body + contents + systemInstruction
+//   跟 Gemini API 通信, 自己解析 Gemini 风格响应 (candidates[0].content.parts[].functionCall).
+//   工具结果存 role:function + parts:[{functionResponse:{name, response:{content}}}]
+//   wrappedFetch 根据 isGeminiNativeRequest 分发到 runChatWithToolLoopGemini 或 runChatWithToolLoop
+//   新增: openAIToolsToGemini (OpenAI tools → functionDeclarations), isGeminiNativeRequest (URL 识别)
+//   ⚠️ 端到端测试需用户拿真实 Gemini API 调一次验证 (我电脑没梯连不上 generativelanguage.googleapis.com)
+// 2026-08-01 (合并到 v0.1.58) 高德 MCP 教程: mcp-tool-bridge.js SERVER_USAGE_GUIDES
+//   实测 15 个工具, 部分端点 bug: maps_text_search/around_search/weather 都返空或 null (两 key 都复现)
+//   教程避开 bug 端点, 让 AI 引导用户走 REST API 兜底
+//   WORK: maps_distance/maps_geo(偶发失败)/maps_regeocode/路径规划 4 个/maps_ip_location
+//   关键依赖: 经纬度 (lng,lat) 字符串格式, 几乎所有工具都需要
+//   瑞幸教程 (deptId 经纬度搜索) 现在引用高德 geocode 拿经纬度
+// 2026-08-01 (合并到 v0.1.58) 高德 maps_geo REST 兜底: mcp-generic-client.js
+//   mcp.amap.com/mcp 的 maps_geo 端点坏 (返 ENGINE_RESPONSE_DATA_ERROR),
+//   在 callTool 检测到 maps_geo + result.isError 时自动 fallback 到
+//   https://restapi.amap.com/v3/geocode/geo?address=...&key=server.bearerToken
+//   把 REST 的 {geocodes: [...]} 转成 MCP 风格 {results: [...]}, AI 完全无感
+//   其他 bug 端点 (text_search/around_search/weather) 暂不兜底, 走教程引导 REST 路径
+const CACHE_VERSION = 'v0.1.64';
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [

@@ -287,56 +287,66 @@
   }
 
   // ============================================================
-  // 情侣空间 localStorage 数据备份和恢复辅助函数
+  // localStorage 扩展设置备份和恢复辅助函数
+  // ------------------------------------------------------------
+  // 之前只备份 'couple' 前缀，导致悬浮球图片/生图配置/MCP 设置
+  // 每次迁移都漏。改成按 EXTRA_LOCALSTORAGE_PREFIXES 列表统一管理。
   // ============================================================
-  
+
+  // 需要备份/清理的 localStorage 键前缀
+  // 加新 key 时, 在这里加一行就行, 导出/清理/恢复自动覆盖
+  const EXTRA_LOCALSTORAGE_PREFIXES = [
+    'couple',                  // 情侣空间 (保留原逻辑)
+    'floating-ball',           // 悬浮球 (位置/可见/样式/图片URL/HTML/CSS)
+    'novelai-',                // NovelAI 生图 (开关/模型/key/参数)
+    'google-imagen-',          // Google Imagen 生图 (开关/模型/key/endpoint/aspectRatio)
+    'pollinations-',           // Pollinations/通用AI生图 (key/模型)
+    'openaiCompatImage',       // OpenAI 兼容生图 (Enabled/PresetId/BaseUrl/ApiKey/Model/AspectRatio)
+    'ephone.mcp.',             // MCP 服务器列表 + 原生工具开关
+    'aphone.mcp.',             // MCP 工具调用卡片历史
+  ];
+
+  function _matchesExtraPrefix(key) {
+    if (!key) return false;
+    return EXTRA_LOCALSTORAGE_PREFIXES.some(prefix => key === prefix || key.startsWith(prefix));
+  }
+
   /**
-   * 导出 localStorage 中的情侣空间相关数据
-   * @returns {Object} 包含所有情侣空间相关的 localStorage 数据
+   * 导出 localStorage 中的扩展设置 (悬浮球/生图/MCP 等)
+   * @returns {Object} 包含所有匹配前缀的 localStorage 键值对
    */
-  function exportCoupleSpaceLocalStorage() {
+  function exportExtraLocalStorage() {
     const localStorageData = {};
-    
-    // 需要备份的情侣空间相关键前缀
-    const coupleSpacePrefixes = [
-      'couple',           // 所有以 couple 开头的键
-    ];
-    
+
     // 遍历所有 localStorage 键
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      
-      // 检查是否匹配情侣空间相关的键
-      const shouldBackup = coupleSpacePrefixes.some(prefix => key.startsWith(prefix));
-      
-      if (shouldBackup) {
-        try {
-          localStorageData[key] = localStorage.getItem(key);
-        } catch (e) {
-          console.warn(`无法备份 localStorage 键: ${key}`, e);
-        }
+      if (!_matchesExtraPrefix(key)) continue;
+
+      try {
+        localStorageData[key] = localStorage.getItem(key);
+      } catch (e) {
+        console.warn(`无法备份 localStorage 键: ${key}`, e);
       }
     }
-    
-    console.log(`已备份 ${Object.keys(localStorageData).length} 个情侣空间相关的 localStorage 键`);
+
+    console.log(`已备份 ${Object.keys(localStorageData).length} 个扩展设置 localStorage 键 (悬浮球/生图/MCP 等)`);
     return localStorageData;
   }
-  
+
   /**
-   * 清理 localStorage 中的情侣空间相关数据
+   * 清理 localStorage 中的扩展设置
    */
-  function clearCoupleSpaceLocalStorage() {
+  function clearExtraLocalStorage() {
     const keysToRemove = [];
-    
-    // 收集所有需要删除的键
+
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key && key.startsWith('couple')) {
+      if (_matchesExtraPrefix(key)) {
         keysToRemove.push(key);
       }
     }
-    
-    // 删除收集到的键
+
     keysToRemove.forEach(key => {
       try {
         localStorage.removeItem(key);
@@ -344,20 +354,20 @@
         console.warn(`无法删除 localStorage 键: ${key}`, e);
       }
     });
-    
-    console.log(`已清理 ${keysToRemove.length} 个情侣空间相关的 localStorage 键`);
+
+    console.log(`已清理 ${keysToRemove.length} 个扩展设置 localStorage 键 (悬浮球/生图/MCP 等)`);
   }
-  
+
   /**
-   * 恢复 localStorage 中的情侣空间相关数据
+   * 恢复 localStorage 中的扩展设置
    * @param {Object} localStorageData - 要恢复的 localStorage 数据
    */
-  function restoreCoupleSpaceLocalStorage(localStorageData) {
+  function restoreExtraLocalStorage(localStorageData) {
     if (!localStorageData || typeof localStorageData !== 'object') {
-      console.log('备份中没有 localStorage 数据，跳过恢复');
+      console.log('备份中没有 localStorage 扩展设置数据, 跳过恢复');
       return;
     }
-    
+
     let restoredCount = 0;
     for (const key in localStorageData) {
       try {
@@ -367,8 +377,22 @@
         console.warn(`无法恢复 localStorage 键: ${key}`, e);
       }
     }
-    
-    console.log(`已恢复 ${restoredCount} 个情侣空间相关的 localStorage 键`);
+
+    console.log(`已恢复 ${restoredCount} 个扩展设置 localStorage 键 (悬浮球/生图/MCP 等)`);
+  }
+
+  // 旧名兜底 (防别处直接调)
+  // eslint-disable-next-line deprecation/deprecation
+  function exportCoupleSpaceLocalStorage() {
+    return exportExtraLocalStorage();
+  }
+  // eslint-disable-next-line deprecation/deprecation
+  function clearCoupleSpaceLocalStorage() {
+    return clearExtraLocalStorage();
+  }
+  // eslint-disable-next-line deprecation/deprecation
+  function restoreCoupleSpaceLocalStorage(localStorageData) {
+    return restoreExtraLocalStorage(localStorageData);
   }
 
   // ============================================================
@@ -473,8 +497,8 @@
       // 方案3：导出时移除API历史记录
       const cleanedChats = removeApiHistoryFromChats(chats);
 
-      // 导出情侣空间相关的 localStorage 数据
-      const coupleSpaceLocalStorage = exportCoupleSpaceLocalStorage();
+      // 导出扩展设置的 localStorage 数据 (情侣空间/悬浮球/生图/MCP 等)
+      const extraLocalStorage = exportExtraLocalStorage();
 
       Object.assign(backupData, {
         chats: cleanedChats,
@@ -525,9 +549,9 @@
         inventory,
         emails,
         watchTogetherPlaylist,
-        
-        // 情侣空间 localStorage 数据
-        localStorage: coupleSpaceLocalStorage
+
+        // 扩展设置 localStorage 数据 (情侣空间/悬浮球/生图/MCP 等)
+        localStorage: extraLocalStorage
       });
 
       const blob = new Blob(
@@ -803,10 +827,10 @@
 
   async function importStreamedBackup(backupData) {
     try {
-      // 1. 先清理所有情侣空间相关的 localStorage
-      console.log('正在清理情侣空间 localStorage 数据...');
-      clearCoupleSpaceLocalStorage();
-      
+      // 1. 先清理所有扩展设置的 localStorage (情侣空间/悬浮球/生图/MCP 等)
+      console.log('正在清理扩展设置 localStorage 数据...');
+      clearExtraLocalStorage();
+
       // 2. 导入数据库
       await db.transaction('rw', db.tables, async () => {
 
@@ -818,20 +842,20 @@
         for (const tableName in backupData) {
           // 跳过 localStorage 字段，它不是数据库表
           if (tableName === 'localStorage') continue;
-          
+
           if (Array.isArray(backupData[tableName])) {
             console.log(`正在导入表: ${tableName}, 记录数: ${backupData[tableName].length}`);
             await db.table(tableName).bulkPut(backupData[tableName]);
           }
         }
       });
-      
+
       // 3. 如果备份中有 localStorage 数据，则恢复
       if (backupData.localStorage) {
-        console.log('正在恢复情侣空间 localStorage 数据...');
-        restoreCoupleSpaceLocalStorage(backupData.localStorage);
+        console.log('正在恢复扩展设置 localStorage 数据 (情侣空间/悬浮球/生图/MCP 等)...');
+        restoreExtraLocalStorage(backupData.localStorage);
       } else {
-        console.log('备份中没有 localStorage 数据（可能是旧版备份），已清理情侣空间数据');
+        console.log('备份中没有 localStorage 数据（可能是旧版备份），已清理扩展设置');
       }
 
     } catch (error) {
@@ -934,7 +958,7 @@
       'inventory': '物品清单',
       'emails': '邮件',
       'watchTogetherPlaylist': '观影播放列表',
-      'localStorage': '情侣空间数据'
+      'localStorage': '扩展设置（情侣空间/悬浮球/生图/MCP 等）'
     };
 
     let foundData = false;
@@ -1095,7 +1119,7 @@
       'inventory': '物品清单',
       'emails': '邮件',
       'watchTogetherPlaylist': '观影播放列表',
-      'localStorage': '情侣空间数据'
+      'localStorage': '扩展设置（情侣空间/悬浮球/生图/MCP 等）'
     };
 
     let hasContent = false;
@@ -1189,9 +1213,9 @@
       if (typesToMerge.includes('localStorage')) {
         const localStorageData = dataToMerge.localStorage;
         if (localStorageData && typeof localStorageData === 'object') {
-          console.log('正在清理并恢复情侣空间 localStorage 数据...');
-          clearCoupleSpaceLocalStorage();
-          restoreCoupleSpaceLocalStorage(localStorageData);
+          console.log('正在清理并恢复扩展设置 localStorage 数据 (情侣空间/悬浮球/生图/MCP 等)...');
+          clearExtraLocalStorage();
+          restoreExtraLocalStorage(localStorageData);
         }
       }
 
@@ -1253,9 +1277,9 @@
 
   async function importLegacyBackup(backupData) {
     try {
-      // 1. 先清理所有情侣空间相关的 localStorage
-      console.log('正在清理情侣空间 localStorage 数据...');
-      clearCoupleSpaceLocalStorage();
+      // 1. 先清理所有扩展设置的 localStorage (情侣空间/悬浮球/生图/MCP 等)
+      console.log('正在清理扩展设置 localStorage 数据...');
+      clearExtraLocalStorage();
       
       // 2. 导入数据库
       await db.transaction('rw', db.tables, async () => {
@@ -1316,10 +1340,10 @@
       
       // 3. 如果备份中有 localStorage 数据，则恢复
       if (backupData.localStorage) {
-        console.log('正在恢复情侣空间 localStorage 数据...');
-        restoreCoupleSpaceLocalStorage(backupData.localStorage);
+        console.log('正在恢复扩展设置 localStorage 数据 (情侣空间/悬浮球/生图/MCP 等)...');
+        restoreExtraLocalStorage(backupData.localStorage);
       } else {
-        console.log('备份中没有 localStorage 数据（可能是旧版备份），已清理情侣空间数据');
+        console.log('备份中没有 localStorage 数据（可能是旧版备份），已清理扩展设置');
       }
       
     } catch (error) {
@@ -1443,14 +1467,14 @@
         }));
       }
       
-      // 导出情侣空间 localStorage 数据到单独的文件
-      const coupleSpaceLocalStorage = exportCoupleSpaceLocalStorage();
-      if (Object.keys(coupleSpaceLocalStorage).length > 0) {
-        console.log('正在打包情侣空间 localStorage 数据...');
+      // 导出扩展设置 localStorage 数据到单独的文件 (情侣空间/悬浮球/生图/MCP 等)
+      const extraLocalStorage = exportExtraLocalStorage();
+      if (Object.keys(extraLocalStorage).length > 0) {
+        console.log('正在打包扩展设置 localStorage 数据...');
         zip.file('localStorage.json', JSON.stringify({
           version: 4,
           type: 'localStorage',
-          data: coupleSpaceLocalStorage
+          data: extraLocalStorage
         }));
       }
 
@@ -1552,10 +1576,10 @@
         }
       }
       
-      // 导出情侣空间 localStorage 数据
-      const coupleSpaceLocalStorage = exportCoupleSpaceLocalStorage();
+      // 导出扩展设置 localStorage 数据 (情侣空间/悬浮球/生图/MCP 等)
+      const extraLocalStorage = exportExtraLocalStorage();
       await writer.write(encoder.encode(',\n"localStorage": '));
-      await writer.write(encoder.encode(JSON.stringify(coupleSpaceLocalStorage)));
+      await writer.write(encoder.encode(JSON.stringify(extraLocalStorage)));
 
 
       await writer.write(encoder.encode('\n}\n}'));
@@ -1595,9 +1619,9 @@
         console.log(`已打包表: ${tableName}, 记录数: ${tableData.length}`);
       }
       
-      // 导出情侣空间 localStorage 数据
-      const coupleSpaceLocalStorage = exportCoupleSpaceLocalStorage();
-      backupData.data.localStorage = coupleSpaceLocalStorage;
+      // 导出扩展设置 localStorage 数据 (情侣空间/悬浮球/生图/MCP 等)
+      const extraLocalStorage = exportExtraLocalStorage();
+      backupData.data.localStorage = extraLocalStorage;
 
       const blob = new Blob(
         [JSON.stringify(backupData, null, 2)], {
@@ -2967,9 +2991,9 @@
       }
 
       if (errors.length === 0) {
-        const coupleSpaceLocalStorage = exportCoupleSpaceLocalStorage();
+        const extraLocalStorage = exportExtraLocalStorage();
         await writeToStream(',\n"localStorage": ');
-        await writeToStream(JSON.stringify(coupleSpaceLocalStorage));
+        await writeToStream(JSON.stringify(extraLocalStorage));
         await writeToStream('\n}\n}');
       }
 
