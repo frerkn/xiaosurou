@@ -1,6 +1,8 @@
 // Service Worker file (sw.js)
 // Whitelist cache strategy: cache only known static assets; API requests pass through.
-// 2026-08-02 v0.1.64: bump CACHE_VERSION 强制清缓存（FAB 长按关闭 — mcp-menu-card.js 加 1.5s 长按检测 (touchstart/touchend/mousedown/mouseup + setTimeout), 长按中 FAB 缩小 + 阴影加强 (is-longpressing), 长按完成 0.2s 后调 hideFab (is-longpress-done 短暂闪烁后淡出), 松手太早 / 滑动 > 10px / mouseleave 取消。closeSheet() 不再调 hideFab (用户可能想再次打开看)。css/mcp-miniapp-pink.css 加 .mcp-menu-fab.is-longpressing / .is-longpress-done 状态样式。aria-label 加 "(长按可关闭)" 提示）
+// 2026-08-02 v0.1.67: bump CACHE_VERSION 强制清缓存（Gemini 直连正常聊天/总结记忆回归 bug — v0.1.58 写的 runChatWithToolLoopGemini 强制把 body.stream 删了返 non-stream JSON, 破坏 330 主聊天 (ai-response.js:969) 和总结记忆 (memory-summary.js) 的 stream 处理, 用户报"主 API 谷歌直连聊天 + 副 API 总结记忆用的谷歌直连都失败"。修法: wrappedFetch 检测 body.stream = true → 直接走 originalFetch, 不进工具循环 (工具循环只能解析 JSON 响应, stream 是 SSE)。端到端 8/8 通过 (Gemini native stream 绕过 + Gemini OpenAI 兼容 stream 绕过 + M3 stream 绕过 + non-stream 进工具循环 + body 解析失败兜底)）
+// 2026-08-02 v0.1.66: bump CACHE_VERSION 强制清缓存（FAB 长按关闭 bug 修复 v2 — v0.1.64 在 touchstart 用 e.preventDefault() 阻止浏览器长按系统菜单, 但同时阻止了 click 事件, 短按也无法 openSheet (用户报告"打开都打不开")。修法: 移除 click 监听器, mouseup/touchend 端自己控制 openSheet/hideFab (touchstart preventDefault 仍然保留以阻止 iOS 长按弹系统菜单); touchend 时根据 longpressTriggered 决定短按开 sheet 还是长按完成关闭。端到端 7/7 通过 (含关键 case 7: 短按 touch 0.3s + touchend → 调 openSheet 创建 sheet, 验证点击功能 work)）
+// 2026-08-02 v0.1.65: bump CACHE_VERSION 强制清缓存（Gemini 原生 API type 大写 bug 修复 — openAIToolsToGemini 加 convertSchemaToGemini() 递归转换 OpenAPI Schema 小写 (string/number/integer/boolean/object/array) 为 Gemini proto3 枚举大写 (STRING/NUMBER/INTEGER/BOOLEAN/OBJECT/ARRAY)。修前: Gemini 直连调工具报 400 Invalid value at 'tools[0].function_declarations[1].parameters.properties.X.type' (TYPE_STRING)。修后端到端 11/11 通过 (mcd 真实参数 + 嵌套 object/array + enum + description/required 保留)）
 // 2026-08-02 v0.1.63: bump CACHE_VERSION 强制清缓存（MCP 工具调用日志 — 新建 js/mcp-tool-call-log.js 监听所有 onCard, 覆盖所有通用 MCP 工具 (不限 mcd/luckin/amap), inline 渲染简洁文字行紧跟最后一条 AI 消息: "[emoji] [toolName] · [摘要]"。跟 mcp-menu-card / mcp-pay-card 共存互补 — 菜单/支付是大卡片, 日志是文字证据, 用户看日志就知道 AI 真调了工具不是瞎编。摘要逻辑通用: 优先看 pois/stores/meals/items 等数组长度 → 数字字段 (count/amount/distance) → 订单号 → 兜底字段数。css/mcp-miniapp-pink.css 加 .mcp-tool-log-group / .mcp-tool-log-line / .mcp-tool-log-ok/err 样式）
 // 2026-08-02 v0.1.62: bump CACHE_VERSION 强制清缓存（inline 支付卡片 — 新建 js/mcp-pay-card.js + css/mcp-miniapp-pink.css 加 .mcp-pay-card 系列样式 + index.html 加载 + 麦当劳/瑞幸教程加"系统自动 inline 渲染支付卡片, AI 自由发挥不重复"提示。监听 create-order/createOrder/mall-create-order, 提取 payUrl/payOrderUrl/payOrderQrCodeUrl, 紧跟最后一条 AI 消息气泡后面渲染。设计原则: 不弹全屏 (破坏"AI 帮你下单"代入感), 只 inline 渲染支付信息让用户能扫/点。不规定 AI 说话, AI 用人设自由发挥）
 // 2026-08-02 v0.1.61: bump CACHE_VERSION 强制清缓存（备份模块漏掉悬浮球/生图/MCP 修复 — modules/backup-import-export.js 抽 EXTRA_LOCALSTORAGE_PREFIXES 列表统一管理 8 类 localStorage key（couple/floating-ball/novelai-/google-imagen-/pollinations-/openaiCompatImage/ephone.mcp./aphone.mcp.），重构 exportExtraLocalStorage / clearExtraLocalStorage / restoreExtraLocalStorage 三个函数。import 路径全部更新（importStreamedBackup/importLegacyBackup/handleSelectiveImport 3 处），旧名 exportCoupleSpaceLocalStorage 等保留做兼容转发。_reports/test-extra-localstorage.mjs 端到端验证 94/94 通过）
@@ -91,7 +93,7 @@
 //   https://restapi.amap.com/v3/geocode/geo?address=...&key=server.bearerToken
 //   把 REST 的 {geocodes: [...]} 转成 MCP 风格 {results: [...]}, AI 完全无感
 //   其他 bug 端点 (text_search/around_search/weather) 暂不兜底, 走教程引导 REST 路径
-const CACHE_VERSION = 'v0.1.64';
+const CACHE_VERSION = 'v0.1.67';
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [

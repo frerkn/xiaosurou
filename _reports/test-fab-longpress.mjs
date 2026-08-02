@@ -82,7 +82,25 @@ class MockElement {
     }
     querySelector(sel) {
         if (sel === '.mcp-menu-fab-badge') return this._badge || null;
+        if (sel && sel.indexOf('[data-role=') >= 0) {
+            // sheet 内部节点 (title/subtitle/cats/body/close)
+            const match = /\[data-role="([^"]+)"\]/.exec(sel);
+            if (match) {
+                const role = match[1];
+                if (!this._roleChildren) this._roleChildren = {};
+                if (!this._roleChildren[role]) {
+                    const child = new MockElement('div');
+                    child.attrs = { 'data-role': role };
+                    this._roleChildren[role] = child;
+                }
+                return this._roleChildren[role];
+            }
+        }
         return null;
+    }
+    querySelectorAll(sel) {
+        if (sel && sel.indexOf('.mcp-menu-cat-chip') >= 0) return [];
+        return [];
     }
     closest() { return this; }
 }
@@ -219,6 +237,26 @@ setTimeout(() => {
         await checkAfter('mousedown + 0.5s 后 mouseleave → 不关', false, () => {
             fab.dispatchEvent({ type: 'mousedown' });
             setTimeout(() => fab.dispatchEvent({ type: 'mouseleave' }), 500);
+        });
+
+        // 7. 短按 touch 0.3s + touchend → 调 openSheet (sheet 元素创建) — 验证点击功能修好
+        console.log('\n========== 7. 短按 touch 0.3s + touchend → 调 openSheet ==========');
+        await new Promise(resolve => {
+            reset();
+            fab.dispatchEvent({ type: 'touchstart', touches: [{ clientX: 100, clientY: 100 }] });
+            setTimeout(() => fab.dispatchEvent({ type: 'touchend', changedTouches: [{ clientX: 100, clientY: 100 }] }), 300);
+            setTimeout(() => {
+                // 验证 sheet 创建了
+                const sheet = _mockDoc.getElementById('mcp-menu-sheet');
+                if (sheet) {
+                    console.log('  ✅ pass: 短按后 sheet 创建了 (点击功能 work)');
+                    pass++;
+                } else {
+                    console.log('  ❌ fail: 短按后 sheet 没创建 (点击功能坏)');
+                    fail++;
+                }
+                resolve();
+            }, 100);
         });
 
         console.log('\n========== 总结 ==========');

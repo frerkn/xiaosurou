@@ -241,8 +241,8 @@
     function onLongPressStart(e) {
         const fab = document.getElementById('mcp-menu-fab');
         if (!fab) return;
-        // 阻止 click (避免点开 sheet)
-        e.preventDefault();
+        // 阻止浏览器长按系统菜单 (iOS 长按 0.5s 就弹, 必加)
+        if (e.cancelable) e.preventDefault();
         e.stopPropagation();
         longpressTriggered = false;
         const pt = e.touches ? e.touches[0] : e;
@@ -272,13 +272,14 @@
             }
         }
         if (longpressTriggered) {
-            // 长按完成触发了关闭, 这里不再处理
+            // 长按完成触发了关闭, 不开 sheet
             setTimeout(function () { fab.classList.remove('is-longpress-done'); }, 600);
             return;
         }
-        // 还没到时间就松手 = 取消长按, 还原
+        // 短按: 因为 touchstart preventDefault 阻止了 click, 这里手动开 sheet
         clearTimeout(longpressTimer);
         fab.classList.remove('is-longpressing');
+        openSheet();
     }
 
     function onLongPressCancel() {
@@ -297,17 +298,8 @@
         fab.setAttribute('aria-label', '查看菜单 (长按可关闭)');
         fab.innerHTML = FAB_ICON + '<span class="mcp-menu-fab-badge" style="display:none;">0</span>';
         document.body.appendChild(fab);
-        // 单击 = 打开 sheet (只有非长按完成的 click 才生效)
-        fab.addEventListener('click', function (e) {
-            if (longpressTriggered) {
-                longpressTriggered = false;
-                e.stopPropagation();
-                e.preventDefault();
-                return;
-            }
-            openSheet();
-        });
-        // 长按检测: touch (mobile) + mouse (PC 调试)
+        // 长按检测: touch (mobile) + mouse (PC 调试) 自己控制开关, 不依赖原生 click
+        // (避免 touchstart preventDefault 阻止 click 事件, 也避免 PC 短按双触发)
         fab.addEventListener('touchstart', onLongPressStart, { passive: false });
         fab.addEventListener('touchend', onLongPressEnd);
         fab.addEventListener('touchcancel', onLongPressCancel);

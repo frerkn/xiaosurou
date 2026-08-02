@@ -340,6 +340,31 @@
     }
 
     // OpenAI tools → Gemini functionDeclarations
+    // Gemini 原生 API type 是 proto3 枚举大写: "STRING" / "NUMBER" / "INTEGER" / "BOOLEAN" / "OBJECT" / "ARRAY" / "TYPE_UNSPECIFIED"
+    // OpenAI 工具传过来是 OpenAPI Schema 小写, 要递归转换所有 type 字段
+    function convertSchemaToGemini(schema) {
+        if (!schema || typeof schema !== 'object') return { type: 'OBJECT', properties: {} };
+        const typeMap = {
+            'string': 'STRING', 'number': 'NUMBER', 'integer': 'INTEGER',
+            'boolean': 'BOOLEAN', 'object': 'OBJECT', 'array': 'ARRAY',
+            'STRING': 'STRING', 'NUMBER': 'NUMBER', 'INTEGER': 'INTEGER',
+            'BOOLEAN': 'BOOLEAN', 'OBJECT': 'OBJECT', 'ARRAY': 'ARRAY',
+        };
+        const rawType = schema.type || 'object';
+        const out = { type: typeMap[String(rawType).toLowerCase()] || 'TYPE_UNSPECIFIED' };
+        if (schema.description) out.description = schema.description;
+        if (Array.isArray(schema.enum)) out.enum = schema.enum;
+        if (schema.properties) {
+            out.properties = {};
+            for (const k in schema.properties) {
+                out.properties[k] = convertSchemaToGemini(schema.properties[k]);
+            }
+        }
+        if (Array.isArray(schema.required)) out.required = schema.required;
+        if (schema.items) out.items = convertSchemaToGemini(schema.items);
+        return out;
+    }
+
     function openAIToolsToGemini(openAITools) {
         const declarations = (openAITools || []).map(function (t) {
             if (!t || t.type !== 'function') return null;
@@ -347,7 +372,7 @@
             return {
                 name: f.name,
                 description: f.description || '',
-                parameters: f.parameters || { type: 'object', properties: {} }
+                parameters: convertSchemaToGemini(f.parameters || { type: 'object', properties: {} })
             };
         }).filter(Boolean);
         if (!declarations.length) return undefined;
@@ -837,7 +862,17 @@
             const method = (init && init.method) || (input && input.method) || 'GET';
             const isJsonBody = init && init.body && typeof init.body === 'string';
 
-            if (method.toUpperCase() === 'POST' && isLLMRequest(url)) {
+            // 检测请求体里 stream: true (流式响应) — 不进工具循环 (工具循环解析 JSON 响应, stream 是 SSE)
+            // 修前 bug: runChatWithToolLoopGemini 强制把 stream 删了返 non-stream JSON, 破坏 330 主聊天/总结记忆的 stream 处理
+            let isStream = false;
+            if (isJsonBody) {
+                try {
+                    const body = JSON.parse(init.body);
+                    if (body && body.stream) isStream = true;
+                } catch (e) { /* 解析失败不算 stream */ }
+            }
+
+            if (method.toUpperCase() === 'POST' && isLLMRequest(url) && !isStream) {
                 const servers = global.McpGenericClient.getEnabledServers();
                 const toolsReady = servers.length > 0;
                 pushIntercept({
@@ -846,7 +881,8 @@
                     url: describeUrl(url),
                     toolsReady: toolsReady,
                     serverCount: servers.length,
-                    mode: isGeminiNativeRequest(url) ? 'gemini-native' : 'openai'
+                    mode: isGeminiNativeRequest(url) ? 'gemini-native' : 'openai',
+                    stream: isStream
                 });
 
                 if (toolsReady) {
