@@ -15,9 +15,9 @@
 // ========== 工具函数 ==========
 
 /**
- * 将 base64 编码的 VAPID 公钥转换为 ArrayBuffer (iOS Safari 16.4+ 严格要求 ArrayBuffer, 不接受 Uint8Array)
+ * 将 base64 编码的 VAPID 公钥转换为 Uint8Array (iOS Safari 16.4+ 严格模式, 兼容性修复 v0.1.76)
  * @param {string} base64String - VAPID 公钥的 base64 字符串
- * @returns {ArrayBuffer}
+ * @returns {Uint8Array}
  */
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -26,10 +26,8 @@ function urlBase64ToUint8Array(base64String) {
     .replace(/_/g, '/');
 
   const rawData = window.atob(base64);
-  // iOS Safari 16.4+ 严格模式: 必须返回 ArrayBuffer, 不是 Uint8Array
-  // 用 Uint8Array.from 替代手写循环 (兼容更好) + 返回 .buffer
-  const u8 = Uint8Array.from(rawData, c => c.charCodeAt(0));
-  return u8.buffer;
+  // iOS Safari 16.4+ 不同 patch 行为不一样, 用 Uint8Array.from 兼容最好
+  return Uint8Array.from(rawData, c => c.charCodeAt(0));
 }
 
 /**
@@ -443,9 +441,7 @@ async function unsubscribeFromPushServer() {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
     const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
     const rawData = window.atob(base64);
-    // iOS Safari 16.4+ 严格模式: 必须返回 ArrayBuffer
-    const u8 = Uint8Array.from(rawData, c => c.charCodeAt(0));
-    return u8.buffer;
+    return Uint8Array.from(rawData, c => c.charCodeAt(0));
   }
 
   function getConfiguredPushApplicationServerKey() {

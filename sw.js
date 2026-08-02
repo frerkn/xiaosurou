@@ -1,5 +1,9 @@
 // Service Worker file (sw.js)
 // Whitelist cache strategy: cache only known static assets; API requests pass through.
+// 2026-08-03 v0.1.76: bump CACHE_VERSION 强制清缓存（iOS Safari 16.4+ VAPID 修复 v2 —
+//   v0.1.75 改 urlBase64ToUint8Array 返回 ArrayBuffer, 实测仍报 "must contain a valid P-256 public key"。
+//   改回 Uint8Array (Uint8Array.from + 兼容更好)。iOS Safari 16.4 不同 patch 行为不一致, 改回标准 Uint8Array。
+//   如果 v0.1.76 还报错, 下一步在 iPhone console 跑诊断看公钥实际值。
 // 2026-08-03 v0.1.75: bump CACHE_VERSION 强制清缓存（iOS Safari 16.4+ VAPID P-256 严格性修复 —
 //   modules/notification-battery.js urlBase64ToUint8Array 返回 Uint8Array → ArrayBuffer (返回 u8.buffer)。
 //   iOS Safari 16.4+ 严格模式对 applicationServerKey 要求 BufferSource, 直接传 Uint8Array 报 "must contain a valid P-256 public key"。
@@ -144,7 +148,7 @@
 //   https://restapi.amap.com/v3/geocode/geo?address=...&key=server.bearerToken
 //   把 REST 的 {geocodes: [...]} 转成 MCP 风格 {results: [...]}, AI 完全无感
 //   其他 bug 端点 (text_search/around_search/weather) 暂不兜底, 走教程引导 REST 路径
-const CACHE_VERSION = 'v0.1.75';
+const CACHE_VERSION = 'v0.1.76';
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [
