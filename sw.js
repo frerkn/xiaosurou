@@ -1,5 +1,15 @@
 // Service Worker file (sw.js)
 // Whitelist cache strategy: cache only known static assets; API requests pass through.
+// 2026-08-03 v0.1.75: bump CACHE_VERSION 强制清缓存（iOS Safari 16.4+ VAPID P-256 严格性修复 —
+//   modules/notification-battery.js urlBase64ToUint8Array 返回 Uint8Array → ArrayBuffer (返回 u8.buffer)。
+//   iOS Safari 16.4+ 严格模式对 applicationServerKey 要求 BufferSource, 直接传 Uint8Array 报 "must contain a valid P-256 public key"。
+//   之前 web 标准允许 Uint8Array, iOS Safari 16.4 早期版本不识别, 必须 ArrayBuffer 包裹。改 2 处 (line 22 + line 444)。
+//   实测: 2:03 iPhone 截图报错, 改完 push 部署后 iPhone 重启 PWA 应该能订阅。
+// 2026-08-02 v0.1.74: bump CACHE_VERSION 强制清缓存（Gemini function response role 修正 —
+//   js/mcp-tool-bridge.js runChatWithToolLoopGemini 调工具后写回 contents 时 role:'function' → role:'user' (2 处)。
+//   根因: Gemini API 不接受 role:'function', 报 400 "Role 'function' is not supported. Please use a valid role: SYSTEM, SYSTEM_1, USER, ASSISTANT, DEVELOPER, CONTEXT, USER_CONTEXT, MODEL, USER"。
+//   正确格式: functionResponse 必须嵌在 role:'user' 的 message 的 parts 里 (user 消息 + parts:[{functionResponse:{name,response:{content}}}]), 不是独立的 role:'function' 消息。
+//   实测: 用户 21:35 截图, 调高德 maps_geo 工具, AI 调工具后写回 functionResponse 报 400, 改 role 后应该 work
 // 2026-08-02 v0.1.73: bump CACHE_VERSION 强制清缓存（菜单卡片加底部双按钮 + 修 FAB 长按"半透明卡住"bug —
 //   js/mcp-menu-card.js ensureSheet: 加 .mcp-menu-sheet-footer 含 "关闭菜单" (data-role="close-bottom" → closeSheet, FAB 还在)
 //   和 "不再显示入口" (data-role="hide-fab" → hideFab + closeSheet, 跟长按 FAB 一样) 两按钮, 跟 mcp-pay-card 风格统一;
@@ -134,7 +144,7 @@
 //   https://restapi.amap.com/v3/geocode/geo?address=...&key=server.bearerToken
 //   把 REST 的 {geocodes: [...]} 转成 MCP 风格 {results: [...]}, AI 完全无感
 //   其他 bug 端点 (text_search/around_search/weather) 暂不兜底, 走教程引导 REST 路径
-const CACHE_VERSION = 'v0.1.73';
+const CACHE_VERSION = 'v0.1.75';
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [

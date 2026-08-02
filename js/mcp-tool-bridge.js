@@ -534,7 +534,9 @@
                     if (!resolved) {
                         emitProgress({ phase: 'tool_err', toolName: fnName, summary: '工具未注册: ' + fnName });
                         contents.push({
-                            role: 'function',
+                            // Gemini 原生 API 不接受 role:'function', 必须用 'user' (user 消息里带 functionResponse part)
+                            // 实测 2026-08-02: role:'function' 报 400 "Role 'function' is not supported"
+                            role: 'user',
                             parts: [{ functionResponse: { name: fnName, response: { content: 'error: 工具 ' + fnName + ' 未在当前会话注册' } } }]
                         });
                         continue;
@@ -557,7 +559,9 @@
                     // Gemini function response 存到 contents
                     const respContent = formatGeminiFunctionResponseContent(callResult);
                     contents.push({
-                        role: 'function',
+                        // Gemini 原生 API 不接受 role:'function', 必须用 'user' (user 消息里带 functionResponse part)
+                        // 实测 2026-08-02: role:'function' 报 400 "Role 'function' is not supported"
+                        role: 'user',
                         parts: [{ functionResponse: { name: fnName, response: { content: respContent } } }]
                     });
                 }
