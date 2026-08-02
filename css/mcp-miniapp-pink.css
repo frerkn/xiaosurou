@@ -196,6 +196,37 @@
     -webkit-overflow-scrolling: touch;
     padding: 12px 14px 24px;
 }
+
+/* 2026-08-02 v0.1.73: 底部双按钮 (关闭菜单 / 不再显示入口) — 兜底替代 FAB 长按 */
+.mcp-menu-sheet-footer {
+    flex-shrink: 0;
+    display: flex;
+    gap: 10px;
+    padding: 12px 14px 16px;
+    background: #FFF8FA;
+    border-top: 1px solid rgba(255, 182, 193, 0.25);
+}
+.mcp-menu-sheet-footer-btn {
+    flex: 1;
+    padding: 10px 14px;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #FFB6C1, #FF6B9D);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.mcp-menu-sheet-footer-btn:active {
+    opacity: 0.85;
+    transform: scale(0.97);
+}
+.mcp-menu-sheet-footer-btn.secondary {
+    background: #fff;
+    color: #6B7280;
+    border: 1px solid #E5E7EB;
+}
 .mcp-menu-cat-section {
     margin-bottom: 18px;
 }

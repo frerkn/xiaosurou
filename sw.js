@@ -1,5 +1,32 @@
 // Service Worker file (sw.js)
 // Whitelist cache strategy: cache only known static assets; API requests pass through.
+// 2026-08-02 v0.1.73: bump CACHE_VERSION 强制清缓存（菜单卡片加底部双按钮 + 修 FAB 长按"半透明卡住"bug —
+//   js/mcp-menu-card.js ensureSheet: 加 .mcp-menu-sheet-footer 含 "关闭菜单" (data-role="close-bottom" → closeSheet, FAB 还在)
+//   和 "不再显示入口" (data-role="hide-fab" → hideFab + closeSheet, 跟长按 FAB 一样) 两按钮, 跟 mcp-pay-card 风格统一;
+//   js/mcp-menu-card.js hideFab: 立即移除 is-visible + is-longpress-done + is-longpressing 三个 class, 避免长按后 FAB 留在
+//   "半透明卡住" 状态 (is-longpress-done 有自己的 transition, 跟默认 transition 冲突, 看着像没关掉);
+//   css/mcp-miniapp-pink.css: 加 .mcp-menu-sheet-footer / .mcp-menu-sheet-footer-btn / .mcp-menu-sheet-footer-btn.secondary 样式
+// 2026-08-02 v0.1.72: bump CACHE_VERSION 强制清缓存（AI 请求 total 超时 3 分钟 → 10 分钟 —
+//   modules/ai-response.js AI_TOTAL_TIMEOUT_MS 180000 → 600000。
+//   原因: v0.1.71 Gemini 工具循环可能跑 6 轮 (AI 调工具 + 重发), 单轮 5-50 秒, 3 分钟会被掐断。
+//   10 分钟给足 12 轮 × 50 秒 余量, firstChunk 60 秒保留 (防 API 完全不响应)。
+//   _patch_ai_timeout.js 也同步改成 600000, 但 patch 脚本跟当前 ai-response.js 不一致 (脚本写 120000, 实际 180000), 直接改源文件更稳
+// 2026-08-02 v0.1.71: bump CACHE_VERSION 强制清缓存（Gemini 原生 API 工具循环重做 —
+//   之前 v0.1.58 走的是"中间层转 OpenAI body"反模式, 栽 3 次坑 (type/enum/stream) 后 v0.1.69 矫枉过正完全 bypass;
+//
+//   v0.1.71 新方案: 不中间层转 body, 直接用 Gemini 原生协议 (contents + tools[functionDeclarations]):
+//   1. mcp-tool-bridge.js 恢复 convertSchemaToGemini + openAIToolsToGemini (协议 schema 转换, 必须 — Gemini proto3 枚举大写 + enum 元素 string 化)
+//   2. mcp-tool-bridge.js 加 runChatWithToolLoopGemini (~140 行) — 直接用 Gemini 原生 contents 跟 API 通信, 解析 candidate.content.parts[].functionCall, 调工具, 写回 functionResponse (role:function + parts:[{functionResponse:{name,response:{content}}}])
+//   3. mcp-tool-bridge.js wrappedFetch 改: Gemini native + 工具 ON → 调 runChatWithToolLoopGemini; 工具 OFF → bypass; stream=true → bypass (流式调工具暂不做)
+//   4. formatGeminiFunctionResponseContent: mcp 工具结果用 mcp-tool-bridge.js 自己的 formatMcpToolResult (会处理 mcd 真实 markdown 包装), 转成 Gemini 期望的 string
+//
+//   普通聊天行为不变 (stream=true → bypass, 跟 v0.1.69 一致); AI 性格不受影响 (主 systemInstruction 不动, 只追加 sysBlock 工具说明);
+//
+//   真机验证 (用户没梯, 跑不了 Gemini API 直接测, 但代码逻辑跟 v0.1.63 M3 调工具路径一致, 行为稳定):
+//   - 主聊天 stream=true → 永远 bypass, 行为跟 v0.1.69 一致 ✅
+//   - 调工具 (非流式 Gemini) → 走新工具循环, schema 转换 + 调工具 + 写回 + 重发
+//   - 端到端 Node mock 跑不通 (sandbox 设计问题, installHook 拿 originalFetch 错) → 删了 _reports/test-gemini-native-loop.mjs, 改真机验证
+//
 // 2026-08-02 v0.1.70: bump CACHE_VERSION 强制清缓存（MCP 工具调用日志持久化 + v0.1.58 死代码彻底清理 —
 //   (1) js/mcp-tool-call-log.js: 实时 onCard 时 push 到 chat.mcpToolLogs (新字段, chat 对象下独立数组) + db.chats.put(chat) 写 IndexedDB;
 //       持久化 entry = { ts, afterMsgTs, toolName, aiName, summary, success } (afterMsgTs = 当时最近一条 assistant 消息 timestamp 作锚点);
@@ -107,7 +134,7 @@
 //   https://restapi.amap.com/v3/geocode/geo?address=...&key=server.bearerToken
 //   把 REST 的 {geocodes: [...]} 转成 MCP 风格 {results: [...]}, AI 完全无感
 //   其他 bug 端点 (text_search/around_search/weather) 暂不兜底, 走教程引导 REST 路径
-const CACHE_VERSION = 'v0.1.70';
+const CACHE_VERSION = 'v0.1.73';
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [

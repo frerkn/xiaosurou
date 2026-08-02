@@ -321,7 +321,12 @@
 
     function hideFab() {
         const fab = document.getElementById('mcp-menu-fab');
-        if (fab) fab.classList.remove('is-visible');
+        if (!fab) return;
+        // 2026-08-02 v0.1.73: 同时移除 is-longpress-done, 避免长按后 FAB 留在"半透明卡住"状态
+        // (is-longpress-done 有自己的 transition, 会跟默认 transition 冲突, 看着像没关掉)
+        fab.classList.remove('is-visible');
+        fab.classList.remove('is-longpress-done');
+        fab.classList.remove('is-longpressing');
     }
 
     function ensureSheet() {
@@ -338,12 +343,22 @@
             '</div>' +
             '<div class="mcp-menu-cats" data-role="cats"></div>' +
             '<div class="mcp-menu-body" data-role="body"></div>' +
+            // 2026-08-02 v0.1.73: 底部双按钮 — 关闭菜单 (隐藏 sheet, FAB 还在) / 不再显示入口 (隐藏 FAB, 跟长按 FAB 一样)
+            '<div class="mcp-menu-sheet-footer">' +
+                '<button class="mcp-menu-sheet-footer-btn" data-role="close-bottom">关闭菜单</button>' +
+                '<button class="mcp-menu-sheet-footer-btn secondary" data-role="hide-fab">不再显示入口</button>' +
+            '</div>' +
         '</div>';
         document.body.appendChild(sheet);
         sheet.addEventListener('click', function (e) {
             if (e.target === sheet) closeSheet();
         });
         sheet.querySelector('[data-role="close"]').addEventListener('click', closeSheet);
+        sheet.querySelector('[data-role="close-bottom"]').addEventListener('click', closeSheet);
+        sheet.querySelector('[data-role="hide-fab"]').addEventListener('click', function () {
+            hideFab();
+            closeSheet();
+        });
         return sheet;
     }
 

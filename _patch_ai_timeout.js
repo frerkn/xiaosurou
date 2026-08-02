@@ -23,8 +23,12 @@ function replaceRegex(content, regex, replacement, label) {
 let ai = read('modules/ai-response.js');
 
 const helper = `
+  // 2026-08-02 v0.1.71: AI_TOTAL_TIMEOUT_MS 120000 → 600000 (2 分钟 → 10 分钟)
+  // 原因: v0.1.71 Gemini 工具循环可能跑 6 轮 (AI 调工具 + 重发), 单轮 5-50 秒
+  //       2 分钟会被工具循环掐断, 改 10 分钟给足余量
+  // firstChunk 30 秒保留 (防 API 完全不响应 / 卡死)
   const AI_FIRST_CHUNK_TIMEOUT_MS = 30000;
-  const AI_TOTAL_TIMEOUT_MS = 120000;
+  const AI_TOTAL_TIMEOUT_MS = 600000;
   const AI_TIMEOUT_MESSAGE = 'AI 请求超时，已自动停止生成';
   const AI_ABORT_MESSAGE = '用户停止生成';
   const AI_GENERATING_STATUSES = new Set(['generating', 'pending', 'streaming', 'loading']);

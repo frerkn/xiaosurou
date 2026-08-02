@@ -339,6 +339,62 @@
         return true;
     }
 
+    // ========== Gemini schema 转换 (协议必要, 不可避免) ==========
+    // Gemini 原生 API 的 tools[].functionDeclarations[].parameters 是 proto3 枚举大写:
+    //   "STRING" / "NUMBER" / "INTEGER" / "BOOLEAN" / "OBJECT" / "ARRAY" / "TYPE_UNSPECIFIED"
+    // MCP 端点返的 OpenAPI Schema 是小写, 必须递归转换所有 type 字段
+    //
+    // enum 元素也必须 toString: mcd 真实 schema enum=[1,5] (number), Gemini 期望 repeated string
+    // 调工具时 AI 返回 string "1", mcp-generic-client.js normalizeValueBySchema 自动回转 number
+    function convertSchemaToGemini(schema) {
+        if (!schema || typeof schema !== 'object') return { type: 'OBJECT', properties: {} };
+        const typeMap = {
+            'string': 'STRING', 'number': 'NUMBER', 'integer': 'INTEGER',
+            'boolean': 'BOOLEAN', 'object': 'OBJECT', 'array': 'ARRAY',
+            'STRING': 'STRING', 'NUMBER': 'NUMBER', 'INTEGER': 'INTEGER',
+            'BOOLEAN': 'BOOLEAN', 'OBJECT': 'OBJECT', 'ARRAY': 'ARRAY',
+        };
+        const rawType = schema.type || 'object';
+        const out = { type: typeMap[String(rawType).toLowerCase()] || 'TYPE_UNSPECIFIED' };
+        if (schema.description) out.description = schema.description;
+        if (Array.isArray(schema.enum)) {
+            out.enum = schema.enum.map(function (v) { return String(v); });
+        }
+        if (schema.properties) {
+            out.properties = {};
+            for (const k in schema.properties) {
+                out.properties[k] = convertSchemaToGemini(schema.properties[k]);
+            }
+        }
+        if (Array.isArray(schema.required)) out.required = schema.required;
+        if (schema.items) out.items = convertSchemaToGemini(schema.items);
+        return out;
+    }
+
+    // OpenAI tools → Gemini functionDeclarations
+    function openAIToolsToGemini(openAITools) {
+        const declarations = (openAITools || []).map(function (t) {
+            if (!t || t.type !== 'function') return null;
+            const f = t.function || {};
+            return {
+                name: f.name,
+                description: f.description || '',
+                parameters: convertSchemaToGemini(f.parameters || { type: 'object', properties: {} })
+            };
+        }).filter(Boolean);
+        if (!declarations.length) return undefined;
+        return [{ functionDeclarations: declarations }];
+    }
+
+    // 把 MCP 工具结果格式化成 Gemini 期望的 functionResponse.content
+    // Gemini 接受 string 或 object, 但实际生产中 string 最稳
+    function formatGeminiFunctionResponseContent(callResult) {
+        if (callResult && callResult.success) {
+            try { return formatMcpToolResult(callResult.data); } catch (e) { return JSON.stringify(callResult.data || {}); }
+        }
+        return 'error: ' + ((callResult && callResult.error) || '工具调用失败');
+    }
+
     function wrapAsJsonResp(data, originalResp) {
         const status = originalResp ? originalResp.status : 200;
         const statusText = originalResp ? originalResp.statusText : 'OK';
@@ -348,6 +404,176 @@
             statusText: statusText,
             headers: headers,
         });
+    }
+
+    // ========== Gemini 原生 API 工具循环 (v0.1.71) ==========
+    // 关键设计: 不中间层转 OpenAI body, 直接用 Gemini 原生 contents + functionDeclarations
+    // 解决之前 v0.1.58 的"中间层转 body"反模式 + v0.1.69"普通聊天被破坏"矫枉过正
+    //
+    // 行为:
+    //   - body.stream === true → bypass (流式暂不做工具循环, 跟 v0.1.67 行为一致)
+    //   - body.stream === false / undefined → 走工具循环
+    //     1. 注入 tools (functionDeclarations, schema 用 convertSchemaToGemini 转换)
+    //     2. 追加 systemInstruction (sysBlock + MCP_TAIL_REMINDER) 让 AI 知道怎么用
+    //     3. 跑循环: 调工具, 写回 functionResponse, 重发, 直到 AI 不再调工具
+    //     4. AI 不调工具 → 直接返 Gemini 响应原样 (普通聊天 work)
+    //
+    // 已知风险 (待真机验证):
+    //   - 工具 ON 时普通聊天 (无调工具意图) 也会被注入 tools + sysBlock, Gemini 看用户意图决定调不调
+    //   - 普通聊天的 prompt 可能被 sysBlock 轻微污染 (但 sysBlock 主要是工具说明, 普通聊天不读)
+    async function runChatWithToolLoopGemini(url, options) {
+        if (!global.McpGenericClient) {
+            return (originalFetch || fetch)(url, options);
+        }
+        try {
+            // 0. 解析 body
+            const origBody = safeParseJson(options && options.body) || {};
+
+            // 0.1 流式暂不做工具循环, bypass
+            if (origBody.stream === true) {
+                return (originalFetch || fetch)(url, options);
+            }
+
+            // 1. 准备 MCP 工具
+            const built = buildMcpOpenAITools();
+            const openAITools = built.tools;
+            const resolveMap = built.resolve;
+            if (!openAITools.length) {
+                return (originalFetch || fetch)(url, options);
+            }
+            const geminiTools = openAIToolsToGemini(openAITools);
+
+            // 2. 维护 contents (从原始 body 复制, 不转 OpenAI)
+            let contents = Array.isArray(origBody.contents) ? origBody.contents.slice() : [];
+
+            // 3. systemInstruction 追加 sysBlock
+            const appendText = buildMcpSystemBlock() + '\n' + MCP_TAIL_REMINDER;
+            let sysInstruction = origBody.systemInstruction;
+            if (sysInstruction && typeof sysInstruction === 'object' && Array.isArray(sysInstruction.parts)) {
+                // Gemini 原生格式: {parts: [{text: "..."}]}
+                sysInstruction = { parts: sysInstruction.parts.concat([{ text: appendText }]) };
+            } else if (typeof sysInstruction === 'string') {
+                sysInstruction = { parts: [{ text: sysInstruction + '\n\n' + appendText }] };
+            } else {
+                sysInstruction = { parts: [{ text: appendText }] };
+            }
+
+            // 4. 其他 metadata 保留 (generationConfig / safetySettings 等)
+            const baseMeta = {};
+            for (const k of Object.keys(origBody)) {
+                if (k === 'contents' || k === 'systemInstruction' || k === 'tools') continue;
+                baseMeta[k] = origBody[k];
+            }
+
+            emitProgress({ phase: 'session_start', summary: '已合并 ' + openAITools.length + ' 个 MCP 工具 (Gemini 原生模式)' });
+
+            const fetchForLLM = originalFetch || fetch;
+            const maxIter = (typeof TOOL_LOOP_MAX === 'number') ? TOOL_LOOP_MAX : 6;
+            let iteration = 0;
+            let lastData = null;
+
+            while (iteration < maxIter) {
+                iteration++;
+
+                // 5. 组装 Gemini body (保留所有元数据 + 注入 tools + systemInstruction)
+                const geminiBody = Object.assign({}, baseMeta, {
+                    contents: contents,
+                    tools: geminiTools,
+                    systemInstruction: sysInstruction,
+                });
+                // 强制 non-stream (流式调工具是另一套逻辑, v0.1.71 暂不做)
+                if (geminiBody.stream) delete geminiBody.stream;
+
+                const iterOpts = Object.assign({}, options, {
+                    body: JSON.stringify(geminiBody),
+                    headers: Object.assign({}, options.headers || {}, { 'Content-Type': 'application/json' }),
+                });
+                const resp = await fetchForLLM(url, iterOpts);
+                if (!resp.ok) {
+                    emitProgress({ phase: 'session_done', summary: 'Gemini API 返 ' + resp.status });
+                    return resp;
+                }
+                const data = await resp.json();
+                if (!data) {
+                    emitProgress({ phase: 'session_done', summary: 'Gemini 响应空' });
+                    return wrapAsJsonResp({ candidates: [] }, resp);
+                }
+                lastData = data;
+
+                // 6. 解析 Gemini 风格响应: candidates[0].content.parts[]
+                const candidate = data.candidates && data.candidates[0];
+                if (!candidate) {
+                    emitProgress({ phase: 'session_done', summary: 'Gemini 无 candidate' });
+                    return wrapAsJsonResp(data, resp);
+                }
+                const parts = (candidate.content && Array.isArray(candidate.content.parts)) ? candidate.content.parts : [];
+                const functionCalls = parts.filter(function (p) { return p && p.functionCall; }).map(function (p) { return p.functionCall; });
+                const text = parts.filter(function (p) { return p && p.text; }).map(function (p) { return p.text; }).join('');
+
+                // 7. 没 function call → AI 已完成 (普通聊天走这里, 直接返)
+                if (!functionCalls.length) {
+                    emitProgress({ phase: 'session_done', summary: 'AI 已完成 (Gemini)' });
+                    return wrapAsJsonResp(data, resp);
+                }
+
+                // 8. 有 function call → 把 model 消息 (Gemini 风格) 加到 contents
+                const assistantParts = [];
+                if (text) assistantParts.push({ text: text });
+                for (let i = 0; i < functionCalls.length; i++) {
+                    const fc = functionCalls[i];
+                    assistantParts.push({ functionCall: { name: fc.name, args: fc.args || {} } });
+                }
+                contents.push({ role: 'model', parts: assistantParts });
+
+                // 9. 执行每个 function call
+                for (let i = 0; i < functionCalls.length; i++) {
+                    const fc = functionCalls[i];
+                    const fnName = fc.name;
+                    const fnArgs = fc.args || {};
+                    const resolved = resolveMap.get(fnName);
+                    if (!resolved) {
+                        emitProgress({ phase: 'tool_err', toolName: fnName, summary: '工具未注册: ' + fnName });
+                        contents.push({
+                            role: 'function',
+                            parts: [{ functionResponse: { name: fnName, response: { content: 'error: 工具 ' + fnName + ' 未在当前会话注册' } } }]
+                        });
+                        continue;
+                    }
+                    emitProgress({ phase: 'tool_start', toolName: fnName, summary: summarizeToolAction(resolved.toolName, fnArgs) });
+                    let callResult;
+                    try {
+                        callResult = await global.McpGenericClient.callTool(resolved.server, resolved.toolName, fnArgs);
+                    } catch (toolErr) {
+                        callResult = { success: false, error: '工具调用异常: ' + ((toolErr && toolErr.message) || String(toolErr)) };
+                    }
+                    emitCardMessage(resolved.server, resolved.toolName, fnArgs, callResult);
+                    emitProgress({
+                        phase: callResult.success ? 'tool_ok' : 'tool_err',
+                        toolName: fnName,
+                        summary: callResult.success
+                            ? summarizeToolResult(resolved.toolName, callResult)
+                            : ('失败: ' + ((callResult.error || '')).slice(0, 80)),
+                    });
+                    // Gemini function response 存到 contents
+                    const respContent = formatGeminiFunctionResponseContent(callResult);
+                    contents.push({
+                        role: 'function',
+                        parts: [{ functionResponse: { name: fnName, response: { content: respContent } } }]
+                    });
+                }
+            }
+
+            // 10. 达到工具循环上限
+            emitProgress({ phase: 'session_done', summary: '达到工具循环上限 (Gemini), 安全退出' });
+            if (lastData) return wrapAsJsonResp(lastData, null);
+            return wrapAsJsonResp({ candidates: [] }, null);
+        } catch (loopErr) {
+            console.error('[McpBridge] runChatWithToolLoopGemini 完全失败, 回退原 fetch:', loopErr);
+            lastPreloadError = { message: 'Gemini 工具循环异常: ' + ((loopErr && loopErr.message) || String(loopErr)), at: Date.now() };
+            try { emitProgress({ phase: 'session_done', summary: 'Gemini 工具循环异常, 回退无工具模式' }); }
+            catch (e) {}
+            return (originalFetch || fetch)(url, options);
+        }
     }
 
     async function runChatWithToolLoop(url, options) {
@@ -515,16 +741,12 @@
             const method = (init && init.method) || (input && input.method) || 'GET';
 
             // 拦截判断 (按优先级, 越前越安全):
-            // 1. Gemini native 端点 (generativelanguage.googleapis.com/v1beta/models/.../generateContent) 永远 bypass
-            //    — 普通聊天 + 总结记忆 都是 native 端点 (body 不带 stream 字段), 拦截后强制 non-stream + 注入 tools 会破坏 330 原生行为
-            //    — 想用 Gemini 调工具的, 改用 OpenAI 兼容端点 (generativelanguage.googleapis.com/v1beta/openai) 走下面分支
-            // 2. 非 POST 请求 (GET/HEAD 等) 跳过
-            // 3. 配了 enabled MCP server 才走工具循环, 否则走 originalFetch
+            // 1. 非 POST 请求 (GET/HEAD 等) 跳过
+            // 2. 非 LLM 请求 (不是 /v1/chat/completions 或 Gemini 端点) 跳过
+            // 3. Gemini 原生 API 端点 + 工具 ON → 调 runChatWithToolLoopGemini (新写, Gemini 原生 body)
+            //    工具 OFF → bypass (v0.1.69 行为保留, 普通聊天 + 总结记忆 + 视频/语音 work)
+            // 4. 其他 LLM 端点 (OpenAI 风格 / Gemini OpenAI 兼容) + 工具 ON → 调 runChatWithToolLoop (老逻辑)
             if (method.toUpperCase() !== 'POST') {
-                return originalFetch.apply(this, arguments);
-            }
-            if (isGeminiNativeRequest(url)) {
-                // Gemini native 端点永远 bypass (普通聊天 + 总结记忆 用)
                 return originalFetch.apply(this, arguments);
             }
             if (!isLLMRequest(url)) {
@@ -533,6 +755,28 @@
 
             const servers = global.McpGenericClient.getEnabledServers();
             const toolsReady = servers.length > 0;
+            const isGeminiNative = isGeminiNativeRequest(url);
+
+            if (isGeminiNative) {
+                pushIntercept({
+                    at: 'hook',
+                    kind: toolsReady ? 'intercepted-gemini' : 'gemini-bypass',
+                    url: describeUrl(url),
+                    toolsReady: toolsReady,
+                    serverCount: servers.length,
+                    mode: 'gemini-native'
+                });
+                if (toolsReady) {
+                    try {
+                        return await runChatWithToolLoopGemini(url, init);
+                    } catch (e) {
+                        console.warn('[McpBridge] Gemini 工具循环出错, 回退原 fetch:', e);
+                        return originalFetch.apply(this, arguments);
+                    }
+                }
+                return originalFetch.apply(this, arguments);
+            }
+
             pushIntercept({
                 at: 'hook',
                 kind: toolsReady ? 'intercepted' : 'no-tools',
