@@ -482,7 +482,26 @@ async function unsubscribeFromPushServer() {
       };
     }
 
-    const applicationServerKey = getConfiguredPushApplicationServerKey();
+    // ★ v0.1.93 改: 跟新流程 subscribe() 一样, 优先 fetch /api/vapid-public-key 拿公钥
+    // 老流程读 pushServer.applicationServerKey 字段 (UI 没让 user 填) → 字段空 → P-256 错
+    // 修法: 跟新流程对齐, fetch VAPID 公钥, 拿不到才 fallback 字段
+    let applicationServerKey = null;
+    try {
+      const pushServerUrl = (ensureSystemNotificationConfig().pushServer?.serverUrl || '').replace(/\/$/, '');
+      if (pushServerUrl) {
+        const keyResponse = await fetch(`${pushServerUrl}/api/vapid-public-key`);
+        if (keyResponse.ok) {
+          const { publicKey } = await keyResponse.json();
+          applicationServerKey = urlBase64ToUint8Array(publicKey);
+          console.log('[tryCreatePushSubscription] ✅ fetch VAPID 公钥成功');
+        }
+      }
+    } catch (e) {
+      console.warn('[tryCreatePushSubscription] fetch VAPID 公钥失败, fallback 字段:', e.message);
+    }
+    if (!applicationServerKey) {
+      applicationServerKey = getConfiguredPushApplicationServerKey();
+    }
     if (!applicationServerKey) {
       return {
         ok: false,
