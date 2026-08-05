@@ -5,10 +5,10 @@
 // 行为：每天分 6 时段（凌晨/清晨/上午/午后/傍晚/夜间），每时段最多拉一次，
 //       持久化在 Dexie `hotNewsSnapshots`，全角色共享。
 //       同 in-flight 锁（群聊/多角色并发复用同一 Promise）。
-// 拉取链路：前端 → /api/hotnews（330 后端代理）→ orz.ai → 返回 items
+// 拉取链路：前端 → /api/hotnews（330 后端代理）→ news.orz.ai → 返回 items
 // ========================================
 
-// 可选平台（key 与 orz.ai ?platform= 完全一致；label 给 UI 看）
+// 可选平台（key 与 news.orz.ai ?platform= 完全一致；label 给 UI 看）
 // 2026-07-02 按用户偏好调整：删虎扑/豆瓣/36氪/掘金/V2EX/少数派，加全部财经
 const HOTNEWS_PLATFORMS = [
   { key: 'weibo', label: '微博' },

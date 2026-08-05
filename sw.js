@@ -1,5 +1,117 @@
 // Service Worker file (sw.js)
 // Whitelist cache strategy: cache only known static assets; API requests pass through.
+// 2026-08-06 v0.1.91: bump CACHE_VERSION 强制清缓存（角色级总开关 + 渠道独立控制 —
+//   改 v0.1.90 的"二选一互斥"为"角色级 × 渠道独立"二维控制:
+//   角色级开关 (chat.settings.proactiveEnabled) = 总开关 (能不能发)
+//   全局 mode (globalSettings.proactiveDeliveryMode) = 渠道选择 (用什么发)
+//   角色级关 = app + push 都不发; 角色级开 + 选 push = 走系统推送
+//   proactive-wake.js createTask/createFixedTask/tryHandleAction 加角色级检查
+//   proactive-wake-ui.js syncOldProactiveSwitch 改成"永远不禁用, 只显示投递模式信息"
+//   hint 文案从"开关无效"改成"当前投递方式: 系统推送/应用内"信息提示)
+// 2026-08-05 v0.1.90: bump CACHE_VERSION 强制清缓存（投递方式 radio 用户自选, 严格二选一 —
+//   globalSettings.proactiveDeliveryMode: 'app' (应用内, 默认) / 'push' (系统推送)
+//   严格互斥: 选 app 就关 push, 选 push 就关 app, 没有 both (避免刷屏)
+//   background-activity.js startProactiveScheduler: mode != 'app' 不启动
+//   proactive-wake.js createTask/createFixedTask/tryHandleAction: mode != 'push' 拒绝创建推送任务
+//   proactive-wake-ui.js 管理页面加 投递方式 radio 卡片 (2 个选项, 选啥用啥), 切换实时重启 scheduler
+//   user 选 push: PWA 活着也走 push-server (不是 PWA 死了才走推送)
+//   user 选 app: 完全关掉 push-server 主动消息, 只用应用内)
+// 2026-08-05 v0.1.89: bump CACHE_VERSION 强制清缓存（抽 buildProactiveContext 共享函数 —
+//   ai-group.js 抽 buildProactiveContext(chat, options) 共享函数 (天气/亲属卡/多层摘要/关联记忆/表情包/世界书/双源长期记忆)
+//   暴露 window.buildProactiveContext, proactive-wake.js generateProactiveMessage 改用它
+//   现在新通道 (推送) 和老功能 (应用内) 用同一份 context 构建, 新功能 context 跟老功能一样全)
+// 2026-08-05 v0.1.88: bump CACHE_VERSION 强制清缓存（AI 主动消息生成带完整 context —
+//   prompt 改"由 AI 按人设自主决定" (不再硬场景列表)
+//   generateProactiveMessage 注入完整 system prompt: 角色 prompt + 角色深度人设 (aiPersona) + 勾选世界书 + 日记 + 变量记忆闪回
+//   双源记忆调 vectorMemoryManager.buildMemoryContext (跟 330 主聊天一致)
+//   history 10 → 20 条)
+// 2026-08-05 v0.1.87: bump CACHE_VERSION 强制清缓存（合并 AI 定时提醒 + 主动消息 + 冷却时间 —
+//   删 ai-reminders-screen / ai-reminders.js / ai-reminders.css 独立 UI, 合并到 proactive-wake 管理页面
+//   加冷却时间检查 (默认 30 分钟, user 可调 0-120), 防止 AI 在聊天过程中疯狂设提醒刷屏
+//   任务列表加来源标签: 👤 手动 (user_message 有值) / 🤖 AI (user_message null + user_prompt 有值)
+//   prompt 加 {{proactiveCooldownMinutes}} 占位符, replaceTemplateVars 加默认值 30 fallback)
+// 2026-08-05 v0.1.86: bump CACHE_VERSION 强制清缓存（AI 自动创建主动消息任务 —
+//   330 主体 chat AI 在 JSON 指令里加 {"type": "create_push_task", userPrompt, recurrenceType, visible_hint}
+//   AI 觉得"该主动关心 user"时输出这条指令 → 前端 hookProactiveWakeInMessages 自动调 ProactiveWake.createTask()
+//   这样 user 不用手动创建, AI 自己设提醒)
+// 2026-08-05 v0.1.85: bump CACHE_VERSION 强制清缓存（AI 主动消息管理 UI —
+//   chat-list 顶部 banner + 全屏管理页面（玩法说明 + 订阅状态 + 任务列表 + 创建表单 + 测试推送）
+//   粉白色系配色，modules/proactive-wake-ui.js + css/proactive-wake.css 新增）
+// 2026-08-05 v0.1.84: bump CACHE_VERSION 强制清缓存（push 改 wake-up 模式 —
+//   push handler 收到 push-server 发来的 {type: 'proactive-wake', chatId, charId, charName, taskId, fixedMessage, aiPrompt} payload。
+//   fixed 模式 (fixedMessage 有值): 直接 showNotification
+//   guided/auto 模式 (fixedMessage null): 弹占位通知 + postMessage 主页面, 主页面调 LLM 生成后发 UPDATE_NOTIFICATION 替换占位。
+//   message handler 加 UPDATE_NOTIFICATION 类型: 主页面 LLM 生成完消息后用同 tag 关闭占位 + 弹新通知。
+//   notificationclick 已用 event.notification.data?.chatId 跳转, 不用改。
+//   借鉴糯米机 (worker/proactive-push) 的 wake-up 设计: AI 生成在 client 端 (chat history + character prompt 完整 → AI 人格健全)。
+// 2026-08-05 v0.1.83: bump CACHE_VERSION 强制清缓存（iOS 18.3.2 PWA VAPID 修复 v3 —
+//   v0.1.76 改 Uint8Array 实测 iPhone PWA 仍报 "must contain a valid P-256 public key"。
+//   v0.1.83 改 urlBase64ToUint8Array 返回 ArrayBuffer (u8.buffer) + 加 try/catch 双 fallback
+//   (ArrayBuffer 优先, 失败时回退 Uint8Array)。
+//   实测 desktop Chrome 调通 (v0.1.76 也能), iPhone PWA iOS 18.3.2 严格模式要求 ArrayBuffer。
+//   修了 2 处 urlBase64ToUint8Array (line 22 + line 444) + 2 处 pushManager.subscribe try/catch
+//   (line 63 subscribeToPushServer + line 481 tryCreatePushSubscription)。
+//   如果 v0.1.83 还报错, 改 web-push-libs CLI 重新生成 VAPID 密钥 + push-server 加调试端点。
+// 2026-08-05 v0.1.82: bump CACHE_VERSION 强制清缓存（修变量记忆存储徽章超宽撑爆 tab 栏 —
+//   vector-memory.js line 1127 把 storage badge 的 textContent 从 `formatted/quota · percent`
+//   (22+ 字符) 简化为只用 `usage.formatted` (7 字符左右, 例如 "1.23 MB"), 完整 quota/percent
+//   进 title tooltip。修复了 mobile PWA 上 `.vm-room-storage` 文字过长导致整个 .vm-room-tabs
+//   容器水平 overflow, 界面外移的 bug。
+//   css/variable-memory-skyblue.css line 84-97 加防御: flex 0 0 auto → 0 1 auto (允许收缩)
+//   + min-width: 0 + overflow:hidden + text-overflow:ellipsis, 防止未来 textContent 又变长
+//   时再次撑爆。跟原作者 line 1149 注释 "状态文字挪到存储徽章的 tooltip" 设计意图一致。
+//   index.html 同步 bump vector-memory.js ?v=0.0.41 → ?v=0.0.42 + variable-memory-skyblue.css ?v=0.0.38 → ?v=0.0.39。
+// 2026-08-05 v0.1.81: bump CACHE_VERSION 强制清缓存（核心记忆加"转普通"按钮 —
+//   vector-memory.js 加 unpinFromCoreMemory(chat, id) 方法 (pinToCoreMemory 镜像)，
+//   卧室核心记忆卡片渲染时不再用 `${isCore ? '' : '→ 核心'}` 留空, 改成显示"转普通"按钮。
+//   行为: 点转普通 → 把 fragment.category 从 'C' 改成 'E' (默认事件分类), 其他字段
+//   (importance / emotionalWeight / tags / content / lastRecalled / recallCount 等) 全部保留。
+//   importance 保留是因为它是用户主观评分, 不应该被自动改; 想换分类用"改"按钮手动改。
+//   memory-summary.js 加 .vm-unpin-btn handler, 用 state.chats[state.activeChatId] 拿最新引用
+//   (跟玄关 3 个 handler 同模式, 防 race condition)。
+//   index.html 同步 bump vector-memory.js ?v=0.0.40 → ?v=0.0.41 + memory-summary.js ?v=0.0.39 → ?v=0.0.40。
+// 2026-08-05 v0.1.80: bump CACHE_VERSION 强制清缓存（修导入导出按钮缺失 —
+//   vector-memory.js 卧室工具栏在 "🧹 清理" 按钮后补 #vm-export-btn / #vm-import-btn 两个按钮。
+//   modules/memory-summary.js:1057-1097 那段 handler 代码（调 vectorMemoryManager.exportMemory /
+//   importMemory）其实早就写了，但 vector-memory.js 里从来没渲染过这俩按钮 DOM，导致
+//   container.querySelector('#vm-export-btn') 永远返回 null，if 永远 false，点不到。
+//   跟"UI 接好但方法缺失"一个套路的"UI 接好但 DOM 缺失"。
+//   index.html 同步 bump vector-memory.js ?v=0.0.39 → ?v=0.0.40。
+// 2026-08-05 v0.1.79: bump CACHE_VERSION 强制清缓存（修回收站批量删除 race condition bug —
+//   modules/memory-summary.js 玄关 3 个 handler（清空回收站 / 删除选中 / 救回）改为每次从
+//   state.chats[state.activeChatId] 拿最新 chat 引用，绕开后台 red-packet-poll.js:163 /
+//   data-management.js:2584 的 "state.chats[chatId] = freshChat" 替换逻辑。原版用闭包 chat，
+//   用户在二次确认弹窗停留几秒时后台轮询可能把 state 里的 chat 换成另一个对象，导致
+//   deleteFragments 改的是旧对象、renderVectorMemoryView 读的是新对象（没改），结果
+//   "toast 说清了但卡片还在"。手机 PWA + iOS Safari 性能比 PC 慢，撞概率高。单条删除
+//   耗时短所以 user 报 OK，批量删除多一次 showCustomConfirm 弹窗停留所以 user 报不 OK。
+//   附 v0.1.78 同期: vector-memory.js 加 exportMemory/importMemory，showCustomConfirm 参数名
+//   confirmButtonText/cancelButtonText → confirmText/cancelText 修正。
+//   index.html 同步 bump vector-memory.js ?v=0.0.37 → ?v=0.0.39 + memory-summary.js ?v=0.0.37 → ?v=0.0.39。
+// 2026-08-05 v0.1.78: bump CACHE_VERSION 强制清缓存（变量记忆新增导出/导入 —
+//   vector-memory.js 加 exportMemory + importMemory 方法。UI 入口早就在 modules/memory-summary.js:1057-1097
+//   接好（导出按钮 #vm-export-btn + 导入按钮 #vm-import-btn + merge/replace 弹窗），但方法本体一直缺失，
+//   点了会报 "exportMemory is not a function"。修法: 实现 exportMemory(chat) 返回 JSON 字符串（剥离 embedding
+//   跨模型/端点兼容性更好 + 只导关键 settings + 自定义分类 + 时间线摘要），实现 importMemory(chat, json, mode)
+//   'merge' 按 content+memoryTime+category 三元组去重 / 'replace' 清空再覆盖，导入后 embedding 强制 null
+//   触发懒重算，lastExtractedTimestamp 不动避免重头提取产生重复。
+//   index.html 同步 bump vector-memory.js ?v=0.0.37 → ?v=0.0.38。
+// 2026-08-05 v0.1.77: bump CACHE_VERSION 强制清缓存（回退 Gemini 调工具 —
+//   js/mcp-tool-bridge.js:
+//     1. 删 runChatWithToolLoopGemini (~150 行) — v0.1.71 写, 试了 2 天修不干净, 放弃
+//     2. 删 convertSchemaToGemini + openAIToolsToGemini (协议 schema 转换函数, Gemini 工具循环配套用, ~50 行)
+//     3. 删 formatGeminiFunctionResponseContent (~10 行)
+//     4. wrappedFetch 改回 v0.1.69 行为: Gemini native 永远 bypass, 工具 ON 也 bypass
+//   保留: isGeminiNativeRequest (用) / wrapAsJsonResp (OpenAI 路径用)
+//
+//   行为:
+//   - Gemini native 端点 → 永远 bypass, 普通聊天 + 视频/语音 + 总结记忆 work
+//   - 调工具用 M3 / Gemini OpenAI 兼容端点 / 公益站 (OpenAI 风格, 走 runChatWithToolLoop)
+//   - user 决定: 放弃 Gemini 调工具, 普通聊天就普通聊天, 调工具换渠道换模型
+//
+//   v0.1.77 之前的回退: v0.1.69 (Gemini native 永远 bypass, user 部署验证 work)
+//
+//   教训 (memory): "中间层转 body 是反模式" + "bypass ≠ 做不到" + "试了 2 天修不干净就该认命回退, 别死磕"
 // 2026-08-03 v0.1.76: bump CACHE_VERSION 强制清缓存（iOS Safari 16.4+ VAPID 修复 v2 —
 //   v0.1.75 改 urlBase64ToUint8Array 返回 ArrayBuffer, 实测仍报 "must contain a valid P-256 public key"。
 //   改回 Uint8Array (Uint8Array.from + 兼容更好)。iOS Safari 16.4 不同 patch 行为不一致, 改回标准 Uint8Array。
@@ -148,7 +260,7 @@
 //   https://restapi.amap.com/v3/geocode/geo?address=...&key=server.bearerToken
 //   把 REST 的 {geocodes: [...]} 转成 MCP 风格 {results: [...]}, AI 完全无感
 //   其他 bug 端点 (text_search/around_search/weather) 暂不兜底, 走教程引导 REST 路径
-const CACHE_VERSION = 'v0.1.76';
+const CACHE_VERSION = 'v0.1.93';
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [
@@ -307,6 +419,10 @@ self.addEventListener('fetch', event => {
   }
 });
 
+// 330 v0.1.83 wake-up 模式 push handler
+// 收到 push-server 发来的 {type: 'proactive-wake', chatId, charId, charName, taskId, fixedMessage, aiPrompt} payload
+//   fixedMessage 有值: 直接显示 (fixed 模式, 不调 LLM, 节省)
+//   fixedMessage 是 null: 弹占位通知 + postMessage 主页面 (guided/auto 模式, 主页面调 LLM 后会发 UPDATE_NOTIFICATION 更新)
 self.addEventListener('push', event => {
   console.log('[SW] Push received:', event);
 
@@ -319,6 +435,68 @@ self.addEventListener('push', event => {
     }
   }
 
+  // ===== wake-up 模式 (v0.1.83+) =====
+  if (data.type === 'proactive-wake') {
+    const charName = data.charName || data.charId || 'AI 角色';
+    const chatId = data.chatId;
+    const taskId = data.taskId;
+    const messageType = data.messageType || 'fixed';
+    const fixedMessage = data.fixedMessage;
+
+    // fixed 模式: 直接显示 user_message
+    if (messageType === 'fixed' && fixedMessage) {
+      const title = `💬 ${charName}`;
+      const options = {
+        body: fixedMessage,
+        icon: data.icon || 'https://img.baidu.re/i/2026/07/w6p47e.png',
+        badge: data.badge || 'https://img.baidu.re/i/2026/07/w6p47e.png',
+        tag: `task-${taskId}`,
+        data: { chatId, taskId, type: 'proactive-wake', messageType },
+        requireInteraction: true,
+        vibrate: [200, 100, 200],
+        timestamp: Date.now()
+      };
+      event.waitUntil(self.registration.showNotification(title, options));
+      return;
+    }
+
+    // guided/auto 模式: 弹占位通知, 同时 postMessage 主页面让 AI 生成
+    const placeholderTitle = `💬 ${charName}`;
+    const placeholderBody = `${charName} 想跟你说点什么...`;
+    const placeholderOptions = {
+      body: placeholderBody,
+      icon: data.icon || 'https://img.baidu.re/i/2026/07/w6p47e.png',
+      badge: data.badge || 'https://img.baidu.re/i/2026/07/w6p47e.png',
+      tag: `task-${taskId}`,
+      data: { chatId, taskId, type: 'proactive-wake', messageType, generating: true },
+      requireInteraction: true,
+      vibrate: [200, 100, 200],
+      timestamp: Date.now()
+    };
+
+    event.waitUntil((async () => {
+      // 1. 弹占位通知
+      await self.registration.showNotification(placeholderTitle, placeholderOptions);
+
+      // 2. postMessage 主页面 (如果有), 让主页面调 LLM 生成 + 发 UPDATE_NOTIFICATION
+      const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const client of clientList) {
+        client.postMessage({
+          type: 'PROACTIVE_WAKE',
+          chatId,
+          taskId,
+          charId: data.charId,
+          charName,
+          messageType,
+          aiPrompt: data.aiPrompt || null,
+          sentAt: data.sentAt
+        });
+      }
+    })());
+    return;
+  }
+
+  // ===== 老 payload 格式兼容 (测试推送等) =====
   const title = data.title || 'EPhone';
   const options = {
     body: data.body || 'You have a new message',
@@ -336,14 +514,43 @@ self.addEventListener('push', event => {
   );
 });
 
+// 330 v0.1.83: 主页面调 LLM 生成完消息后, 发 UPDATE_NOTIFICATION 替换占位通知
 self.addEventListener('message', event => {
   console.log('[SW] Message received:', event.data);
 
-  if (event.data && event.data.type === 'SHOW_NOTIFICATION') {
+  if (!event.data) return;
+
+  // ===== 兼容老 SHOW_NOTIFICATION =====
+  if (event.data.type === 'SHOW_NOTIFICATION') {
     const { title, options } = event.data;
     event.waitUntil(
       self.registration.showNotification(title, options)
     );
+    return;
+  }
+
+  // ===== 新: UPDATE_NOTIFICATION 替换占位通知 =====
+  if (event.data.type === 'UPDATE_NOTIFICATION') {
+    const { tag, title, body, data: notifData } = event.data;
+    if (!tag) return;
+    event.waitUntil((async () => {
+      // 关闭旧的占位通知 (用同一个 tag)
+      const existing = await self.registration.getNotifications({ tag });
+      for (const n of existing) n.close();
+
+      // 弹新通知
+      await self.registration.showNotification(title, {
+        body,
+        icon: 'https://img.baidu.re/i/2026/07/w6p47e.png',
+        badge: 'https://img.baidu.re/i/2026/07/w6p47e.png',
+        tag,
+        data: notifData || {},
+        requireInteraction: true,
+        vibrate: [200, 100, 200],
+        timestamp: Date.now()
+      });
+    })());
+    return;
   }
 });
 

@@ -1133,10 +1133,22 @@ function bindVectorMemoryEvents(chat, container) {
   // 钉选/编辑/删除记忆片段
   container.querySelectorAll('.vm-pin-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
-      window.vectorMemoryManager.pinToCoreMemory(chat, btn.dataset.id);
-      await db.chats.put(chat);
+      const liveChat = state.chats[state.activeChatId] || chat;  // 防 race, 跟玄关同模式
+      window.vectorMemoryManager.pinToCoreMemory(liveChat, btn.dataset.id);
+      await db.chats.put(liveChat);
       renderVectorMemoryView();
       showToast('已钉选为核心记忆', 'success');
+    });
+  });
+
+  // 核心 → 普通（pinToCoreMemory 的镜像，按钮跟"→ 核心"对偶）
+  container.querySelectorAll('.vm-unpin-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const liveChat = state.chats[state.activeChatId] || chat;  // 防 race, 跟玄关同模式
+      window.vectorMemoryManager.unpinFromCoreMemory(liveChat, btn.dataset.id);
+      await db.chats.put(liveChat);
+      renderVectorMemoryView();
+      showToast('已转为普通记忆', 'success');
     });
   });
   container.querySelectorAll('.vm-edit-frag-btn').forEach(btn => {
@@ -1185,10 +1197,17 @@ function bindVectorMemoryEvents(chat, container) {
   });
 
   // 玄关：清空回收站（二次确认）
+  // 修复：每次 handler 跑都从 state 拿最新 chat 引用，不能用闭包 chat。
+  // 原因：后台 red-packet-poll / data-management 会执行 `state.chats[chatId] = freshChat`
+  // 从 db 拉新对象替换 state。如果用户在二次确认弹窗停留几秒，后台轮询可能把 state
+  // 里的 chat 换成了另一个对象。此时闭包里的 chat 已"过时"——我们 deleteFragments 改的
+  // 是旧对象，但 renderVectorMemoryView 读 state 拿到的是新对象（没改），UI 就显示
+  // "toast 说清了但卡片还在"。改为每次重新拿最新引用彻底解决。
   const foyerClearBtn = container.querySelector('#vm-foyer-clear-btn');
   if (foyerClearBtn) {
     foyerClearBtn.addEventListener('click', async () => {
-      const { foyer } = window.vectorMemoryManager.partitionByRoom(chat);
+      const liveChat = state.chats[state.activeChatId] || chat;
+      const { foyer } = window.vectorMemoryManager.partitionByRoom(liveChat);
       if (foyer.length === 0) {
         showToast('回收站是空的', 'info');
         return;
@@ -1196,12 +1215,12 @@ function bindVectorMemoryEvents(chat, container) {
       const confirmed = await showCustomConfirm(
         '清空回收站',
         `确认清空回收站里的 ${foyer.length} 条记忆？此操作不可撤销。`,
-        { confirmButtonText: '清空', cancelButtonText: '取消', confirmButtonClass: 'btn-danger' }
+        { confirmText: '清空', cancelText: '取消', confirmButtonClass: 'btn-danger' }
       );
       if (!confirmed) return;
       const ids = foyer.map(f => f.id);
-      window.vectorMemoryManager.deleteFragments(chat, ids);
-      await db.chats.put(chat);
+      window.vectorMemoryManager.deleteFragments(liveChat, ids);
+      await db.chats.put(liveChat);
       showToast(`已清空 ${ids.length} 条回收站记忆`, 'success');
       renderVectorMemoryView();
     });
@@ -1226,6 +1245,7 @@ function bindVectorMemoryEvents(chat, container) {
   const foyerDeleteSelectedBtn = container.querySelector('#vm-foyer-delete-selected');
   if (foyerDeleteSelectedBtn) {
     foyerDeleteSelectedBtn.addEventListener('click', async () => {
+      const liveChat = state.chats[state.activeChatId] || chat;  // 跟清空回收站同样的 race 修复
       const foyerPanel = container.querySelector('#vm-room-foyer');
       if (!foyerPanel) return;
       const selected = Array.from(foyerPanel.querySelectorAll('.vm-foyer-checkbox:checked'))
@@ -1237,11 +1257,11 @@ function bindVectorMemoryEvents(chat, container) {
       const confirmed = await showCustomConfirm(
         '批量删除回收站记忆',
         `确认删除选中的 ${selected.length} 条回收站记忆？此操作不可撤销。`,
-        { confirmButtonText: '删除', cancelButtonText: '取消', confirmButtonClass: 'btn-danger' }
+        { confirmText: '删除', cancelText: '取消', confirmButtonClass: 'btn-danger' }
       );
       if (!confirmed) return;
-      const deleted = window.vectorMemoryManager.deleteFragments(chat, selected);
-      await db.chats.put(chat);
+      const deleted = window.vectorMemoryManager.deleteFragments(liveChat, selected);
+      await db.chats.put(liveChat);
       showToast(`已删除 ${deleted} 条回收站记忆`, 'success');
       renderVectorMemoryView();
     });
@@ -1250,10 +1270,11 @@ function bindVectorMemoryEvents(chat, container) {
   // 玄关：救回记忆库（单条 → 升级 C 类，永久记忆库）
   container.querySelectorAll('.vm-save-bedroom-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
+      const liveChat = state.chats[state.activeChatId] || chat;  // 跟清空回收站同样的 race 修复
       const id = btn.dataset.id;
-      const ok = window.vectorMemoryManager.saveToBedroom(chat, id);
+      const ok = window.vectorMemoryManager.saveToBedroom(liveChat, id);
       if (!ok) { showToast('救回失败：记忆不存在', 'error'); return; }
-      await db.chats.put(chat);
+      await db.chats.put(liveChat);
       showToast('已救回到记忆库（升级为核心 C 类）', 'success');
       renderVectorMemoryView();
     });

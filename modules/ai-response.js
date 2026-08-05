@@ -1277,9 +1277,54 @@
       if (k === 'user_name') return contextMap['user_name'] !== undefined ? contextMap['user_name'] : match;
       if (k === 'user_nickname') return contextMap['user_nickname'] !== undefined ? contextMap['user_nickname'] : match;
       if (k.includes('myNickname')) return contextMap['myNickname'] !== undefined ? contextMap['myNickname'] : match;
-      
+
+      // 主动消息冷却时间 (v0.1.87+)
+      if (k === 'proactiveCooldownMinutes') {
+        const mins = window.state?.globalSettings?.proactiveCooldownMinutes;
+        return (typeof mins === 'number' && mins >= 0) ? String(mins) : '30';
+      }
+
       return match;
     });
+  }
+
+  // ============================================================
+  // Hook: AI 主动消息 (function calling 风格)
+  // 解析 LLM 输出后, 检测 type='create_push_task' 指令 → 调 ProactiveWake.createTask()
+  // 替换为 visible text 提示气泡 (user 看到 AI "悄悄设了提醒")
+  // 调用方在 parseAiResponse 之后调这个函数
+  // ============================================================
+  function hookProactiveWakeInMessages(messagesArray, chat) {
+    if (!Array.isArray(messagesArray)) return messagesArray;
+    for (const msg of messagesArray) {
+      if (msg && msg.type === 'create_push_task') {
+        // 异步触发 ProactiveWake.createTask (fire-and-forget, 不阻塞)
+        if (window.ProactiveWake && typeof window.ProactiveWake.tryHandleAction === 'function') {
+          try {
+            window.ProactiveWake.tryHandleAction(msg, chat).catch(e => {
+              console.warn('[hookProactiveWake] create_push_task 触发失败:', e.message);
+            });
+          } catch (e) {
+            console.warn('[hookProactiveWake] 同步错误:', e.message);
+          }
+        } else {
+          console.warn('[hookProactiveWake] ProactiveWake 模块未加载');
+        }
+        // 替换为 visible text (或者 visible_hint=false 时移除)
+        if (msg.visible_hint === false) {
+          msg._pwRemove = true;  // 标记移除
+        } else {
+          msg.type = 'text';
+          const recurrenceText = msg.recurrenceType === 'ai-decided' ? 'AI 决定时间'
+                                : msg.recurrenceType === 'daily' ? '每天'
+                                : msg.recurrenceType === 'weekly' ? '每周'
+                                : msg.recurrenceType === 'none' ? '只发一次' : '';
+          msg.content = `🌸（我已悄悄设了个提醒：${msg.userPrompt || '...'}${recurrenceText ? '，' + recurrenceText : ''}）`;
+        }
+      }
+    }
+    // 过滤掉 _pwRemove 的
+    return messagesArray.filter(m => !m._pwRemove);
   }
 
   function parseAiResponse(content) {
@@ -1568,7 +1613,7 @@
       picks.forEach(n => {
         const source = n.source ? `（${n.source}）` : '';
         let line = `- ${n.title}${source}`;
-        // 2026-07-04 修复：Netlify Function 现在返回 content 字段（orz.ai 原生字段名），
+        // 2026-07-04 修复：Netlify Function 现在返回 content 字段（news.orz.ai 原生字段名），
         // 拿到具体新闻内容（不是空 desc），M3 就能看到"门将神扑 + 梅西偷袭任意球"这种详情。
         if (n.content && n.content !== n.title) line += `：${n.content}`;
         lines.push(line);
@@ -1967,7 +2012,7 @@ ${linkedContents}
       const data = await response.json();
       const aiResponseContent = getGeminiResponseText(data);
       lastRawAiResponse = aiResponseContent;
-      const messagesArray = parseAiResponse(aiResponseContent);
+      const messagesArray = hookProactiveWakeInMessages(parseAiResponse(aiResponseContent), chat);
 
 
 
@@ -2266,7 +2311,7 @@ ${linkedContents}
 
           const data = await response.json();
           const aiResponseContent = getGeminiResponseText(data);
-          const responseArray = parseAiResponse(aiResponseContent);
+          const responseArray = hookProactiveWakeInMessages(parseAiResponse(aiResponseContent), chat);
 
 
           let callHasBeenHandled = false;
@@ -4984,7 +5029,7 @@ ${getActiveThoughtsPrompt()}
       const imageDirective = parseAiImageDirectiveText(aiResponseContent);
       const messagesArray = imageDirective
         ? [imageDirective]
-        : parseAiResponse(aiResponseContent).map(action =>
+        : hookProactiveWakeInMessages(parseAiResponse(aiResponseContent), chat).map(action =>
             chat.settings.isOfflineMode && action.type === 'text'
               ? { ...action, type: 'offline_text' }
               : action
@@ -8307,7 +8352,7 @@ ${linkedContents}
 
       const aiResponseContent = getGeminiResponseText(data);
 
-      const messagesArray = parseAiResponse(aiResponseContent);
+      const messagesArray = hookProactiveWakeInMessages(parseAiResponse(aiResponseContent), chat);
       const processedActions = [];
       for (const action of messagesArray) {
         if (action.type === 'text' && typeof action.content === 'string' && action.content.includes('\n')) {

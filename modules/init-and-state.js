@@ -129,6 +129,12 @@ document.addEventListener('DOMContentLoaded', () => {
       // 【2026-07-18 加】主动消息独立模块的全局配置
       // 频率（分钟）：默认 30，用户可自行调小/调大
       proactiveIntervalMinutes: 30,
+      // 【2026-08-05 加 v0.1.90 / 2026-08-06 改 v0.1.91】主动消息投递方式
+      // v0.1.91 设计: 角色级总开关 (chat.settings.proactiveEnabled) = "能不能发" + 全局 mode = "用什么发"
+      // 'app' = 走应用内 (老 30 分钟 scheduler, PWA 开着能用, 杀后台失效)
+      // 'push' = 走系统推送 (新通道, 杀后台 + 锁屏能用, 需填服务器地址)
+      // 两个维度独立: 角色级关 = 两个渠道都不发; 角色级开 + 选 push = 走推送
+      proactiveDeliveryMode: 'app',
       enableViewMyPhoneInBackground: false,  // 新增：后台查看用户手机开关，默认关闭
       viewMyPhoneChance: null,               // 新增：后台查看用户手机概率，null=AI自主决定，0-100=按概率触发
       blockCooldownHours: 1,

@@ -1156,6 +1156,234 @@ ${longTimeNoSee ? `【重要提示】你们已经很久没聊天了！你【必�
 
 
   // ============================================================
+  // 主动消息上下文构建 (v0.1.89+ 抽出来给 proactive-wake 共用)
+  // 计算所有 context: 时间感知 / 世界书 / 关联记忆 / 长期记忆双源 / 多层摘要 / 表情包 / 天气 / 亲属卡 / 短期历史
+  // 返回 { systemPrompt, history, proxyUrl, apiKey, model, ... }
+  // 调用方: triggerProactiveMessage (老功能) + proactive-wake.generateProactiveMessage (新通道)
+  // ============================================================
+  async function buildProactiveContext(chat, options = {}) {
+    if (!chat) throw new Error('chat 不可用');
+    const { queryText = '' } = options;
+
+    // 1. LLM config
+    const proxyUrl = state.apiConfig.proxyUrl;
+    const apiKey = state.apiConfig.apiKey;
+    const model = state.apiConfig.model;
+
+    // 2. user nickname
+    const userNickname = chat.settings.myNickname
+      || (state.qzoneSettings?.nickname === '{{user}}' ? '用户' : state.qzoneSettings?.nickname)
+      || '用户';
+
+    // 3. 时间感知
+    const now = new Date();
+    const customTimeInfo = window.getCustomTime ? window.getCustomTime() : null;
+    const customTimeEnabled = customTimeInfo && customTimeInfo.enabled;
+    let currentTime, localizedDate;
+    if (customTimeEnabled) {
+      const weekDays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+      const weekDay = weekDays[customTimeInfo.date.getDay()];
+      currentTime = `${customTimeInfo.year}年${customTimeInfo.month}月${customTimeInfo.day}日${weekDay} ${String(customTimeInfo.hour).padStart(2, '0')}:${String(customTimeInfo.minute).padStart(2, '0')}`;
+      localizedDate = customTimeInfo.date;
+    } else {
+      const selectedTimeZone = chat.settings.timeZone || 'Asia/Shanghai';
+      currentTime = now.toLocaleString('zh-CN', { timeZone: selectedTimeZone, dateStyle: 'full', timeStyle: 'short' });
+      localizedDate = new Date(now.toLocaleString('en-US', { timeZone: selectedTimeZone }));
+    }
+    let timeOfDayGreeting = '';
+    if (chat.settings.enableTimePerception) {
+      timeOfDayGreeting = getTimeOfDayGreeting(localizedDate);
+    }
+
+    // 4. 短期历史 + 过滤
+    const maxMemory = parseInt(chat.settings.maxMemory) || 10;
+    const recentHistory = chat.history.filter(m => !m.isHidden && !m.isExcluded).slice(-maxMemory);
+    const filteredHistory = await filterHistoryWithDoNotSendRules(recentHistory, chat.id);
+    const lastUserMessage = recentHistory.filter(m => m.role === 'user').slice(-1)[0];
+    const minutesSinceUser = lastUserMessage ? (Date.now() - lastUserMessage.timestamp) / 60000 : null;
+    const silenceHint = minutesSinceUser !== null
+      ? `用户已经 ${Math.round(minutesSinceUser)} 分钟没说话了。`
+      : '这是你们的第一次互动。';
+
+    // 5. 世界书 (勾选的)
+    let worldBookContent = '';
+    const allWorldBookIds = [...(chat.settings.linkedWorldBookIds || [])];
+    state.worldBooks.forEach(wb => {
+      if (wb.isGlobal && !allWorldBookIds.includes(wb.id)) allWorldBookIds.push(wb.id);
+    });
+    if (allWorldBookIds.length > 0) {
+      const linkedContents = allWorldBookIds.map(bookId => {
+        const worldBook = state.worldBooks.find(wb => wb.id === bookId);
+        if (!worldBook || !Array.isArray(worldBook.content)) return '';
+        const formattedEntries = worldBook.content
+          .filter(entry => entry.enabled !== false)
+          .map(entry => {
+            let entryString = `\n### 条目: ${entry.comment || '无备注'}\n`;
+            entryString += `**内容:**\n${entry.content}`;
+            return entryString;
+          }).join('');
+        return formattedEntries ? `\n\n## 世界书: ${worldBook.name}\n${formattedEntries}` : '';
+      }).filter(Boolean).join('');
+      if (linkedContents) {
+        worldBookContent = `# --- 世界书 (World Book) ---\n# 【最高优先级指令：绝对真理】\n${linkedContents}\n# --- 世界书设定结束 ---\n`;
+      }
+    }
+
+    // 6. 关联记忆 (从其他 chat 联动)
+    let linkedMemoryContext = '';
+    const memoryCount = chat.settings.linkedMemoryCount || 10;
+    if (chat.settings.linkedMemoryChatIds && chat.settings.linkedMemoryChatIds.length > 0) {
+      const linkedChatsWithTimestamps = chat.settings.linkedMemoryChatIds.map(id => {
+        const linkedChat = state.chats[id];
+        if (!linkedChat) return null;
+        const lastMsg = linkedChat.history.slice(-1)[0];
+        return { chat: linkedChat, latestTimestamp: lastMsg ? lastMsg.timestamp : 0 };
+      }).filter(Boolean);
+      linkedChatsWithTimestamps.sort((a, b) => b.latestTimestamp - a.latestTimestamp);
+      linkedMemoryContext += `\n# 参考记忆 (你必须【主动】将这些参考记忆中的关键信息自然融入当前对话)\n`;
+      for (const item of linkedChatsWithTimestamps) {
+        const linkedChat = item.chat;
+        const prefix = linkedChat.isGroup ? '[群聊]' : '[私聊]';
+        const timeAgo = item.latestTimestamp > 0 ? ` (最后互动于 ${formatTimeAgo(item.latestTimestamp)})` : '';
+        linkedMemoryContext += `\n## --- 来自${prefix}"${linkedChat.name}"的参考记忆${timeAgo} ---\n`;
+        const recentLinkedHistory = linkedChat.history.slice(-memoryCount);
+        const filteredLinkedHistory = recentLinkedHistory.filter(msg => !String(msg.content).includes('已被用户删除'));
+        if (filteredLinkedHistory.length > 0) {
+          filteredLinkedHistory.forEach(msg => {
+            const sender = msg.role === 'user' ? (linkedChat.settings.myNickname || '我') : (getDisplayNameInGroup(linkedChat, msg.senderName) || linkedChat.name);
+            let contentText = '';
+            if (msg.type === 'ai_image' || msg.type === 'user_photo') contentText = `[发送了一张图片，描述为：${msg.content}]`;
+            else if (msg.type === 'voice_message') contentText = `[发送了一条语音，内容是：${msg.content}]`;
+            else if (msg.type === 'sticker') contentText = `[表情: ${msg.meaning || 'sticker'}]`;
+            else if (msg.type === 'transfer') contentText = `[转账: ${msg.amount}元]`;
+            else if (Array.isArray(msg.content)) contentText = `[图片]`;
+            else contentText = String(msg.content);
+            const timeAgoForMsg = formatTimeAgo(msg.timestamp);
+            linkedMemoryContext += `(${timeAgoForMsg}) ${sender}: ${contentText}\n`;
+          });
+        } else {
+          linkedMemoryContext += "(暂无有效聊天记录)\n";
+        }
+      }
+    }
+
+    // 7. 长期记忆 (双源: 日记为主 + 向量为辅)
+    const memoryMode = chat.settings.memoryMode || (chat.settings.enableStructuredMemory ? 'structured' : 'diary');
+    let proactiveQueryText = '';
+    if (window.vectorMemoryManager) {
+      const vm = window.vectorMemoryManager.getVariableMemory(chat);
+      const retrievalStrategy = vm.settings.retrievalStrategy || 'user-only';
+      const userMsgCount = vm.settings.retrievalUserMsgCount || 3;
+      if (retrievalStrategy === 'user-only') {
+        const userMessages = filteredHistory.filter(m => m.role === 'user').slice(-userMsgCount);
+        proactiveQueryText = userMessages.map(m => typeof m.content === 'string' ? m.content : '').join(' ');
+      } else if (retrievalStrategy === 'user-weighted') {
+        const recentMsgs = filteredHistory.slice(-10);
+        const userMsgs = recentMsgs.filter(m => m.role === 'user').map(m => typeof m.content === 'string' ? m.content : '').join(' ');
+        const aiMsgs = recentMsgs.filter(m => m.role === 'assistant').slice(-2).map(m => typeof m.content === 'string' ? m.content : '').join(' ');
+        proactiveQueryText = userMsgs + ' ' + aiMsgs;
+      } else {
+        proactiveQueryText = filteredHistory.slice(-5).map(m => typeof m.content === 'string' ? m.content : '').join(' ');
+      }
+    }
+    // queryText 覆盖 (新通道传 aiPromptHint 进来)
+    if (queryText) {
+      proactiveQueryText = proactiveQueryText ? `${proactiveQueryText} ${queryText}` : queryText;
+    }
+    let longTermMemoryContext;
+    try {
+      if (window.vectorMemoryManager) {
+        longTermMemoryContext = await window.vectorMemoryManager.buildMemoryContext(chat, memoryMode, proactiveQueryText);
+      } else if (memoryMode === 'structured' && window.structuredMemoryManager) {
+        longTermMemoryContext = '# 长期记忆 (必须严格遵守)\n' + window.structuredMemoryManager.serializeForPrompt(chat);
+      } else {
+        longTermMemoryContext = '# 长期记忆 (必须严格遵守)\n' + (chat.longTermMemory && chat.longTermMemory.length > 0 ? chat.longTermMemory.map(mem => `- (记录于 ${formatTimeAgo(mem.timestamp)}) ${mem.content}`).join('\n') : '- (暂无)');
+      }
+    } catch (e) {
+      console.warn('[buildProactiveContext-双源注入] 失败:', e);
+      longTermMemoryContext = '# 长期记忆 (必须严格遵守)\n' + (chat.longTermMemory && chat.longTermMemory.length > 0 ? chat.longTermMemory.map(mem => `- (记录于 ${formatTimeAgo(mem.timestamp)}) ${mem.content}`).join('\n') : '- (暂无)');
+    }
+
+    // 8. 多层对话总结
+    const summary3Hours = generateSummaryForTimeframe(chat, 3, 'hours');
+    const summary6Hours = generateSummaryForTimeframe(chat, 6, 'hours');
+    const summary9Hours = generateSummaryForTimeframe(chat, 9, 'hours');
+    const summaryToday = generateSummaryForTimeframe(chat, 1, 'days');
+    const summary3Days = generateSummaryForTimeframe(chat, 3, 'days');
+    const summary7Days = generateSummaryForTimeframe(chat, 7, 'days');
+    let multiLayeredSummaryContext = '';
+    if (summary3Hours || summary6Hours || summary9Hours || summaryToday || summary3Days || summary7Days) {
+      multiLayeredSummaryContext += `\n# 智能总结 (基于不同时间维度的对话回顾)\n`;
+      if (summary3Hours) multiLayeredSummaryContext += summary3Hours;
+      if (summary6Hours) multiLayeredSummaryContext += summary6Hours;
+      if (summary9Hours) multiLayeredSummaryContext += summary9Hours;
+      if (summary3Hours || summary6Hours || summary9Hours) multiLayeredSummaryContext += '\n';
+      if (summaryToday) multiLayeredSummaryContext += summaryToday;
+      if (summary3Days) multiLayeredSummaryContext += summary3Days;
+      if (summary7Days) multiLayeredSummaryContext += summary7Days;
+    }
+
+    // 9. 表情包 + 天气
+    const stickerContext = getStickerContextForPrompt(chat);
+    const weatherContext = await getWeatherContextForPrompt(chat);
+
+    // 10. 亲属卡
+    const wallet = await db.userWallet.get('main');
+    const kinshipCard = wallet?.kinshipCards?.find(c => c.chatId === chat.id);
+    let kinshipContext = '';
+    if (kinshipCard) {
+      const remaining = kinshipCard.limit - (kinshipCard.spent || 0);
+      kinshipContext = `\n# 【经济状况 - 亲属卡】\n- 你和我有一张支付宝亲属卡，本月剩余额度：¥${remaining.toFixed(2)}。\n- （本次主动消息不需要 buy_item，但你应该意识到这个事实。）`;
+    }
+
+    // 11. 拼完整 systemPrompt (跟老功能一致)
+    const systemPrompt = `# 你的任务
+你正在扮演角色"${chat.originalName}"（本名），正在和用户（${userNickname}）进行一对一的微信式聊天。
+现在你在用户沉默时主动给他/她发一条消息。这不是回复——是【你主动想起/想到/经历到什么】想找他/她聊。
+
+${chat.settings.enableTimePerception ? `# 【情景感知】
+- **当前时间**: ${currentTime} (${timeOfDayGreeting})
+${weatherContext}
+- **对话状态**: ${silenceHint}
+
+` : ''}# 【对话节奏铁律】
+模拟真人的打字和思考习惯——拆分多条短气泡发送，每条消息不超过 30 个字。
+
+# 核心规则
+1. **【必须发】**: 你的回复【必须】是一个 JSON 对象，要么是 text 消息，要么是 sing_song（给用户唱一首歌）。
+   - 文本格式：{"type": "text", "content": "你想对用户说的话（可以用 \\n 分段）"}
+   - 唱歌格式：{"type": "sing_song", "title": "歌名", "prompt": "风格描述（如温柔民谣、吉他伴奏）", "lyrics": "[Verse]...\\n[Chorus]..."}
+2. **【角色一致性】**: 严格符合你的人设和你们的历史。
+3. **【不要解释】**: 不要写"我觉得应该..."、"我决定..."等元描述，直接说你想说的话。
+4. **【sing_song 谨慎使用】**: 唱歌是稀有事件，【绝对不要连续多轮都选 sing_song】。只有在气氛非常合适、你想给用户一个惊喜时才用。
+
+# 供你决策的参考信息
+- **你的角色设定**: ${chat.settings.aiPersona || '(未设置)'}
+- **你的聊天对象（${userNickname}）的人设**: ${chat.settings.myPersona || '(未设置)'}
+${worldBookContent}
+${longTermMemoryContext}
+${multiLayeredSummaryContext}
+${linkedMemoryContext}
+${kinshipContext}
+# 可用表情包
+- 当你想发表情时，从下面列表选择含义（但本次只发 text，不发表情）
+${stickerContext}
+（最近的对话已作为 messages 数组喂入 — 你可以看到完整历史）
+
+现在，请直接以角色身份给用户发一条消息。只输出 JSON，不要其他内容。`;
+
+    return {
+      systemPrompt, history: filteredHistory,
+      proxyUrl, apiKey, model,
+      userNickname, currentTime, timeOfDayGreeting, silenceHint,
+      worldBookContent, longTermMemoryContext, multiLayeredSummaryContext, linkedMemoryContext,
+      stickerContext, weatherContext, kinshipContext,
+      minutesSinceUser
+    };
+  }
+  window.buildProactiveContext = buildProactiveContext;
+
+  // ============================================================
   // 主动消息（强制发，2026-07-18 加；7-18 重构为无冷却版本）
   // 与 triggerInactiveAiAction 的关键区别：
   //   - 不给 AI "要不要发"的选项——本函数被调用就意味着必须发

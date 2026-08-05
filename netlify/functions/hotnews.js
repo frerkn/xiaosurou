@@ -1,10 +1,12 @@
-// Netlify Functions proxy for hot_news (orz.ai)
+// Netlify Functions proxy for hot_news (news.orz.ai)
 // Frontend path: /.netlify/functions/hotnews
 // 调用：GET /.netlify/functions/hotnews?platforms=weibo,zhihu,baidu,bilibili,douyin
 // 返回：{ items: [{title, source, url, desc}, ...], cachedAt: ..., hit: ... }
-// （2026-07-02 新增：热点日报功能，跨域代理。给前端绕开 file:// 跨域限制。）
+// （2026-07-02 新增：热点日报功能，跨域代理。给前端绕开 file:// 跨域限制。
+//  2026-08-06 修复：上游把 hot_news 从 orz.ai 搬到 news.orz.ai（参考糯米机 utils/realtimeWorldCore.ts）。
+//   老 URL https://orz.ai/api/v1/dailynews/ 现已 404（被改成个人站），必须换到 news.orz.ai。）
 
-const HOTNEWS_UPSTREAM = 'https://orz.ai/api/v1/dailynews/';
+const HOTNEWS_UPSTREAM = 'https://news.orz.ai/api/v1/dailynews/';
 
 // 平台 key → 中文显示名（与前端 hot-news.js 的 HOTNEWS_PLATFORMS 对齐）
 // 2026-07-02 按用户偏好精简：删掉虎扑/豆瓣/36氪/掘金/V2EX/少数派/Stack Overflow/GitHub/Hacker News/吾爱破解
@@ -72,7 +74,7 @@ async function fetchHotNewsPlatform(platform) {
         title: String(it.title),
         source: label,
         url: typeof it.url === 'string' && it.url ? it.url : undefined,
-        // 2026-07-04 修复：orz.ai 返回字段是 content（新闻详细内容），不是 desc。
+        // 2026-07-04 修复：news.orz.ai 返回字段是 content（新闻详细内容），不是 desc。
         // 之前用 desc 一直拿到空，所以 M3 只能看标题看不到内容。
         content: typeof it.content === 'string' ? it.content.replace(/\s+/g, ' ').trim() || undefined : undefined
       }));

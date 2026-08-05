@@ -1,0 +1,639 @@
+/* ============================================================
+ * proactive-wake.css — AI 主动消息管理 UI 粉白色系
+ * v0.1.85
+ * 主色 #FF8FA3 + 白底 + 圆角 + 粉色阴影
+ * ============================================================ */
+
+/* ===== 配色变量 ===== */
+:root {
+  --pw-primary: #FF8FA3;
+  --pw-primary-dark: #E56B82;
+  --pw-light: #FFB6C1;
+  --pw-bg-warm: #FDF6F8;
+  --pw-bg-white: #FFFFFF;
+  --pw-text-dark: #5C4A52;
+  --pw-text-mid: #8B7280;
+  --pw-border: #FFE4E9;
+  --pw-success: #7BC89C;
+  --pw-warning: #F5A88B;
+  --pw-danger: #E85A6E;
+  --pw-shadow: 0 2px 8px rgba(255, 143, 163, 0.15);
+  --pw-shadow-lg: 0 4px 16px rgba(255, 143, 163, 0.25);
+  --pw-radius: 12px;
+  --pw-radius-lg: 16px;
+}
+
+/* ===== Banner (chat-list 顶部) ===== */
+.pw-banner {
+  margin: 12px 16px;
+  padding: 14px 18px;
+  background: linear-gradient(135deg, #FFE4E9 0%, #FFF0F5 100%);
+  border-radius: var(--pw-radius);
+  box-shadow: var(--pw-shadow);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid rgba(255, 143, 163, 0.2);
+}
+
+.pw-banner:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--pw-shadow-lg);
+}
+
+.pw-banner:active {
+  transform: scale(0.98);
+}
+
+.pw-banner-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pw-banner-icon {
+  font-size: 28px;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--pw-bg-white);
+  border-radius: 50%;
+  box-shadow: var(--pw-shadow);
+  flex-shrink: 0;
+}
+
+.pw-banner-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.pw-banner-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--pw-text-dark);
+  margin-bottom: 2px;
+}
+
+.pw-banner-status {
+  font-size: 12px;
+  color: var(--pw-text-mid);
+}
+
+.pw-banner-arrow {
+  font-size: 24px;
+  color: var(--pw-primary);
+  font-weight: 300;
+  flex-shrink: 0;
+}
+
+.pw-banner-active .pw-banner-status {
+  color: var(--pw-success);
+  font-weight: 600;
+}
+
+.pw-banner-inactive .pw-banner-status {
+  color: var(--pw-primary);
+  font-weight: 600;
+}
+
+.pw-banner-warning .pw-banner-status {
+  color: var(--pw-warning);
+  font-weight: 600;
+}
+
+.pw-banner-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ===== 管理页面 (全屏 overlay) ===== */
+.pw-page {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--pw-bg-warm);
+  z-index: 99999;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  animation: pwPageFadeIn 0.25s ease;
+}
+
+@keyframes pwPageFadeIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.pw-header {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  background: var(--pw-bg-white);
+  border-bottom: 1px solid var(--pw-border);
+  z-index: 10;
+  box-shadow: 0 1px 4px rgba(255, 143, 163, 0.08);
+}
+
+.pw-back-btn {
+  background: none;
+  border: none;
+  font-size: 32px;
+  color: var(--pw-primary);
+  padding: 0 12px 0 0;
+  cursor: pointer;
+  font-weight: 300;
+  line-height: 1;
+}
+
+.pw-header-title {
+  flex: 1;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--pw-text-dark);
+  text-align: center;
+}
+
+.pw-header-spacer {
+  width: 32px;
+}
+
+.pw-content {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+/* ===== 卡片 ===== */
+.pw-card {
+  background: var(--pw-bg-white);
+  border-radius: var(--pw-radius-lg);
+  box-shadow: var(--pw-shadow);
+  border: 1px solid var(--pw-border);
+  overflow: hidden;
+}
+
+.pw-card-title {
+  padding: 14px 18px 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--pw-text-dark);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 1px solid var(--pw-bg-warm);
+}
+
+.pw-card-body {
+  padding: 14px 18px 18px;
+  font-size: 14px;
+  color: var(--pw-text-dark);
+  line-height: 1.6;
+}
+
+.pw-card-body p {
+  margin: 8px 0;
+}
+
+.pw-card-body ol,
+.pw-card-body ul {
+  margin: 8px 0;
+  padding-left: 22px;
+}
+
+.pw-card-body li {
+  margin: 4px 0;
+}
+
+.pw-card-tutorial .pw-card-body {
+  color: var(--pw-text-mid);
+  font-size: 13.5px;
+}
+
+.pw-card-tutorial b {
+  color: var(--pw-text-dark);
+}
+
+/* ===== 状态行 ===== */
+.pw-status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  font-size: 14px;
+}
+
+.pw-status-row span {
+  color: var(--pw-text-mid);
+}
+
+.pw-status-row b {
+  color: var(--pw-text-dark);
+  font-weight: 600;
+}
+
+/* ===== 按钮 ===== */
+.pw-button-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.pw-btn {
+  flex: 1;
+  min-width: 110px;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pw-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.pw-btn-primary {
+  background: linear-gradient(135deg, var(--pw-primary) 0%, var(--pw-primary-dark) 100%);
+  color: var(--pw-bg-white);
+  box-shadow: 0 2px 6px rgba(255, 143, 163, 0.3);
+}
+
+.pw-btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 143, 163, 0.4);
+}
+
+.pw-btn-primary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.pw-btn-secondary {
+  background: var(--pw-bg-warm);
+  color: var(--pw-text-dark);
+  border: 1px solid var(--pw-border);
+}
+
+.pw-btn-secondary:hover:not(:disabled) {
+  background: var(--pw-border);
+  color: var(--pw-primary-dark);
+}
+
+/* ===== 任务列表 ===== */
+.pw-task-count {
+  font-size: 13px;
+  color: var(--pw-text-mid);
+  font-weight: normal;
+  margin-left: 4px;
+}
+
+.pw-task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pw-task-item {
+  background: var(--pw-bg-warm);
+  border-radius: var(--pw-radius);
+  padding: 12px 14px;
+  border: 1px solid var(--pw-border);
+  position: relative;
+}
+
+.pw-task-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.pw-task-item-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--pw-text-dark);
+}
+
+.pw-task-item-status {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.pw-task-status-pending {
+  background: rgba(245, 168, 139, 0.15);
+  color: var(--pw-warning);
+}
+
+.pw-task-status-sent {
+  background: rgba(123, 200, 156, 0.15);
+  color: var(--pw-success);
+}
+
+.pw-task-status-failed {
+  background: rgba(232, 90, 110, 0.15);
+  color: var(--pw-danger);
+}
+
+/* 任务来源标签 (👤 手动 / 🤖 AI) */
+.pw-source-badge {
+  font-size: 10.5px;
+  padding: 2px 6px;
+  border-radius: 8px;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.pw-source-user {
+  background: rgba(123, 200, 156, 0.18);
+  color: #4a9b6f;
+}
+
+.pw-source-ai {
+  background: rgba(255, 143, 163, 0.18);
+  color: #c45a73;
+}
+
+.pw-task-item-body {
+  font-size: 12.5px;
+  color: var(--pw-text-mid);
+  line-height: 1.5;
+}
+
+.pw-task-item-preview {
+  margin: 4px 0 6px;
+  color: var(--pw-text-dark);
+  word-break: break-word;
+}
+
+.pw-task-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 11.5px;
+  color: var(--pw-text-mid);
+}
+
+.pw-task-item-error {
+  margin-top: 6px;
+  padding: 6px 8px;
+  background: rgba(232, 90, 110, 0.1);
+  border-radius: 6px;
+  color: var(--pw-danger);
+  font-size: 11.5px;
+}
+
+.pw-task-delete-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: var(--pw-bg-white);
+  border: 1px solid var(--pw-border);
+  color: var(--pw-danger);
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s ease;
+}
+
+.pw-task-delete-btn:hover {
+  background: var(--pw-danger);
+  color: var(--pw-bg-white);
+  border-color: var(--pw-danger);
+}
+
+.pw-empty {
+  text-align: center;
+  color: var(--pw-text-mid);
+  font-size: 13px;
+  padding: 24px 12px;
+}
+
+.pw-empty-error {
+  color: var(--pw-danger);
+}
+
+/* ===== 弹窗 ===== */
+.pw-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 16px;
+  animation: pwModalFadeIn 0.2s ease;
+}
+
+@keyframes pwModalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.pw-modal-content {
+  background: var(--pw-bg-white);
+  border-radius: var(--pw-radius-lg);
+  width: 100%;
+  max-width: 480px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  animation: pwModalSlideIn 0.25s ease;
+}
+
+@keyframes pwModalSlideIn {
+  from { opacity: 0; transform: scale(0.95) translateY(20px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.pw-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--pw-border);
+}
+
+.pw-modal-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--pw-text-dark);
+}
+
+.pw-modal-close {
+  background: none;
+  border: none;
+  font-size: 28px;
+  color: var(--pw-text-mid);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  font-weight: 300;
+}
+
+.pw-modal-body {
+  padding: 20px;
+}
+
+.pw-modal-footer {
+  display: flex;
+  gap: 10px;
+  padding: 14px 20px 20px;
+  border-top: 1px solid var(--pw-bg-warm);
+}
+
+.pw-form-row {
+  margin-bottom: 16px;
+}
+
+.pw-form-row label {
+  display: block;
+  font-size: 13px;
+  color: var(--pw-text-dark);
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.pw-form-row select,
+.pw-form-row textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--pw-border);
+  border-radius: 10px;
+  font-size: 14px;
+  color: var(--pw-text-dark);
+  background: var(--pw-bg-warm);
+  font-family: inherit;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease;
+}
+
+.pw-form-row select:focus,
+.pw-form-row textarea:focus {
+  outline: none;
+  border-color: var(--pw-primary);
+  background: var(--pw-bg-white);
+}
+
+.pw-form-row textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+/* ===== iOS Safari 适配 ===== */
+@supports (-webkit-touch-callout: none) {
+  .pw-page {
+    /* 修复 iOS Safari 100vh 问题 */
+    height: -webkit-fill-available;
+  }
+}
+
+/* ===== 设置页入口按钮 ===== */
+.pw-settings-btn {
+  background: linear-gradient(135deg, var(--pw-primary) 0%, var(--pw-primary-dark) 100%);
+  color: var(--pw-bg-white);
+  border: none;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  box-shadow: 0 2px 4px rgba(255, 143, 163, 0.25);
+  transition: all 0.18s ease;
+}
+
+.pw-settings-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(255, 143, 163, 0.35);
+}
+
+.pw-settings-btn:active {
+  transform: scale(0.97);
+}
+
+.settings-item-desc {
+  background: var(--pw-bg-warm);
+  border-radius: 8px;
+  margin: -4px 0 12px;
+  padding: 8px 12px;
+}
+
+/* ===== Radio 卡片 (投递方式选择) ===== */
+.pw-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pw-radio-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--pw-bg-warm);
+  border: 1.5px solid var(--pw-border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-size: 14px;
+  color: var(--pw-text-dark);
+}
+
+.pw-radio-row:hover {
+  background: var(--pw-border);
+}
+
+.pw-radio-row input[type="radio"] {
+  margin: 4px 0 0 0;
+  accent-color: var(--pw-primary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.pw-radio-row:has(input:checked) {
+  background: linear-gradient(135deg, rgba(255, 143, 163, 0.08) 0%, rgba(255, 228, 233, 0.15) 100%);
+  border-color: var(--pw-primary);
+  box-shadow: 0 0 0 2px rgba(255, 143, 163, 0.1);
+}
+
+.pw-radio-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.pw-radio-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--pw-text-dark);
+  margin-bottom: 3px;
+}
+
+.pw-radio-desc {
+  font-size: 12px;
+  color: var(--pw-text-mid);
+  line-height: 1.5;
+}
+
+.pw-radio-desc b {
+  color: var(--pw-text-dark);
+}

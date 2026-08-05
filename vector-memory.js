@@ -425,6 +425,13 @@ class VariableMemoryManager {
     this.editFragment(chat, fragmentId, { category: 'C', importance: 10 });
   }
 
+  // 镜像方法：把核心记忆（C 类）转回普通记忆（默认 E 类），其他字段保留
+  // 保留 importance/emotionalWeight/tags 等用户自定义评分, 只把 category 降级
+  // (用户想换分类用"改"按钮手动改)
+  unpinFromCoreMemory(chat, fragmentId) {
+    this.editFragment(chat, fragmentId, { category: 'E' });
+  }
+
   serializeCoreMemories(chat) {
     const cores = this.getCoreMemories(chat);
     if (cores.length === 0) return '';
@@ -1109,15 +1116,17 @@ ${formattedHistory}
       const badge = container.querySelector('#vm-storage-badge');
       if (!badge) return;
       const textEl = badge.querySelector('.vm-room-storage-text');
-      const percentStr = usage.quota > 0 ? ` · ${usage.percent.toFixed(3)}%` : '';
-      const quotaStr = usage.formattedQuota ? ` / ${usage.formattedQuota}` : '';
+      // 主屏只显示占用多少 (e.g. "1.23 MB"), 完整 quota/percent 进 tooltip
+      // 原因: 之前 `formatted/quota · percent` 三段拼起来 22+ 字符, 加上 emoji + padding 会撑爆 .vm-room-tabs
+      // 容器 (white-space: nowrap), 导致手机 PWA 整个 tab 栏水平 overflow 界面外移
+      // 跟原作者 line 1149 注释的设计意图一致: "状态文字挪到存储徽章的 tooltip"
       const titleLines = [
         `变量记忆：${usage.formatted}（${usage.count} 条）`,
         usage.formattedQuota ? `浏览器总配额：${usage.formattedQuota}` : '',
         usage.quota > 0 ? `占比：${usage.percent.toFixed(4)}%` : ''
       ].filter(Boolean).join('\n');
       badge.title = titleLines;
-      if (textEl) textEl.textContent = `${usage.formatted}${quotaStr}${percentStr}`;
+      if (textEl) textEl.textContent = usage.formatted;
       // 高占用预警：>5% 黄色，>20% 红色
       if (usage.quota > 0) {
         if (usage.percent > 20) badge.classList.add('vm-storage-warn');
@@ -1146,6 +1155,8 @@ ${formattedHistory}
       <button class="vm-toolbar-btn" id="vm-add-fragment-btn">+ 添加记忆</button>
       <button class="vm-toolbar-btn" id="vm-add-core-btn">+ 添加核心</button>
       <button class="vm-toolbar-btn" id="vm-cleanup-btn" title="按召回次数排序，一键选最少使用的删除">🧹 清理</button>
+      <button class="vm-toolbar-btn" id="vm-export-btn" title="导出全部变量记忆为 JSON 文件（含 fragments + 关键设置 + 自定义分类 + 时间线摘要）">导出</button>
+      <button class="vm-toolbar-btn" id="vm-import-btn" title="从 JSON 文件导入变量记忆（支持合并 / 替换两种模式）">导入</button>
       <div style="flex:1"></div>
       <span class="vm-status-dot" title="每 ${stats.autoInterval} 条新消息自动触发一次提取（已积累 ${stats.unextractedMessages} 条）">
         <span class="vm-status-pulse"></span>自动提取中
@@ -1242,7 +1253,9 @@ ${formattedHistory}
           </div>
         </div>
         <div class="vm-item-actions">
-          ${isCore ? '' : `<button class="vm-item-btn vm-pin-btn" data-id="${frag.id}">→ 核心</button>`}
+          ${isCore
+            ? `<button class="vm-item-btn vm-unpin-btn" data-id="${frag.id}">转普通</button>`
+            : `<button class="vm-item-btn vm-pin-btn" data-id="${frag.id}">→ 核心</button>`}
           <button class="vm-item-btn vm-edit-frag-btn" data-id="${frag.id}">改</button>
           <button class="vm-item-btn vm-delete-frag-btn" data-id="${frag.id}" style="color:#ff3b30">删</button>
         </div>
@@ -1548,6 +1561,160 @@ ${formattedHistory}
         </div>
       </div>
     `;
+  }
+
+  // ==================== 导出/导入 ====================
+  // UI 入口已在 modules/memory-summary.js:1057-1097 接好（导出按钮 + 导入按钮 + merge/replace 弹窗）
+  // 这里只负责实现方法本体。导出文件不携带 embedding（跨模型/端点维度可能不同），
+  // 导入后第一次召回时会按需懒重算；提取进度 lastExtractedTimestamp 不动（避免重头扫产生重复）
+
+  /**
+   * 导出当前聊天的变量记忆为 JSON 字符串
+   * 包含：fragments（去 embedding）+ 关键 settings + 自定义分类 + 时间线摘要
+   * 不包含：embedding 向量、API 配置（每 chat 独立）、提取进度状态字段
+   */
+  exportMemory(chat) {
+    const vm = this.getVariableMemory(chat);
+
+    // 过滤 embedding —— 跨端点/跨模型维度可能不同，硬带过去反而是坑
+    const fragments = vm.fragments.map(f => {
+      const { embedding, ...rest } = f;
+      return rest;
+    });
+
+    // 关键 settings：只导出会影响记忆行为的，不导 API/进度这类状态字段
+    const settings = {
+      topN: vm.settings.topN,
+      scoreWeights: { ...(vm.settings.scoreWeights || {}) },
+      enableDateTrigger: vm.settings.enableDateTrigger,
+      enableEmotionTrigger: vm.settings.enableEmotionTrigger,
+      enableTopicTrigger: vm.settings.enableTopicTrigger,
+      enablePeriodicReview: vm.settings.enablePeriodicReview,
+      reviewIntervalDays: vm.settings.reviewIntervalDays,
+      retrievalStrategy: vm.settings.retrievalStrategy,
+      retrievalUserMsgCount: vm.settings.retrievalUserMsgCount,
+      recallCooldownMinutes: vm.settings.recallCooldownMinutes,
+      cleanupProtectDays: vm.settings.cleanupProtectDays,
+      foyerDays: vm.settings.foyerDays,
+      foyerRecallThreshold: vm.settings.foyerRecallThreshold,
+      autoExtractionMsgInterval: vm.settings.autoExtractionMsgInterval,
+    };
+
+    const exportData = {
+      version: '1.0',
+      type: 'variable-memory',
+      exportedAt: Date.now(),
+      characterName: chat.originalName || chat.name,
+      fragments,
+      settings,
+      _customCategories: vm._customCategories || {},
+      timelineSummaries: vm.timelineSummaries || {},
+    };
+
+    return JSON.stringify(exportData, null, 2);
+  }
+
+  /**
+   * 从 JSON 字符串导入变量记忆
+   * @param {object} chat
+   * @param {string} jsonString - 导出文件原文
+   * @param {string} mode - 'merge'（按 content+memoryTime+category 去重合并）/ 'replace'（清空再覆盖）
+   * @returns {number} 实际新增的 fragment 条数
+   */
+  importMemory(chat, jsonString, mode = 'merge') {
+    try {
+      const data = JSON.parse(jsonString);
+      if (!data.version || data.type !== 'variable-memory') {
+        throw new Error('无效的变量记忆导出文件（缺少 version 或 type 不匹配）');
+      }
+      if (!Array.isArray(data.fragments)) {
+        throw new Error('导出文件缺少 fragments 数组');
+      }
+
+      const vm = this.getVariableMemory(chat);
+
+      // replace 模式：先清空
+      if (mode === 'replace') {
+        vm.fragments = [];
+      }
+
+      let imported = 0;
+      const now = Date.now();
+      const isMerge = mode === 'merge';
+
+      for (const f of data.fragments) {
+        if (!f || typeof f.content !== 'string' || !f.content.trim()) continue;
+
+        // merge 模式：按 content + memoryTime + category 三元组去重
+        if (isMerge) {
+          const dup = vm.fragments.some(existing =>
+            existing.content === f.content &&
+            existing.memoryTime === f.memoryTime &&
+            existing.category === f.category
+          );
+          if (dup) continue;
+        }
+
+        // 生成新 id（避免与现有 fragment 冲突，也避免跨角色导入时撞 id）
+        const newId = 'mem_' + now + '_' + Math.random().toString(36).substr(2, 6);
+
+        vm.fragments.push({
+          id: newId,
+          content: f.content,
+          tags: Array.isArray(f.tags) ? f.tags : [],
+          category: typeof f.category === 'string' ? f.category : 'E',
+          importance: typeof f.importance === 'number' ? f.importance : 5,
+          emotionalWeight: typeof f.emotionalWeight === 'number' ? f.emotionalWeight : 3,
+          createdAt: typeof f.createdAt === 'number' ? f.createdAt : now,
+          memoryTime: typeof f.memoryTime === 'number' ? f.memoryTime : now,
+          lastRecalled: 0,  // 导入后从 0 开始累计（不继承旧召回数）
+          recallCount: 0,
+          embedding: null,  // 强制懒重算
+          linkedMemories: Array.isArray(f.linkedMemories) ? f.linkedMemories : [],
+          source: typeof f.source === 'string' ? f.source : 'imported',  // 标记来源，便于以后 cleanup 区分
+          context: typeof f.context === 'string' ? f.context : '',
+          frozen: f.frozen === true  // 严格判断：只有显式 true 才算冻结
+        });
+        imported++;
+      }
+
+      // 合并 settings（只覆盖键存在的字段，不清空用户当前的其他配置）
+      if (data.settings && typeof data.settings === 'object') {
+        for (const key of Object.keys(data.settings)) {
+          if (data.settings[key] !== undefined) {
+            vm.settings[key] = data.settings[key];
+          }
+        }
+      }
+
+      // 合并自定义分类
+      if (data._customCategories && typeof data._customCategories === 'object') {
+        vm._customCategories = isMerge
+          ? { ...(vm._customCategories || {}), ...data._customCategories }
+          : { ...data._customCategories };
+      }
+
+      // 合并时间线摘要（按 key 直接覆盖，新数据优先）
+      if (data.timelineSummaries && typeof data.timelineSummaries === 'object') {
+        vm.timelineSummaries = isMerge
+          ? { ...(vm.timelineSummaries || {}), ...data.timelineSummaries }
+          : { ...data.timelineSummaries };
+      }
+
+      // 同步 stats
+      vm.stats.totalFragments = vm.fragments.length;
+      vm.stats.lastUpdated = Date.now();
+
+      // 清检索缓存：旧 query 哈希可能跟新记忆不一致，避免回吐旧结果
+      // 不清 lastExtractedTimestamp：导入记忆不影响提取进度，否则会重头扫产生重复
+      vm._retrievalCache = { query: '', result: null, timestamp: 0, msgCount: 0 };
+
+      console.log(`[变量记忆] 导入完成：新增 ${imported} 条，模式=${mode}，当前总 ${vm.fragments.length} 条`);
+      return imported;
+    } catch (e) {
+      console.error('[变量记忆] 导入失败:', e);
+      throw e;
+    }
   }
 
   // 工具函数

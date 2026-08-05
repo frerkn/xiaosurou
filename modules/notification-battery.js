@@ -15,9 +15,9 @@
 // ========== 工具函数 ==========
 
 /**
- * 将 base64 编码的 VAPID 公钥转换为 Uint8Array (iOS Safari 16.4+ 严格模式, 兼容性修复 v0.1.76)
+ * 将 base64 编码的 VAPID 公钥转换为 ArrayBuffer (iOS Safari 18.x PWA 严格模式要求 ArrayBuffer, 不接受 Uint8Array 视图)
  * @param {string} base64String - VAPID 公钥的 base64 字符串
- * @returns {Uint8Array}
+ * @returns {ArrayBuffer}
  */
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -26,8 +26,9 @@ function urlBase64ToUint8Array(base64String) {
     .replace(/_/g, '/');
 
   const rawData = window.atob(base64);
-  // iOS Safari 16.4+ 不同 patch 行为不一样, 用 Uint8Array.from 兼容最好
-  return Uint8Array.from(rawData, c => c.charCodeAt(0));
+  // iOS 18.3.2 PWA 严格模式: 必须返回 ArrayBuffer (u8.buffer)
+  const u8 = Uint8Array.from(rawData, c => c.charCodeAt(0));
+  return u8.buffer;
 }
 
 /**
@@ -58,12 +59,24 @@ async function subscribeToPushServer(userId, serverUrl) {
     const { publicKey } = await keyResponse.json();
     console.log('[服务器推送] 已获取公钥');
 
-    // 4. 订阅推送
-    const subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(publicKey)
-    });
-    console.log('[服务器推送] 已创建订阅');
+    // 4. 订阅推送 (iOS 18.x PWA 双 fallback: ArrayBuffer 优先, Uint8Array 兜底)
+    const abKey = urlBase64ToUint8Array(publicKey);
+    let subscription;
+    try {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: abKey
+      });
+      console.log('[服务器推送] 已创建订阅 (ArrayBuffer)');
+    } catch (abErr) {
+      console.warn('[服务器推送] ArrayBuffer 失败, 试 Uint8Array:', abErr.message);
+      const u8Key = new Uint8Array(abKey);
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: u8Key
+      });
+      console.log('[服务器推送] 已创建订阅 (Uint8Array fallback)');
+    }
 
     // 5. 将订阅信息发送到服务器
     const saveResponse = await fetch(`${serverUrl}/api/save-subscription`, {
@@ -441,7 +454,9 @@ async function unsubscribeFromPushServer() {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
     const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
     const rawData = window.atob(base64);
-    return Uint8Array.from(rawData, c => c.charCodeAt(0));
+    // iOS 18.3.2 PWA 严格模式: 必须返回 ArrayBuffer
+    const u8 = Uint8Array.from(rawData, c => c.charCodeAt(0));
+    return u8.buffer;
   }
 
   function getConfiguredPushApplicationServerKey() {
@@ -475,10 +490,19 @@ async function unsubscribeFromPushServer() {
       };
     }
 
-    await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey
-    });
+    // iOS 18.x PWA 双 fallback
+    try {
+      await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey
+      });
+    } catch (abErr) {
+      console.warn('[tryCreatePushSubscription] ArrayBuffer 失败, 试 Uint8Array:', abErr.message);
+      await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: new Uint8Array(applicationServerKey)
+      });
+    }
     return {
       ok: true,
       message: '本地 Push 订阅已创建'

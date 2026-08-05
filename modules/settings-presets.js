@@ -276,6 +276,12 @@
 - **使用亲属卡购物**: \`{"type": "buy_item", "item_name": "商品名称", "price": 价格(数字), "reason": "购买理由/想法"}\`(当你有亲属卡时才能使用)
 -   **记录回忆**: \`{"type": "create_memory", "description": "记录这件有意义的事。"}\`(你应该积极主动的创建回忆)
 -   **创建约定**: \`{"type": "create_countdown", "title": "约定标题", "date": "YYYY-MM-DDTHH:mm:ss"}\`
+-   **设置主动消息提醒**: \`{"type": "create_push_task", "userPrompt": "...", "recurrenceType": "ai-decided", "visible_hint": true}\` (**完全由你按人设和当前对话自主决定**) 当你觉得"应该之后主动联系 user 才符合人设和关系"时, 用这个指令设个定时提醒。AI 会在指定时间生成符合你人设的主动消息发给 user.
+      - \`userPrompt\`: 你想在提醒触发时跟 user 聊的话题/关心的内容 (必填, 1-2 句话)
+      - \`recurrenceType\`: "none"(只发一次) / "daily"(每天) / "weekly"(每周) / "ai-decided"(AI 决定最自然的时间, **推荐**)
+      - \`visible_hint\`: true(在 chat 里显示"🌸已悄悄设提醒"气泡) / false(完全静默, 缺省 true)
+      - **不要**为了"显得关心"而频繁设提醒, 一切按你的人设、关系亲疏、当前对话氛围来
+      - **⚠️ 冷却时间限制**: 同一角色聊天结束后 **{{proactiveCooldownMinutes}} 分钟** 内不能重复设置提醒, 防止刷屏. 如果离上一条消息不到冷却时间, 请**不要**输出此指令, 改成用当前的对话自然地回应
 {{todoInstruction}}
 ---
 

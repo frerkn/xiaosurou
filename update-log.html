@@ -166,11 +166,89 @@
       <p>之前有人建议我把330的更新日志做个日志放上去，问题是我的更新日志文件因为换电脑不慎丢失了，所以更新日志从本次（明天）更新后开始记录。</p>
     </div>
 
+    <!-- 4.14 版本 -->
+    <div class="version-card">
+      <div class="version-header">
+        <span class="version-number">v4.14</span>
+        <span class="version-date">最新版本</span>
+      </div>
+
+      <div class="section">
+        <div class="section-title fix">修复</div>
+        <ul class="item-list">
+          <li>修复变量记忆存储用量徽章在手机 PWA 上超宽撑爆 tab 栏导致界面外移 — 之前 textContent 是 `1.23 MB / 100 MB · 1.234%`（22+ 字符）加 `white-space: nowrap` 强制不换行，撑爆整个 .vm-room-tabs 容器。现在主屏只显示占用多少（如 "1.23 MB"），完整 quota/percent 数据保留在 title tooltip 里。CSS 同步加防御：flex 允许收缩 + min-width: 0 + 截断省略号。</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 4.13 版本 -->
+    <div class="version-card">
+      <div class="version-header">
+        <span class="version-number">v4.13</span>
+      </div>
+
+      <div class="section">
+        <div class="section-title new">新增</div>
+        <ul class="item-list">
+          <li>核心记忆新增"转普通"按钮 — 跟普通记忆的"→ 核心"按钮对偶。之前只单向 (普通→核心)，核心记忆转不回来。点转普通 → category 从 'C' 改成 'E'，其他字段 (重要度/情感权重/标签/内容等) 全部保留。想换分类用卡片上的"改"按钮手动改。</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 4.12 版本 -->
+    <div class="version-card">
+      <div class="version-header">
+        <span class="version-number">v4.12</span>
+      </div>
+
+      <div class="section">
+        <div class="section-title new">新增</div>
+        <ul class="item-list">
+          <li>变量记忆（向量记忆）导出/导入按钮现在可见 — 之前 handler 代码写好了但按钮 DOM 从来没渲染过，导致点击不到。修复后卧室（记忆库）工具栏"🧹 清理"按钮后多出"导出"/"导入"两个按钮，跟结构化记忆风格一致。点导出 → 下载 `vector-memory-角色名-时间戳.json`；点导入 → 选文件 → 弹"合并 / 替换"选模式 → toast 报告新增条数。</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 4.11 版本 -->
+    <div class="version-card">
+      <div class="version-header">
+        <span class="version-number">v4.11</span>
+      </div>
+
+      <div class="section">
+        <div class="section-title fix">修复</div>
+        <ul class="item-list">
+          <li>尝试修复变量记忆回收站批量删除（清空回收站 / 删除选中）"提示已清空但记忆还在"的问题 — 之前怀疑是后台轮询替换了 state 里的 chat 引用导致闭包内的 chat 跟渲染时的 chat 不是同一个对象，改为每次操作都拿最新引用。如果你测了发现还没修好，告诉我，可能要查别的方向。</li>
+          <li>修复 showCustomConfirm 调用时参数名错误（confirmButtonText/cancelButtonText → confirmText/cancelText）— 之前参数名错导致按钮文字不生效（弹窗还是显示"确定"），但功能不受影响。</li>
+        </ul>
+      </div>
+
+      <div class="section">
+        <div class="section-title new">新增</div>
+        <ul class="item-list">
+          <li>变量记忆（向量记忆）新增导出/导入功能 — 聊天详情页变量记忆 Tab 顶部工具栏的"导出 / 导入"按钮可用。导出：含所有记忆片段（去 embedding）+ 关键设置 + 自定义分类 + 时间线摘要，跨角色/跨设备备份。导入：支持"合并"（按内容+时间+分类去重）和"替换"两种模式，导入后 embedding 自动懒重算。</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 4.10 版本 -->
+    <div class="version-card">
+      <div class="version-header">
+        <span class="version-number">v4.10</span>
+      </div>
+
+      <div class="section">
+        <div class="section-title new">新增</div>
+        <ul class="item-list">
+          <li>变量记忆（向量记忆）新增导出/导入功能 — 聊天详情页变量记忆 Tab 顶部工具栏的"导出 / 导入"按钮可用。导出：含所有记忆片段（去 embedding）+ 关键设置 + 自定义分类 + 时间线摘要，跨角色/跨设备备份。导入：支持"合并"（按内容+时间+分类去重）和"替换"两种模式，导入后 embedding 自动懒重算。</li>
+        </ul>
+      </div>
+    </div>
+
     <!-- 4.9 版本 -->
     <div class="version-card">
       <div class="version-header">
         <span class="version-number">v4.9</span>
-        <span class="version-date">最新版本</span>
       </div>
 
       <div class="section">

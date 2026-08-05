@@ -1043,6 +1043,10 @@ ${linkedContents}
   }
 
   async function scanDueAiReminders(reason = 'manual') {
+    // v0.1.87+: 老 AI 提醒功能废弃, 合并到 proactive-wake 走 push-server
+    // 保留函数 + db.aiReminders 表 (兼容老数据), 但轮询直接 return 永不触发
+    return;
+
     if (!window.db?.aiReminders) return;
 
     if (aiReminderScanInProgress) {
@@ -2212,6 +2216,13 @@ ${tasksString}
 
   function startProactiveScheduler() {
     if (proactiveSchedulerIntervalId) return;
+    // v0.1.91+ 渠道选择: 老 30 分钟 scheduler 只在 'app' 渠道启动
+    // 角色级总开关 chat.settings.proactiveEnabled 在 runProactiveTick 里检查
+    const mode = state.globalSettings?.proactiveDeliveryMode || 'app';
+    if (mode !== 'app') {
+      console.log(`[Proactive] 当前投递模式 "${mode}" 是系统推送, 跳过启动 app scheduler`);
+      return;
+    }
     console.log('[Proactive] 启动主动消息调度器');
     // 首次启动：把所有 proactiveEnabled 开启的角色的 lastProactiveTimestamp 初始化为 now
     // 这样不会立即触发，而是等一个 interval 后再触发（避免启动时一窝蜂）

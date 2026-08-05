@@ -82,7 +82,8 @@
 
 /* 存储用量徽章（贴在 Tab 栏右侧，不抢 tab 空间） */
 #vector-memory-screen .vm-room-storage {
-    flex: 0 0 auto !important;
+    flex: 0 1 auto !important;
+    min-width: 0 !important;          /* 允许 flex 收缩, 防止内容过长撑爆容器 */
     display: flex !important;
     align-items: center !important;
     gap: 4px !important;
@@ -93,6 +94,8 @@
     border-left: 1px solid rgba(93, 173, 226, 0.2) !important;
     margin-left: 4px !important;
     white-space: nowrap !important;
+    overflow: hidden !important;        /* 极端情况 (textContent 意外变长) 不外移 */
+    text-overflow: ellipsis !important; /* 极端情况截断 + 省略号 */
     cursor: default !important;
 }
 

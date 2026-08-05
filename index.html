@@ -24,11 +24,10 @@
   <link rel="stylesheet" href="update-notification.css?v=0.0.36">
   <link rel="stylesheet" href="structured-memory.css?v=0.0.36">
   <link rel="stylesheet" href="vector-memory.css?v=0.0.37">
-  <link rel="stylesheet" href="css/variable-memory-skyblue.css?v=0.0.38">
+  <link rel="stylesheet" href="css/variable-memory-skyblue.css?v=0.0.39">
   <link rel="stylesheet" href="online-app.css?v=0.0.36">
   <link rel="stylesheet" href="period-tracker.css?v=0.0.36">
   <link rel="stylesheet" href="focus-timer.css?v=0.0.36">
-  <link rel="stylesheet" href="css/ai-reminders.css?v=0.0.36">
   <link rel="stylesheet" href="css/system-settings-home.css?v=0.0.36">
   <link rel="stylesheet" href="extra.css?v=0.0.82">
   <link rel="stylesheet" href="css/api-settings-skyblue.css?v=0.0.36">
@@ -129,7 +128,7 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
   <script src="notification-manager.js?v=0.0.36" defer></script>
   <script src="character-generator.js?v=0.0.36" defer></script>
   <script src="structured-memory.js?v=0.0.36" defer></script>
-  <script src="vector-memory.js?v=0.0.37" defer></script>
+  <script src="vector-memory.js?v=0.0.42" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <!-- 拆分后的模块（按依赖顺序加载） -->
@@ -161,7 +160,7 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
   <script src="js/custom-music-cover.js?v=0.0.37" defer></script>
   <script src="modules/qzone.js?v=0.0.36" defer></script>
   <script src="modules/sticker-manager.js?v=0.0.36" defer></script>
-  <script src="modules/memory-summary.js?v=0.0.38" defer></script>
+  <script src="modules/memory-summary.js?v=0.0.40" defer></script>
   <script src="modules/live2d-loader.js?v=0.1.4" defer></script>
   <script src="modules/video-voice-call.js?v=0.0.51" defer></script>
   <script src="modules/message-actions.js?v=0.0.36" defer></script>
@@ -196,6 +195,9 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
   <script src="modules/runtime-diagnostics.js?v=0.0.38" defer></script>
   <script src="modules/notification-battery.js?v=0.0.41" defer></script>
   <script src="modules/background-activity.js?v=0.0.43" defer></script>
+  <script src="modules/proactive-wake.js?v=0.1.91" defer></script>
+  <script src="modules/proactive-wake-ui.js?v=0.1.93" defer></script>
+  <link rel="stylesheet" href="css/proactive-wake.css?v=0.1.91">
   <script src="modules/card-import.js?v=0.0.36" defer></script>
   <script src="modules/character-export.js?v=0.0.36" defer></script>
   <script src="modules/data-management.js?v=0.0.36" defer></script>
@@ -205,7 +207,6 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
   <!-- 数据定义（无依赖） -->
   <script src="modules/init-avatar-frames.js?v=0.0.36" defer></script>
   <script src="modules/init-db-schema.js?v=0.0.36" defer></script>
-  <script src="modules/ai-reminders.js?v=0.0.36" defer></script>
   <script src="modules/api-endpoint-presets.js?v=0.0.36" defer></script>
   <!-- 死锁状态修复（F5 启动时清残留 isGenerating 状态） -->
   <script src="modules/chat-stuck-state-repair.js?v=0.0.36" defer></script>
@@ -1734,99 +1735,7 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
         </div> <button type="button" id="add-preset-entry-btn" class="form-button form-button-secondary"data-lang-key="presetAddEntryBtn"> [+] 添加新条目 </button>
       </div>
     </div>
-    <div id="ai-reminders-screen" class="screen">
-      <div class="header">
-        <span class="back-btn" onclick="showScreen('api-settings-screen')">‹</span>
-        <span>AI 定时提醒</span>
-        <span class="action-btn" id="add-ai-reminder-btn">+</span>
-      </div>
-      <div class="ai-reminders-container">
-        <div id="ai-reminders-list"></div>
-      </div>
-    </div>
-
-    <div id="ai-reminder-editor-screen" class="screen">
-      <div class="header">
-        <span class="back-btn" onclick="openAIRemindersScreen()">‹</span>
-        <span id="ai-reminder-editor-title">新建提醒</span>
-        <span class="save-btn" id="save-ai-reminder-btn">保存</span>
-      </div>
-      <div class="ai-reminder-form-container">
-        <div class="form-group">
-          <label for="ai-reminder-title-input">提醒名称</label>
-          <input type="text" id="ai-reminder-title-input" placeholder="例如：晚安提醒">
-        </div>
-
-        <div class="form-group">
-          <label for="ai-reminder-character-select">角色/聊天对象</label>
-          <select id="ai-reminder-character-select"></select>
-          <div class="ai-reminder-form-tip">仅用于保存提醒计划关联对象，本阶段不会读取消息历史或触发聊天。</div>
-        </div>
-
-        <div class="form-group">
-          <label for="ai-reminder-time-input">提醒时间</label>
-          <input type="datetime-local" id="ai-reminder-time-input">
-        </div>
-
-        <div class="form-group">
-          <label for="ai-reminder-repeat-select">重复规则</label>
-          <select id="ai-reminder-repeat-select">
-            <option value="none">不重复</option>
-            <option value="daily">每天</option>
-            <option value="weekly">每周</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label for="ai-reminder-content-input">固定提醒内容</label>
-          <textarea id="ai-reminder-content-input" placeholder="填写固定提醒内容。"></textarea>
-        </div>
-
-        <div class="form-group ai-reminder-switch-row">
-          <label for="ai-reminder-enabled-switch">启用提醒</label>
-          <label class="toggle-switch">
-            <input type="checkbox" id="ai-reminder-enabled-switch" checked>
-            <span class="slider"></span>
-          </label>
-        </div>
-
-        <div class="form-group ai-reminder-switch-row">
-          <label for="ai-reminder-use-ai-switch">AI 生成提醒语</label>
-          <label class="toggle-switch">
-            <input type="checkbox" id="ai-reminder-use-ai-switch">
-            <span class="slider"></span>
-          </label>
-        </div>
-
-        <div class="form-group ai-reminder-switch-row">
-          <label for="ai-reminder-insert-chat-switch">插入聊天</label>
-          <label class="toggle-switch">
-            <input type="checkbox" id="ai-reminder-insert-chat-switch">
-            <span class="slider"></span>
-          </label>
-        </div>
-
-        <div class="form-group ai-reminder-switch-row">
-          <label for="ai-reminder-system-notification-switch">发送系统通知</label>
-          <label class="toggle-switch">
-            <input type="checkbox" id="ai-reminder-system-notification-switch">
-            <span class="slider"></span>
-          </label>
-        </div>
-
-        <div class="form-group ai-reminder-switch-row">
-          <label for="ai-reminder-play-sound-switch">播放提示音</label>
-          <label class="toggle-switch">
-            <input type="checkbox" id="ai-reminder-play-sound-switch">
-            <span class="slider"></span>
-          </label>
-        </div>
-
-        <div class="ai-reminder-form-tip">
-          当前阶段只保存提醒计划，不执行后台扫描、不请求 AI、不发送通知、不插入聊天、不播放声音。
-        </div>
-      </div>
-    </div>
+    <!-- AI 定时提醒 (老) — v0.1.87 删除, 合并到 proactive-wake 管理页面 -->
 
     <!-- 系统设置首页 -->
     <div id="system-settings-home-screen" class="screen">
@@ -2275,12 +2184,6 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
         </div>
 
         <div class="settings-section" data-section="sec-bg-activity-2">
-            <div class="settings-item">
-                <label>AI 定时提醒</label>
-                <div class="settings-right">
-                    <button type="button" class="settings-mini-btn" onclick="openAIRemindersScreen()">管理提醒</button>
-                </div>
-            </div>
             <div class="settings-item">
                 <label>后台查看用户手机</label>
                 <label class="toggle-switch">
@@ -3219,6 +3122,20 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
                         <div class="settings-right">
                             <input type="text" id="push-server-api-key" placeholder="your-api-key">
                         </div>
+                    </div>
+                </div>
+
+                <!-- 4.5 AI 主动消息（高级） -->
+                <div class="settings-item">
+                    <label>🌸 AI 主动消息</label>
+                    <div class="settings-right">
+                        <button class="pw-settings-btn" id="pw-open-manager-btn" onclick="if(window.ProactiveWakeUI){window.ProactiveWakeUI.openManager();}">管理 →</button>
+                    </div>
+                </div>
+                <div class="settings-item settings-item-desc">
+                    <label></label>
+                    <div class="settings-right" style="font-size:12px;color:#8B7280;">
+                        让角色在你没聊天时也能主动发消息（杀后台 + 锁屏才能收到推送）。需要先开启上面"启用服务器推送"。
                     </div>
                 </div>
                 
@@ -4985,6 +4902,8 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
                         <span class="slider"></span>
                     </label>
                 </div>
+                <!-- v0.1.90 新增 / v0.1.91 改: 投递模式提示 (永远显示当前投递方式, 不再说"开关无效") -->
+                <div id="char-proactive-mode-hint" class="settings-desc" style="display:none; color:#E56B82; font-weight:600; margin-top:4px;"></div>
 
                 <!-- 允许角色清空购物车 -->
                 <div class="settings-item" style="display: flex !important; justify-content: space-between !important; align-items: center !important; flex-direction: row !important;">
@@ -7299,7 +7218,7 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
       <div id="hot-news-error" class="hot-news-error" style="display:none;"></div>
       <div id="hot-news-list"></div>
 
-      <p class="hot-news-footer-note">— 数据来自 orz.ai 多平台热榜 · 每天 6 个时段自动更新 · 点右上角可手动真·刷新 —</p>
+      <p class="hot-news-footer-note">— 数据来自 news.orz.ai 多平台热榜 · 每天 6 个时段自动更新 · 点右上角可手动真·刷新 —</p>
     </div>
   </div>
 
