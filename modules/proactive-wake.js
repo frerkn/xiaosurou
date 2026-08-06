@@ -534,14 +534,17 @@
     return await subscription.unsubscribe();
   }
 
-  // ===== urlBase64ToUint8Array (复制自 notification-battery.js) =====
+  // ===== urlBase64ToUint8Array (v0.2.00 完全照搬糯米机 pushSubscribeShared.ts 的 b64uToBytes) =====
+  // ★ 关键差异: 显式 new ArrayBuffer() + new Uint8Array(buf) —— iOS 18.x PWA 严格模式只接受这个
+  // 老版用 new Uint8Array(raw.length) —— iOS 拒收, 报 "valid P-256 public key"
   function urlBase64ToUint8Array(base64String) {
-    const padding = '='.repeat((4 - base64String.length % 4) % 4);
-    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-    const raw = atob(base64);
-    const output = new Uint8Array(raw.length);
-    for (let i = 0; i < raw.length; ++i) output[i] = raw.charCodeAt(i);
-    return output;
+    const padded = base64String.replace(/-/g, '+').replace(/_/g, '/')
+      + '='.repeat((4 - (base64String.length % 4)) % 4);
+    const bin = atob(padded);
+    const buf = new ArrayBuffer(bin.length);
+    const out = new Uint8Array(buf);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
   }
 
   // ===== 查任务列表 =====

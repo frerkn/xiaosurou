@@ -132,6 +132,7 @@
   display: flex;
   align-items: center;
   padding: 14px 16px;
+  padding-top: calc(14px + env(safe-area-inset-top, 0px));  /* ★ v0.2.01 iPhone 灵动岛/刘海让出状态栏 (返回按钮不跟时间显示重叠) */
   background: var(--pw-bg-white);
   border-bottom: 1px solid var(--pw-border);
   z-index: 10;
