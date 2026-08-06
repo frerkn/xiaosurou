@@ -166,11 +166,46 @@
       <p>之前有人建议我把330的更新日志做个日志放上去，问题是我的更新日志文件因为换电脑不慎丢失了，所以更新日志从本次（明天）更新后开始记录。</p>
     </div>
 
+    <!-- 4.18 版本 -->
+    <div class="version-card">
+      <div class="version-header">
+        <span class="version-number">v4.18</span>
+        <span class="version-date">最新版本</span>
+      </div>
+
+      <div class="section">
+        <div class="section-title fix">修复</div>
+        <ul class="item-list">
+          <li>修复变量记忆存储用量显示 — 之前 v0.1.82 因为 white-space:nowrap + flex 0 0 auto 导致长文本撑爆 tab 栏, 简化为只显示"占用多少"。现在按 user 之前建议的"不行就分行"方案: 存储徽章从 tab 栏拿出来单独一行, 跟 tab 栏/工具栏左右内边距对齐 (user 原话 "和下面的宽度对齐"), textContent 改回完整展示 `${formatted} / ${quota} · ${percent}` (user 原话 "现在又看不到比例了")。</li>
+        </ul>
+      </div>
+
+      <div class="section">
+        <div class="section-title optimize">优化</div>
+        <ul class="item-list">
+          <li>整理变量记忆卧室工具栏按钮排版 — 之前 8 个元素 (5 按钮 + 1 状态点 + 2 按钮) 在窄屏 PWA flex-wrap: wrap 换行错乱 (user 原话 "排的七零八落")。改: 状态点挪到存储行共享, 工具栏剩 7 按钮重新分组 (3 左: 添加/添加核心/清理 + 4 右: 导出/导入/设置/教程), flex-wrap: nowrap 强制单行 + overflow-x: auto 水平滚动兜底, 按钮紧凑化 (padding 7px→6px, font 13px→12px, gap 8px→6px, flex-shrink: 0)。</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 4.15 版本 -->
+    <div class="version-card">
+      <div class="version-header">
+        <span class="version-number">v4.15</span>
+      </div>
+
+      <div class="section">
+        <div class="section-title fix">修复</div>
+        <ul class="item-list">
+          <li>修复变量记忆玄关"清空回收站 / 删除选中"点了提示已清空但卡片还在的真因 — class 里有两个同名 `deleteFragments` 方法（旧版接收 string id array，新版 async 接收 fragment object array），JS class 后定义覆盖前定义，新版覆盖了旧版，但 handler 还在传 string id array，导致新版内部 `fragments.map(f => f.id)` 把 string 当对象取 .id 全部变 undefined，Set 装 undefined → filter 不删任何东西 → toast 弹"已清空 N 条"（handler 用 ids.length 自算，不是返回值）但实际没删。单条删除 OK 因为用的是 `deleteFragment`（单数）没重名。修法：把 `deleteFragments(chat, fragments)` 改成兼容两种传法（`typeof item === 'string' ? item : item.id`），3 个传 string array 调用方 + 1 个传 fragment array 调用方都能正常 work。</li>
+        </ul>
+      </div>
+    </div>
+
     <!-- 4.14 版本 -->
     <div class="version-card">
       <div class="version-header">
         <span class="version-number">v4.14</span>
-        <span class="version-date">最新版本</span>
       </div>
 
       <div class="section">

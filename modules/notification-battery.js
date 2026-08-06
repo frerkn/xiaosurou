@@ -15,20 +15,22 @@
 // ========== 工具函数 ==========
 
 /**
- * 将 base64 编码的 VAPID 公钥转换为 ArrayBuffer (iOS Safari 18.x PWA 严格模式要求 ArrayBuffer, 不接受 Uint8Array 视图)
- * @param {string} base64String - VAPID 公钥的 base64 字符串
- * @returns {ArrayBuffer}
+ * 将 base64 编码的 VAPID 公钥转换为 Uint8Array<ArrayBuffer>
+ * ★ v0.1.95 改: 完全照搬糯米机 pushSubscribeShared.ts 的 b64uToBytes 实现
+ *   显式 new ArrayBuffer() + new Uint8Array(buf) —— iOS 18.x PWA 严格模式只接受这个
+ *   老版本用 Uint8Array.from(string, mapFn) + return u8.buffer —— iOS 拒收, 报 "valid P-256 public key"
+ * @param {string} base64String - VAPID 公钥的 base64url 字符串
+ * @returns {Uint8Array}
  */
 function urlBase64ToUint8Array(base64String) {
-  const padding = '='.repeat((4 - base64String.length % 4) % 4);
-  const base64 = (base64String + padding)
-    .replace(/\-/g, '+')
-    .replace(/_/g, '/');
-
-  const rawData = window.atob(base64);
-  // iOS 18.3.2 PWA 严格模式: 必须返回 ArrayBuffer (u8.buffer)
-  const u8 = Uint8Array.from(rawData, c => c.charCodeAt(0));
-  return u8.buffer;
+  const padded = base64String.replace(/-/g, '+').replace(/_/g, '/')
+    + '='.repeat((4 - (base64String.length % 4)) % 4);
+  const bin = atob(padded);
+  // ★ 关键: 显式拿 ArrayBuffer, 不让 TS lib 推断成 ArrayBufferLike
+  const buf = new ArrayBuffer(bin.length);
+  const out = new Uint8Array(buf);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
 }
 
 /**
@@ -448,15 +450,6 @@ async function unsubscribeFromPushServer() {
     if (persist) await persistSystemNotificationHealthFields();
 
     return health;
-  }
-
-  function urlBase64ToUint8Array(base64String) {
-    const padding = '='.repeat((4 - base64String.length % 4) % 4);
-    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-    const rawData = window.atob(base64);
-    // iOS 18.3.2 PWA 严格模式: 必须返回 ArrayBuffer
-    const u8 = Uint8Array.from(rawData, c => c.charCodeAt(0));
-    return u8.buffer;
   }
 
   function getConfiguredPushApplicationServerKey() {

@@ -52,15 +52,43 @@
 //   修了 2 处 urlBase64ToUint8Array (line 22 + line 444) + 2 处 pushManager.subscribe try/catch
 //   (line 63 subscribeToPushServer + line 481 tryCreatePushSubscription)。
 //   如果 v0.1.83 还报错, 改 web-push-libs CLI 重新生成 VAPID 密钥 + push-server 加调试端点。
-// 2026-08-05 v0.1.82: bump CACHE_VERSION 强制清缓存（修变量记忆存储徽章超宽撑爆 tab 栏 —
-//   vector-memory.js line 1127 把 storage badge 的 textContent 从 `formatted/quota · percent`
-//   (22+ 字符) 简化为只用 `usage.formatted` (7 字符左右, 例如 "1.23 MB"), 完整 quota/percent
-//   进 title tooltip。修复了 mobile PWA 上 `.vm-room-storage` 文字过长导致整个 .vm-room-tabs
-//   容器水平 overflow, 界面外移的 bug。
-//   css/variable-memory-skyblue.css line 84-97 加防御: flex 0 0 auto → 0 1 auto (允许收缩)
-//   + min-width: 0 + overflow:hidden + text-overflow:ellipsis, 防止未来 textContent 又变长
-//   时再次撑爆。跟原作者 line 1149 注释 "状态文字挪到存储徽章的 tooltip" 设计意图一致。
-//   index.html 同步 bump vector-memory.js ?v=0.0.41 → ?v=0.0.42 + variable-memory-skyblue.css ?v=0.0.38 → ?v=0.0.39。
+// 2026-08-06 v0.1.98: bump CACHE_VERSION 强制清缓存（修存储徽章看不到比例 + 工具栏按钮七零八落 —
+//   vector-memory.js 把 .vm-room-storage 从 .vm-room-tabs 拿出来, 单独一行 .vm-storage-line
+//   (display: flex; justify-content: space-between, 左侧存储信息 + 右侧状态点),
+//   左右内边距 0 跟 tab 栏/工具栏对齐 (user 原话 "和下面的宽度对齐")。textContent 改回完整
+//   `${formatted} / ${quota} · ${percent}` (user 原话 "现在又看不到比例了", 接受 v0.1.82 简化方案不行)。
+//   工具栏按钮重新分组: 3 左 (添加/添加核心/清理) + flex:1 + 4 右 (导出/导入/设置/教程),
+//   状态点挪到 storageLine 共享一行 (不再占工具栏空间)。
+//   css/variable-memory-skyblue.css 工具栏改 flex-wrap: nowrap (强制单行) + overflow-x: auto 兜底
+//   (万一窄屏还是挤, 水平滚动而不是换行乱排, 修真因 "七零八落"), 按钮紧凑化 (padding 7px→6px,
+//   font 13px→12px, gap 8px→6px), flex-shrink: 0 (不收缩, 优先保证可点击区域)。
+//   index.html 同步 bump vector-memory.js ?v=0.0.45 → ?v=0.0.46 + variable-memory-skyblue.css ?v=0.0.39 → ?v=0.0.40。
+// 2026-08-06 v0.1.97: bump CACHE_VERSION 强制清缓存（撤回 v0.1.96 的 _importedAt 重置时间 + 改 importMemory 保留 recallCount 原值 —
+//   v0.1.96 加的 _importedAt = now 是 user 明确反对的 "重置时间" 操作, 撤回。_importedAt 字段 + getRoom 改 1 行都撤掉。
+//   user 原话: "旧记忆原来什么样就什么样啊, 日期召回次数都要原封不动, 如果以前就是很多天0召回的,
+//   进回收站也没什么, 但这全都进就不正常啊, 你也别给他们重置时间"。
+//   真因: v0.1.78 决定 "importMemory 重置 recallCount=0" + 旧记忆的 memoryTime 是旧时间
+//   → user 设置 foyerDays=3 + threshold=0 → 100+ 旧记忆全部满足 "age > 3天 && 0 <= 0" → 全部进 foyer。
+//   修法: importMemory 把 recallCount/lastRecalled 从 "重置为 0" 改为 "保留原值" (跨设备 backup 语义)。
+//   memoryTime/createdAt 也保留原值, 缺省用 now (旧导出文件没字段时)。
+//   不加 _importedAt 字段, getRoom 不改 — 100+ 旧记忆按原值自然判断进 foyer (recallCount=0 + memoryTime 旧) 或留 bedroom (recallCount>=1)。
+//   12/12 mock 验证 (100 条混合 recallCount 0/1/5, 30 进 foyer + 70 留 bedroom + 字段原值保留 + 没 _importedAt)。
+//   v0.1.96 那次是过度设计, user 反馈 "你别重置时间" 后撤回。
+//   index.html 同步 bump vector-memory.js ?v=0.0.44 → ?v=0.0.45。
+// 2026-08-06 v0.1.95: bump CACHE_VERSION 强制清缓存（修玄关批量删 "toast 弹了但卡片还在" 真因 —
+//   vector-memory.js 修真的 bug: class 内有两个同名 `deleteFragments` 方法 (line 238-248 老版同步接收
+//   string id array + line 1048-1057 新版 async 接收 fragment object array), JS class 后定义覆盖
+//   前定义, 新版覆盖了老版, 但玄关 handler 还在按老版签名传 string id array (ids / selected).
+//   新版内部 `fragments.map(f => f.id)` 把 string 当对象取 .id → 全部变 undefined → Set 装 undefined
+//   → filter 不删任何东西 → toast 弹"已清空 N 条"(handler 用 ids.length 自算, 不是返回值)但
+//   实际 vm.fragments 没改 → renderVectorMemoryView 渲染没删的 chat → 卡片还在。
+//   单条删除 OK 因为用的是 `deleteFragment`(单数) 没重名问题。
+//   修法: 把 line 1048-1057 的 `async deleteFragments(chat, fragments)` 改成兼容两种传法
+//   (`typeof item === 'string' ? item : item.id`), 顺手补回关联引用清理 + stats 同步,
+//   3 个传 string array 调用方 (玄关清空回收站 + 删除选中) 跟 1 个传 fragment array 调用方
+//   (一键清理) 都能正常 work。11/11 mock 验证通过 (string array / fragment array / 混合 / 边界)。
+//   之前 v0.1.79 liveChat 修复 (race condition) 是错的方向, 已保留作为防御性代码 (不撤)。
+//   index.html 同步 bump vector-memory.js ?v=0.0.42 → ?v=0.0.43。
 // 2026-08-05 v0.1.81: bump CACHE_VERSION 强制清缓存（核心记忆加"转普通"按钮 —
 //   vector-memory.js 加 unpinFromCoreMemory(chat, id) 方法 (pinToCoreMemory 镜像)，
 //   卧室核心记忆卡片渲染时不再用 `${isCore ? '' : '→ 核心'}` 留空, 改成显示"转普通"按钮。
@@ -260,7 +288,7 @@
 //   https://restapi.amap.com/v3/geocode/geo?address=...&key=server.bearerToken
 //   把 REST 的 {geocodes: [...]} 转成 MCP 风格 {results: [...]}, AI 完全无感
 //   其他 bug 端点 (text_search/around_search/weather) 暂不兜底, 走教程引导 REST 路径
-const CACHE_VERSION = 'v0.1.94';
+const CACHE_VERSION = 'v0.1.99';
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [

@@ -80,22 +80,27 @@
     transition: background-color 0.2s, color 0.2s !important;
 }
 
-/* 存储用量徽章（贴在 Tab 栏右侧，不抢 tab 空间） */
-#vector-memory-screen .vm-room-storage {
-    flex: 0 1 auto !important;
-    min-width: 0 !important;          /* 允许 flex 收缩, 防止内容过长撑爆容器 */
+/* 存储用量行（独立一行 v0.1.98，user 反馈 "看不到比例" 后改回完整展示） */
+#vector-memory-screen .vm-storage-line {
     display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 8px 0 !important;           /* 左右内边距 0, 跟 tab 栏/工具栏左右对齐 (user 反馈 "和下面的宽度对齐") */
+    margin-bottom: 8px !important;
+    font-size: 12px !important;
+    color: #5DADE2 !important;
+}
+
+/* 存储用量徽章（独立行内的左侧元素，完整展示 formatted / quota · percent） */
+#vector-memory-screen .vm-room-storage {
+    display: inline-flex !important;
     align-items: center !important;
     gap: 4px !important;
-    padding: 10px 12px !important;
+    padding: 0 !important;
     color: #5DADE2 !important;
     font-size: 12px !important;
     font-weight: 600 !important;
-    border-left: 1px solid rgba(93, 173, 226, 0.2) !important;
-    margin-left: 4px !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;        /* 极端情况 (textContent 意外变长) 不外移 */
-    text-overflow: ellipsis !important; /* 极端情况截断 + 省略号 */
     cursor: default !important;
 }
 
@@ -172,22 +177,25 @@
 /* ---------- 5. 工具栏 ---------- */
 #vector-memory-screen .vm-toolbar {
     display: flex !important;
-    gap: 8px !important;
+    gap: 6px !important;
     padding: 0 0 12px 0 !important;
-    flex-wrap: wrap !important;
+    flex-wrap: nowrap !important;       /* 强制单行, 防止 v0.1.97 之前 "七零八落" 的换行错乱 */
     align-items: center !important;
+    overflow-x: auto !important;        /* 万一窄屏还是挤, 水平滚动兜底 (而不是换行乱排) */
     background-color: transparent !important;
 }
 
 #vector-memory-screen .vm-toolbar-btn {
-    padding: 7px 14px !important;
+    padding: 6px 10px !important;
     border: 1px solid rgba(0, 229, 255, 0.25) !important;
     background-color: #E8F2FA !important;
     border-radius: 8px !important;
-    font-size: 13px !important;
+    font-size: 12px !important;
     cursor: pointer !important;
     color: #2C3E50 !important;
     font-weight: 500 !important;
+    white-space: nowrap !important;     /* 按钮文字不换行, 保持单行 */
+    flex-shrink: 0 !important;          /* 按钮不收缩, 优先保证可点击区域 */
     transition: all 0.2s !important;
 }
 

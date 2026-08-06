@@ -1044,13 +1044,25 @@ ${formattedHistory}
 
   /**
    * 真正删除一批记忆（用户确认后调用）
+   * 兼容两种传法: fragment object array (e.g. selectLowRecallFragments.toDelete) 或 string id array
+   * (e.g. 玄关清空回收站 handler 传的 ids)。修 v0.1.82 之前的真因 bug: 老版本 deleteFragments(chat, ids) 接收
+   * string array, 后面又加了新版 async deleteFragments(chat, fragments) 接收 fragment array,
+   * JS class 后定义覆盖前定义, 新版覆盖了老版, 但玄关 handler 还在传 string array → 旧版参数名
+   * 是 ids, 内部 `fragments.map(f => f.id)` 把 string 当对象取 .id 全部变 undefined → Set 装
+   * undefined → filter 不删任何东西 → toast 弹"已清空 N 条"但实际没删
    */
   async deleteFragments(chat, fragments) {
     if (!Array.isArray(fragments) || fragments.length === 0) return 0;
     const vm = this.getVariableMemory(chat);
-    const idsToDelete = new Set(fragments.map(f => f.id));
+    const idsToDelete = new Set(fragments.map(item => typeof item === 'string' ? item : item.id));
     const before = vm.fragments.length;
     vm.fragments = vm.fragments.filter(f => !idsToDelete.has(f.id));
+    // 清理关联引用
+    vm.fragments.forEach(f => {
+      f.linkedMemories = (f.linkedMemories || []).filter(lid => !idsToDelete.has(lid));
+    });
+    vm.stats.totalFragments = vm.fragments.length;
+    vm.stats.lastUpdated = Date.now();
     const deleted = before - vm.fragments.length;
     await db.chats.put(chat);
     return deleted;
@@ -1104,29 +1116,40 @@ ${formattedHistory}
         <span class="vm-room-label">回收站</span>
         <span class="vm-room-count">${foyer.length}</span>
       </div>
+    `;
+    container.appendChild(tabBar);
+
+    // 存储用量行（独立一行，跟工具栏左右内边距对齐，user 之前反馈 "看不到比例" 重新做了完整展示）
+    const storageLine = document.createElement('div');
+    storageLine.className = 'vm-storage-line';
+    storageLine.innerHTML = `
       <div class="vm-room-storage" id="vm-storage-badge" title="变量记忆占用的本地存储空间">
         <span class="vm-room-storage-icon">📦</span>
         <span class="vm-room-storage-text">计算中...</span>
       </div>
+      <span class="vm-status-dot" title="每 ${stats.autoInterval} 条新消息自动触发一次提取（已积累 ${stats.unextractedMessages} 条）">
+        <span class="vm-status-pulse"></span>自动提取中 (${stats.unextractedMessages} 条)
+      </span>
     `;
-    container.appendChild(tabBar);
+    container.appendChild(storageLine);
 
     // 异步补全 quota 占比（不阻塞 UI）
     this.getStorageUsage(chat).then(usage => {
       const badge = container.querySelector('#vm-storage-badge');
       if (!badge) return;
       const textEl = badge.querySelector('.vm-room-storage-text');
-      // 主屏只显示占用多少 (e.g. "1.23 MB"), 完整 quota/percent 进 tooltip
-      // 原因: 之前 `formatted/quota · percent` 三段拼起来 22+ 字符, 加上 emoji + padding 会撑爆 .vm-room-tabs
-      // 容器 (white-space: nowrap), 导致手机 PWA 整个 tab 栏水平 overflow 界面外移
-      // 跟原作者 line 1149 注释的设计意图一致: "状态文字挪到存储徽章的 tooltip"
+      // v0.1.98 改回完整展示: user 反馈 "现在又看不到比例了" (v0.1.82 简化方案不接受)
+      // 之前 v0.1.82 因为 white-space: nowrap + flex:0 0 auto + 长文本 撑爆 tab 栏所以简化
+      // 现在 storage badge 独立一行, 完整展示没问题
+      const percentStr = usage.quota > 0 ? ` · ${usage.percent.toFixed(3)}%` : '';
+      const quotaStr = usage.formattedQuota ? ` / ${usage.formattedQuota}` : '';
       const titleLines = [
         `变量记忆：${usage.formatted}（${usage.count} 条）`,
         usage.formattedQuota ? `浏览器总配额：${usage.formattedQuota}` : '',
         usage.quota > 0 ? `占比：${usage.percent.toFixed(4)}%` : ''
       ].filter(Boolean).join('\n');
       badge.title = titleLines;
-      if (textEl) textEl.textContent = usage.formatted;
+      if (textEl) textEl.textContent = `${usage.formatted}${quotaStr}${percentStr}`;
       // 高占用预警：>5% 黄色，>20% 红色
       if (usage.quota > 0) {
         if (usage.percent > 20) badge.classList.add('vm-storage-warn');
@@ -1148,19 +1171,17 @@ ${formattedHistory}
     container.appendChild(foyerPanel);
 
     // ============ 卧室面板 ============
-    // 工具栏（单行：左操作 / 中间填充 / 右操作；状态文字挪到存储徽章的 tooltip）
+    // 工具栏：左 3 操作（添加/添加核心/清理） + 中 flex:1 + 右 4（导出/导入/设置/教程）
+    // 状态点已挪到 storageLine（独立行），不再占工具栏空间
     const bedroomToolbar = document.createElement('div');
     bedroomToolbar.className = 'vm-toolbar';
     bedroomToolbar.innerHTML = `
       <button class="vm-toolbar-btn" id="vm-add-fragment-btn">+ 添加记忆</button>
       <button class="vm-toolbar-btn" id="vm-add-core-btn">+ 添加核心</button>
       <button class="vm-toolbar-btn" id="vm-cleanup-btn" title="按召回次数排序，一键选最少使用的删除">🧹 清理</button>
+      <div style="flex:1"></div>
       <button class="vm-toolbar-btn" id="vm-export-btn" title="导出全部变量记忆为 JSON 文件（含 fragments + 关键设置 + 自定义分类 + 时间线摘要）">导出</button>
       <button class="vm-toolbar-btn" id="vm-import-btn" title="从 JSON 文件导入变量记忆（支持合并 / 替换两种模式）">导入</button>
-      <div style="flex:1"></div>
-      <span class="vm-status-dot" title="每 ${stats.autoInterval} 条新消息自动触发一次提取（已积累 ${stats.unextractedMessages} 条）">
-        <span class="vm-status-pulse"></span>自动提取中
-      </span>
       <button class="vm-toolbar-btn" id="vm-settings-btn">设置</button>
       <button class="vm-toolbar-btn" id="vm-guide-btn">教程</button>
     `;
@@ -1667,8 +1688,12 @@ ${formattedHistory}
           emotionalWeight: typeof f.emotionalWeight === 'number' ? f.emotionalWeight : 3,
           createdAt: typeof f.createdAt === 'number' ? f.createdAt : now,
           memoryTime: typeof f.memoryTime === 'number' ? f.memoryTime : now,
-          lastRecalled: 0,  // 导入后从 0 开始累计（不继承旧召回数）
-          recallCount: 0,
+          // 修 v0.1.78 决定 bug: 之前 "导入后重置为 0" 让 100+ 旧记忆全部变成 0 召回 + memoryTime
+          // 旧 → 100+ 全部立即进 foyer。改: 保留原 recallCount / lastRecalled (跨设备 backup 语义,
+          // user 原话 "旧记忆原来什么样就什么样, 日期召回次数都要原封不动", 接受"old + 0 召回"
+          // 自然进 foyer), 缺省 0 (旧导出文件没字段时)。memoryTime / createdAt 也保留原值, 不重置。
+          lastRecalled: typeof f.lastRecalled === 'number' ? f.lastRecalled : 0,
+          recallCount: typeof f.recallCount === 'number' ? f.recallCount : 0,
           embedding: null,  // 强制懒重算
           linkedMemories: Array.isArray(f.linkedMemories) ? f.linkedMemories : [],
           source: typeof f.source === 'string' ? f.source : 'imported',  // 标记来源，便于以后 cleanup 区分
