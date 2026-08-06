@@ -534,17 +534,16 @@
     return await subscription.unsubscribe();
   }
 
-  // ===== urlBase64ToUint8Array (v0.2.00 完全照搬糯米机 pushSubscribeShared.ts 的 b64uToBytes) =====
-  // ★ 关键差异: 显式 new ArrayBuffer() + new Uint8Array(buf) —— iOS 18.x PWA 严格模式只接受这个
-  // 老版用 new Uint8Array(raw.length) —— iOS 拒收, 报 "valid P-256 public key"
+  // ===== urlBase64ToUint8Array (v0.2.02 改回 v0.1.84 跑通的版本: 返回 ArrayBuffer) =====
+  // ★ v0.2.00 改返回 Uint8Array —— iOS 18.3.2 严格 PWA 拒, 报 "valid P-256 public key"
+  // ★ v0.1.84 跑通的版本: 用 Uint8Array.from() 转换 + return u8.buffer (ArrayBuffer)
   function urlBase64ToUint8Array(base64String) {
-    const padded = base64String.replace(/-/g, '+').replace(/_/g, '/')
-      + '='.repeat((4 - (base64String.length % 4)) % 4);
-    const bin = atob(padded);
-    const buf = new ArrayBuffer(bin.length);
-    const out = new Uint8Array(buf);
-    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-    return out;
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = atob(base64);
+    // iOS 18.3.2 PWA 严格模式: 返回 ArrayBuffer (u8.buffer) —— 这是 v0.1.84 跑通的格式
+    const u8 = Uint8Array.from(rawData, c => c.charCodeAt(0));
+    return u8.buffer;
   }
 
   // ===== 查任务列表 =====
