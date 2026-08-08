@@ -1384,17 +1384,21 @@ ${stickerContext}
   window.buildProactiveContext = buildProactiveContext;
 
   // ============================================================
-  // 主动消息（强制发，2026-07-18 加；7-18 重构为无冷却版本）
+  // 主动消息（强制发，2026-07-18 加；7-18 重构为无冷却版本；v0.2.08 接受 retryContext）
   // 与 triggerInactiveAiAction 的关键区别：
   //   - 不给 AI "要不要发"的选项——本函数被调用就意味着必须发
   //   - 简化指令：只允许 text，不允许发动态/查看手机/打电话/删除
   //   - 用户停在 chat 界面时实时渲染（不等切回去）
   //   - 【无 30 分钟冷却】频率完全由调度器 (startProactiveScheduler) 控制
+  // v0.2.08+ retryContext = {minutesSinceUserMsg, lastProactivePushAt, minutesSinceLastPush,
+  //                          lastMsgIsUser, consecutiveUnreplied} — 来自 runProactiveTick
+  //   让 prompt 知道"上次推了几条 user 都没回", AI 自己决定锲而不不舍还是算了
   // 调用方：runProactiveTick (前台 60s 调度) + simulateBackgroundActivity (离线 catch-up)
   // ============================================================
-  async function triggerProactiveMessage(chatId) {
+  async function triggerProactiveMessage(chatId, options = {}) {
     const chat = state.chats[chatId];
     if (!chat || chat.isGroup) return;
+    const { retryContext = null } = options;
 
     // 主动消息只受 proactiveIntervalMinutes / lastProactiveTimestamp 控制，
     // 不复用后台活动的 actionCooldownMinutes，避免被其它后台行为挡住。
@@ -1450,6 +1454,12 @@ ${stickerContext}
       const silenceHint = minutesSinceUser !== null
         ? `用户已经 ${Math.round(minutesSinceUser)} 分钟没说话了。`
         : '这是你们的第一次互动。';
+
+      // v0.2.08+: 锲而不舍 retry context — 拼到 silenceHint 后, 让 LLM 知道"上次推了几条没回"
+      let retryHint = '';
+      if (retryContext && retryContext.consecutiveUnreplied > 0) {
+        retryHint = `\n你已经主动发了 ${retryContext.consecutiveUnreplied} 条消息, user 都没回. 你可以选择: 换个角度再发一条 / 暂时不再打扰 / 换个时间再来.`;
+      }
 
       // 世界书
       let worldBookContent = '';

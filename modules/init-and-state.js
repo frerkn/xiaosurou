@@ -126,9 +126,12 @@ document.addEventListener('DOMContentLoaded', () => {
       enableCrossChat: true,              // 新增：全局跨聊天消息开关（群聊↔私聊），默认开启
       enableBackgroundActivity: false,
       backgroundActivityInterval: 60,
-      // 【2026-07-18 加】主动消息独立模块的全局配置
-      // 频率（分钟）：默认 30，用户可自行调小/调大
-      proactiveIntervalMinutes: 30,
+      // 【2026-07-18 加 / 2026-08-08 v0.2.08 改】主动消息独立模块的全局配置
+      // 巡视频率（分钟）：默认 10 — v0.2.08 设计: 老 30 分钟"主动消息频率"改成"巡视间隔"
+      //   每 10 分钟巡视一次, 问 LLM "要不要主动发" — LLM 自己决定
+      //   最坏情况"刷屏"也只能 10 分钟一次 (工程上限)
+      //   AI 是不是要发完全由人设决定 (锲而不舍但不过度刷屏)
+      proactiveIntervalMinutes: 10,
       // 【2026-08-05 加 v0.1.90 / 2026-08-06 改 v0.1.91】主动消息投递方式
       // v0.1.91 设计: 角色级总开关 (chat.settings.proactiveEnabled) = "能不能发" + 全局 mode = "用什么发"
       // 'app' = 走应用内 (老 30 分钟 scheduler, PWA 开着能用, 杀后台失效)

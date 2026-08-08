@@ -183,15 +183,16 @@
           </div>
         </div>
 
-        <!-- 应用内模式说明卡 (v0.2.07+: app 模式显示, push 模式隐藏) -->
+        <!-- 应用内模式说明卡 (v0.2.07+: app 模式显示, push 模式隐藏; v0.2.08 加巡视说明) -->
         <div class="pw-card" id="pw-app-mode-hint" style="display:none;">
           <div class="pw-card-title">📱 应用内模式说明</div>
           <div class="pw-card-body">
             <div style="font-size:13px; line-height:1.7; color:#3a3a3a;">
               当前是 <b>应用内模式</b>, <b>不需要</b>手动创建任务.<br>
-              AI 按 <b>老主动信息体系</b> 自动调度:<br>
-              • <b>频率</b>: <span id="pw-app-interval">30</span> 分钟 (在 <code>[设置 → 行为 → 主动消息频率]</code> 调整)<br>
-              • <b>冷却</b>: 从 <b>最后一条聊天消息</b> 起算 (你刚发完消息不会被打断)<br>
+              AI 按 <b>巡视机制</b> 自动调度 (v0.2.08 设计):<br>
+              • <b>巡视频率</b>: <span id="pw-app-interval">10</span> 分钟一次 (在 <code>[设置 → 行为 → 主动消息频率]</code> 调整)<br>
+              • <b>巡视逻辑</b>: user 最后一条消息距今超过间隔 → 调 LLM "要不要主动发" — LLM 自由决定<br>
+              • <b>锲而不舍</b>: AI 推了 user 没回, 巡视会告诉 LLM "已推几条没回", LLM 决定换角度再发 / 算了<br>
               • <b>范围</b>: 只在 <b>[角色设置 → 启用主动消息]</b> 打开的角色上跑<br>
               • <b>限制</b>: PWA 开着时有效, 杀后台失效 (要杀后台也能收, 切换 [🔔 系统推送])
             </div>

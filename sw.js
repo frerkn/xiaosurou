@@ -309,6 +309,22 @@
 //   mcp.amap.com/mcp 的 maps_geo 端点坏 (返 ENGINE_RESPONSE_DATA_ERROR),
 //   在 callTool 检测到 maps_geo + result.isError 时自动 fallback 到
 //   https://restapi.amap.com/v3/geocode/geo?address=...&key=server.bearerToken
+// 2026-08-08 v0.2.08: bump CACHE_VERSION 强制清缓存（AI 巡视机制 + push 模式也跑巡视 —
+//   user 反馈两个设计洞见:
+//   1) "AI 应该巡视, 而不是只等对话触发" — AI 定期(10 分钟)问自己"要不要主动发", LLM 决定
+//   2) "锲而不舍" — AI 推了 user 没回, 应该让 LLM 决定"换角度再发/算了", 由人设驱动
+//   init-and-state.js proactiveIntervalMinutes 默认 30 → 10 (巡视频率, "再怎么刷也得 10 分钟一次")
+//   background-activity.js startProactiveScheduler 拆 mode==='app' 拦截, push 模式也跑巡视
+//   background-activity.js runProactiveTick 加 retryContext 收集 (lastProactivePushAt, consecutiveUnreplied, minutesSinceUserMsg)
+//     触发时分发: app 模式 triggerProactiveMessage(chatId, {retryContext}) / push 模式 triggerProactivePushMessage
+//   background-activity.js 新增 triggerProactivePushMessage: 调 push-server /api/proactive-patrol
+//   ai-group.js triggerProactiveMessage 接受 retryContext 选项, 拼到 silenceHint 后 ("你已经主动发了 N 条没回")
+//   push-server 加 /api/proactive-patrol 端点 (v0.2.08 新增):
+//     一次 LLM 调用决定"action: send/skip" + 生成消息内容, 推系统通知
+//     存 proactive_patrol_state 表: (user_id, chat_id) → last_send_at, send_count, consecutive_unreplied
+//   push-server init-db.sql 加 proactive_patrol_state 表 + index
+//   proactive-wake-ui.js 应用内模式说明卡 加"巡视机制"说明 (10 分钟 + 锲而不舍)
+//   不给频率约束 (4h/6h/2h), 不给 retry 上限, 完全由 LLM 人设决定 (符合 user "按人设决定" + "留一个半夜别发就行" 偏好)
 // 2026-08-08 v0.2.07: bump CACHE_VERSION 强制清缓存（修应用内模式 + push 模式完全断裂 —
 //   background-activity.js startProactiveScheduler: 删 v0.1.91 误加的 mode !== 'app' return 拦截
 //     (老 30 分钟 scheduler 本来就该跑, mode 默认 app)
@@ -325,6 +341,7 @@
 //   教训: v0.1.91 把 "应用内" 和 "系统推送" 当二选一互斥错了 — 应该是两条独立通道
 //   教训: 不要 hard-reject 已经实现的老功能, 这次让管理页面误导 user "管理页面没任务"
 // 2026-08-08 v0.2.03: bump CACHE_VERSION 强制清缓存（修 mcp-tool-call-log 容器错位 + scroll 干扰 bug —
+const CACHE_VERSION = 'v0.2.08';
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [

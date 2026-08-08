@@ -2217,9 +2217,11 @@ ${tasksString}
   function startProactiveScheduler() {
     if (proactiveSchedulerIntervalId) return;
     // v0.2.07+: 移除 v0.1.91 误加的 mode !== 'app' return 拦截
-    // 老 30 分钟 scheduler 本来就是应用内模式, 永远应该跑 (角色级总开关在 runProactiveTick 里逐个检查)
-    // push 模式 (push-server 任务) 是另一条独立通道, 不影响老 scheduler
-    console.log('[Proactive] 启动主动消息调度器 (应用内模式, 30 分钟检查一次)');
+    // v0.2.08+: 两个模式都跑巡视 scheduler, 触发路径分发
+    //   - app 模式: triggerProactiveMessage (直接 LLM 生成 + 插 chat.history)
+    //   - push 模式: triggerProactivePushMessage (调 push-server /api/proactive-patrol, 推系统通知)
+    // 巡视频率: state.globalSettings.proactiveIntervalMinutes (默认 10 分钟, v0.2.08 改)
+    console.log(`[Proactive] 启动主动消息巡视调度器 (每 ${getProactiveIntervalMinutes()} 分钟检查一次, 命中条件就问 LLM 要不要主动发)`);
     // 首次启动：把所有 proactiveEnabled 开启的角色的 lastProactiveTimestamp 初始化为 now
     // 这样不会立即触发，而是等一个 interval 后再触发（避免启动时一窝蜂）
     for (const chat of Object.values(state.chats)) {
@@ -2242,6 +2244,90 @@ ${tasksString}
     }
   }
 
+  // v0.2.08+: push 模式巡视触发 — 调 push-server /api/proactive-patrol
+  // push-server 走 LLM 生成 + 推系统通知 (杀后台 + 锁屏也能收)
+  // retry info 一并传过去, 让 LLM 知道"上次推了几条 user 没回"
+  async function triggerProactivePushMessage(chatId, retryContext = {}) {
+    const chat = state.chats[chatId];
+    if (!chat || chat.isGroup) return;
+
+    const settings = state.globalSettings || {};
+    const pushConfig = settings.systemNotification?.pushServer || {};
+    const serverUrl = (pushConfig.serverUrl || '').replace(/\/$/, '');
+    if (!serverUrl) {
+      console.warn('[Proactive/Push] push-server URL 没配, 跳过');
+      return;
+    }
+
+    // 拿 push subscription
+    if (!navigator.serviceWorker) {
+      console.warn('[Proactive/Push] serviceWorker 不可用, 跳过');
+      return;
+    }
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      console.warn('[Proactive/Push] 还没订阅推送, 跳过 (请在 [通知 → 启用服务器推送] 开启)');
+      return;
+    }
+
+    // 拿 userId
+    const userId = state.userId || state.currentUserId || state.deviceId || 'default-user';
+
+    // 拿 LLM 配置 (push-server 内部要调 LLM 决定"要不要发" + 生成内容)
+    const aiApiUrl = settings.apiUrl || settings.mainApiUrl;
+    const aiApiKey = settings.apiKey || settings.mainApiKey;
+    const aiModel = settings.model || settings.mainModel || 'MiniMax/M3';
+    if (!aiApiUrl || !aiApiKey) {
+      console.warn('[Proactive/Push] LLM 配置不全, 跳过');
+      return;
+    }
+
+    // 拿最近 20 条对话上下文
+    let contextSummary = '';
+    if (chat && Array.isArray(chat.history) && chat.history.length > 0) {
+      const recent = chat.history.slice(-20);
+      contextSummary = recent.map(m => {
+        if (!m) return '';
+        const role = m.role === 'user' ? 'user' : (m.role === 'assistant' ? 'AI' : (m.role || '?'));
+        let text = '';
+        if (typeof m.content === 'string') text = m.content;
+        else if (Array.isArray(m.content)) text = m.content.filter(c => c && c.type === 'text').map(c => c.text || '').join('');
+        return text ? `${role}: ${text.substring(0, 200)}` : '';
+      }).filter(Boolean).join('\n');
+    }
+
+    try {
+      const res = await fetch(`${serverUrl}/api/proactive-patrol`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          chatId,
+          pushSubscription: subscription.toJSON(),
+          contactName: chat.name,
+          contactPersonality: chat.settings?.characterPersonality || null,
+          contextSummary,
+          retryContext,  // v0.2.08: 让 push-server LLM 知道"上次推了几条 user 没回"
+          aiApiUrl, aiApiKey, aiModel,  // push-server 内部调 LLM 用
+          source: 'patrol'  // 标记是巡视触发的, 不是 user 手动建的任务
+        })
+      });
+      if (!res.ok) {
+        const err = await res.text().catch(() => '');
+        console.warn(`[Proactive/Push] push-server 返 ${res.status}: ${err.substring(0, 200)}`);
+        return;
+      }
+      const data = await res.json();
+      console.log(`[Proactive/Push] ✅ ${chat.name} 巡视触发, LLM 决定: ${data.action || '(无 action)'}${data.reason ? ' (' + data.reason + ')' : ''}`);
+      // v0.2.08: 推完更新 lastProactivePushAt (不管 action 是 send/skip 都更新, 因为 LLM 看了)
+      chat.lastProactivePushAt = Date.now();
+      try { db.chats.put(chat); } catch (e) {}
+    } catch (e) {
+      console.error(`[Proactive/Push] ${chat.name} 巡视触发失败:`, e.message);
+    }
+  }
+
   async function runProactiveTick() {
     // 防并发：上一次 tick 还没跑完就跳过
     if (proactiveSchedulerInFlight) return;
@@ -2251,15 +2337,15 @@ ${tasksString}
       const intervalMs = intervalMinutes * 60 * 1000;
       const now = Date.now();
 
+      // v0.2.08+: 拿到投递模式, 决定触发路径
+      const mode = state.globalSettings?.proactiveDeliveryMode || 'app';
+
       for (const chat of Object.values(state.chats)) {
         // 过滤：非群聊 + 角色级主动消息开启
         if (chat.isGroup) continue;
         if (chat.settings?.proactiveEnabled !== true) continue;
 
-        // 【2026-07-21 改】计时基准 = chat.history 最后一条消息的时间戳（不再用 lastProactiveTimestamp）
-        // 原因：lastProactiveTimestamp 是"上次发主动消息的时间"，用户跟 AI 正常聊完之后不会更新，
-        //      下次打开 app 调度器会认为"已经 14 小时没主动发了" → 立即发主动消息，打断用户看历史。
-        //      改成"最后一条消息"后：用户刚发完消息 → 计时重置 → 在聊天框停留不会被打断。
+        // 计时基准 = chat.history 最后一条消息的时间戳
         const lastMsg = (chat.history && chat.history.length > 0) ? chat.history[chat.history.length - 1] : null;
         // 首次互动（chat.history 为空）不主动发，避免打开新 chat 就立刻插嘴
         if (!lastMsg) continue;
@@ -2267,11 +2353,52 @@ ${tasksString}
         const elapsed = now - lastMsgTime;
         if (elapsed < intervalMs) continue;
 
+        // v0.2.08+: 收集 retry info 给 LLM
+        // - 距离 user 最后一条消息多久
+        // - 上次 AI 主动推是什么时候
+        // - 上次推完之后 user 回了没 (chat.history 最后一条是不是 user 发的)
+        // - 连推几次 user 都没回
+        const lastMsgIsUser = lastMsg.role === 'user';
+        const lastProactivePushAt = chat.lastProactivePushAt || 0;
+        const sinceLastPush = lastProactivePushAt > 0 ? now - lastProactivePushAt : null;
+        let consecutiveUnreplied = 0;
+        if (lastProactivePushAt > 0 && !lastMsgIsUser) {
+          // 上次推过, user 还没回 → 算连推次数
+          // 简单算法: 从后往前数 chat.history, 数 AI 主动消息有几条 user 后面没接
+          for (let i = chat.history.length - 1; i >= 0; i--) {
+            const m = chat.history[i];
+            if (!m) break;
+            if (m.role === 'user') break;  // user 回了一条, 计数停
+            if (m.role === 'assistant' && m.timestamp >= lastProactivePushAt) {
+              consecutiveUnreplied++;
+            } else {
+              break;
+            }
+          }
+        }
+        const retryContext = {
+          minutesSinceUserMsg: Math.round(elapsed / 60000),
+          lastProactivePushAt,
+          minutesSinceLastPush: sinceLastPush !== null ? Math.round(sinceLastPush / 60000) : null,
+          lastMsgIsUser,
+          consecutiveUnreplied
+        };
+
         // 触发主动消息
-        console.log(`[Proactive] 角色 "${chat.name}" 已 ${Math.round(elapsed / 60000)} 分钟未主动发消息 (设置频率 ${intervalMinutes} 分钟)，触发主动消息...`);
+        console.log(`[Proactive] 角色 "${chat.name}" 巡视 (设置频率 ${intervalMinutes} 分钟, mode=${mode}, user 已 ${Math.round(elapsed / 60000)} 分钟没说话${consecutiveUnreplied > 0 ? `, AI 连推 ${consecutiveUnreplied} 次没回` : ''}), 触发 LLM 决定...`);
         try {
-          if (typeof triggerProactiveMessage === 'function') {
-            await triggerProactiveMessage(chat.id);
+          if (mode === 'push') {
+            if (typeof triggerProactivePushMessage === 'function') {
+              await triggerProactivePushMessage(chat.id, retryContext);
+            }
+          } else {
+            // app 模式: 直接调 LLM 生成 + 插消息
+            if (typeof triggerProactiveMessage === 'function') {
+              await triggerProactiveMessage(chat.id, { retryContext });
+              // 推完更新 lastProactivePushAt (跟 push 模式一致, 用于下个 tick 算 retry)
+              chat.lastProactivePushAt = Date.now();
+              try { db.chats.put(chat); } catch (e) {}
+            }
           }
         } catch (e) {
           console.error(`[Proactive] 角色 "${chat.name}" 主动消息触发失败:`, e);
@@ -2303,7 +2430,8 @@ ${tasksString}
   // 原文件没暴露导致 init 走不到。顺手补上，与 bind 一起暴露保持一致。
   window.loadBackgroundKeepAliveSettings = loadBackgroundKeepAliveSettings;
   window.bindBackgroundKeepAliveEvents = bindBackgroundKeepAliveEvents;
-  // 主动消息调度器 (2026-07-18 加)
+  // 主动消息调度器 (2026-07-18 加 / 2026-08-08 v0.2.08 加 push 模式巡视)
   window.startProactiveScheduler = startProactiveScheduler;
   window.stopProactiveScheduler = stopProactiveScheduler;
   window.runProactiveTick = runProactiveTick;
+  window.triggerProactivePushMessage = triggerProactivePushMessage;
