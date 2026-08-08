@@ -2275,11 +2275,13 @@ ${tasksString}
     const userId = state.userId || state.currentUserId || state.deviceId || 'default-user';
 
     // 拿 LLM 配置 (push-server 内部要调 LLM 决定"要不要发" + 生成内容)
-    const aiApiUrl = settings.apiUrl || settings.mainApiUrl;
-    const aiApiKey = settings.apiKey || settings.mainApiKey;
-    const aiModel = settings.model || settings.mainModel || 'MiniMax/M3';
+    // v0.2.09 修: 主 API 在 state.apiConfig, 之前 v0.2.08 读 globalSettings 是错的
+    const apiConfig = state.apiConfig || {};
+    const aiApiUrl = apiConfig.apiUrl || apiConfig.proxyUrl || settings.apiUrl || settings.mainApiUrl;
+    const aiApiKey = apiConfig.apiKey || apiConfig.mainApiKey || settings.apiKey || settings.mainApiKey;
+    const aiModel = apiConfig.model || apiConfig.mainModel || settings.model || settings.mainModel || 'MiniMax/M3';
     if (!aiApiUrl || !aiApiKey) {
-      console.warn('[Proactive/Push] LLM 配置不全, 跳过');
+      console.warn('[Proactive/Push] LLM 配置不全, 跳过 (apiConfig 也没有, 你配的 LLM 走了别处?)');
       return;
     }
 

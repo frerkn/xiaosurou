@@ -381,12 +381,15 @@
     }
 
     // 2. 拿 user LLM 配置 (push-server 内部 LLM 用)
+    // v0.2.09 修: 之前 v0.2.06 读 globalSettings.apiUrl 是错的, 主 API 实际在 state.apiConfig
+    // (user 截图 "user 没配 LLM" 误报 → 实际 user 在 API 设置配了, 字段读错)
+    const apiConfig = state.apiConfig || {};
     const settings = state.globalSettings || {};
-    const aiApiUrl = settings.apiUrl || settings.mainApiUrl;
-    const aiApiKey = settings.apiKey || settings.mainApiKey;
-    const aiModel = settings.model || settings.mainModel || 'MiniMax/M3';
+    const aiApiUrl = apiConfig.apiUrl || apiConfig.proxyUrl || settings.apiUrl || settings.mainApiUrl;
+    const aiApiKey = apiConfig.apiKey || apiConfig.mainApiKey || settings.apiKey || settings.mainApiKey;
+    const aiModel = apiConfig.model || apiConfig.mainModel || settings.model || settings.mainModel || 'MiniMax/M3';
     if (!aiApiUrl || !aiApiKey) {
-      throw new Error('user 没配 LLM (globalSettings.apiUrl/apiKey)');
+      throw new Error('user 没配 LLM (state.apiConfig.apiUrl/apiKey)');
     }
 
     // 3. 拿 push server URL

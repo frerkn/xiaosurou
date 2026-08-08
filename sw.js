@@ -309,6 +309,18 @@
 //   mcp.amap.com/mcp 的 maps_geo 端点坏 (返 ENGINE_RESPONSE_DATA_ERROR),
 //   在 callTool 检测到 maps_geo + result.isError 时自动 fallback 到
 //   https://restapi.amap.com/v3/geocode/geo?address=...&key=server.bearerToken
+// 2026-08-08 v0.2.09: bump CACHE_VERSION 强制清缓存（修 2 个 v0.2.08 误报 bug —
+//   notification-battery.js line 619-620: 删 v0.2.02 时代遗留的 "VAPID 公钥未发现" 警告
+//     (永远触发, getConfiguredPushApplicationServerKey() 永远返 null, 因为 v0.2.02 后
+//     VAPID 公钥改成 fetch /api/vapid-public-key, UI 没字段了)
+//   proactive-wake.js createTask line 386-392: 修 v0.2.06 时代写错的字段读取
+//     (原来读 state.globalSettings.apiKey 是错的, 主 API 实际在 state.apiConfig.apiKey,
+//     导致 "user 没配 LLM" 误报, 推送任务永远创建失败)
+//   background-activity.js triggerProactivePushMessage line 2304-2310: 同样字段错
+//     (v0.2.08 加巡视 push 模式时复制了 proactive-wake.js 的错)
+//   root cause: proactive-wake.js 一直读 state.globalSettings 但 330 主 API 配在
+//     state.apiConfig (index.html input fields 'api-key'/'api-base-url'/'model' 直接写到
+//     state.apiConfig, 不进 globalSettings), 永远拿不到. 修法: 优先 apiConfig, fallback globalSettings
 // 2026-08-08 v0.2.08: bump CACHE_VERSION 强制清缓存（AI 巡视机制 + push 模式也跑巡视 —
 //   user 反馈两个设计洞见:
 //   1) "AI 应该巡视, 而不是只等对话触发" — AI 定期(10 分钟)问自己"要不要主动发", LLM 决定
@@ -341,7 +353,7 @@
 //   教训: v0.1.91 把 "应用内" 和 "系统推送" 当二选一互斥错了 — 应该是两条独立通道
 //   教训: 不要 hard-reject 已经实现的老功能, 这次让管理页面误导 user "管理页面没任务"
 // 2026-08-08 v0.2.03: bump CACHE_VERSION 强制清缓存（修 mcp-tool-call-log 容器错位 + scroll 干扰 bug —
-const CACHE_VERSION = 'v0.2.08';
+const CACHE_VERSION = 'v0.2.09';
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [

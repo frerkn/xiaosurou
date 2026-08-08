@@ -616,9 +616,10 @@ async function unsubscribeFromPushServer() {
         try {
           const pushResult = await tryCreatePushSubscription(registration);
           messages.push(pushResult.message);
-          if (config.pushServer?.enabled && !getConfiguredPushApplicationServerKey()) {
-            messages.push('服务器推送已开启，但未发现现有订阅上传逻辑或 VAPID 公钥配置');
-          }
+          // v0.2.09 修: 删 v0.2.02 时代遗留的 "VAPID 公钥未发现" 警告
+          //   永远触发 (getConfiguredPushApplicationServerKey() 永远返 null, 因为 v0.2.02 后
+          //   VAPID 公钥改成 fetch /api/vapid-public-key, UI 没字段了)
+          //   真实状态看 tryCreatePushSubscription 返回的 message (成功/失败/原因)
         } catch (error) {
           messages.push('Push 订阅检查失败：' + getReadableNotificationError(error));
         }
