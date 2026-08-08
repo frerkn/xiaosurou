@@ -2216,14 +2216,10 @@ ${tasksString}
 
   function startProactiveScheduler() {
     if (proactiveSchedulerIntervalId) return;
-    // v0.1.91+ 渠道选择: 老 30 分钟 scheduler 只在 'app' 渠道启动
-    // 角色级总开关 chat.settings.proactiveEnabled 在 runProactiveTick 里检查
-    const mode = state.globalSettings?.proactiveDeliveryMode || 'app';
-    if (mode !== 'app') {
-      console.log(`[Proactive] 当前投递模式 "${mode}" 是系统推送, 跳过启动 app scheduler`);
-      return;
-    }
-    console.log('[Proactive] 启动主动消息调度器');
+    // v0.2.07+: 移除 v0.1.91 误加的 mode !== 'app' return 拦截
+    // 老 30 分钟 scheduler 本来就是应用内模式, 永远应该跑 (角色级总开关在 runProactiveTick 里逐个检查)
+    // push 模式 (push-server 任务) 是另一条独立通道, 不影响老 scheduler
+    console.log('[Proactive] 启动主动消息调度器 (应用内模式, 30 分钟检查一次)');
     // 首次启动：把所有 proactiveEnabled 开启的角色的 lastProactiveTimestamp 初始化为 now
     // 这样不会立即触发，而是等一个 interval 后再触发（避免启动时一窝蜂）
     for (const chat of Object.values(state.chats)) {

@@ -263,20 +263,28 @@
 
     // ========== 找最近一条 AI 消息气泡, 紧跟其后追加日志行 (实时用) ==========
     function appendAfterLastMessage(lineEl) {
-        const bubbles = document.querySelectorAll('.message-bubble[data-timestamp]');
+        const container = getChatContainer();
+        if (!container) return;
+        // 限定在 chat-messages 容器内查气泡 (避免拿到 watch-together 等其他容器)
+        const bubbles = container.querySelectorAll('.message-bubble[data-timestamp]');
         const lastBubble = bubbles[bubbles.length - 1];
         if (!lastBubble) {
-            const chatArea = document.querySelector('.chat-area, .chat-messages, .messages') || document.body;
-            chatArea.appendChild(lineEl);
+            // 找不到 lastBubble (新聊天没消息), 加到 container 末尾 (typingIndicator 之前如果有)
+            const typingIndicator = container.querySelector('#typing-indicator');
+            if (typingIndicator) {
+                container.insertBefore(lineEl, typingIndicator);
+            } else {
+                container.appendChild(lineEl);
+            }
             return;
         }
-        const allGroups = document.querySelectorAll('.mcp-tool-log-group');
+        // 限定在 chat-messages 容器内查 group
+        const allGroups = container.querySelectorAll('.mcp-tool-log-group');
         if (allGroups.length > 0) {
             const lastGroup = allGroups[allGroups.length - 1];
             const pos = lastBubble.compareDocumentPosition(lastGroup);
             if (pos & 4) { // DOCUMENT_POSITION_FOLLOWING
                 lastGroup.appendChild(lineEl);
-                scrollChatToBottom();
                 return;
             }
         }
@@ -289,12 +297,10 @@
         } else {
             lastBubble.parentNode.insertBefore(lineEl, lastBubble.nextSibling);
         }
-        scrollChatToBottom();
-    }
-
-    function scrollChatToBottom() {
-        const scroller = document.querySelector('.chat-area, .chat-messages, .messages, .chat-scroll');
-        if (scroller) scroller.scrollTop = scroller.scrollHeight;
+        // 2026-08-08 v0.1.78: 删 scrollChatToBottom() 调用
+        // 原因: 330 appendMessage 自己会 messagesContainer.scrollTop = scrollHeight 滚到底,
+        //       我多调反而跟 330 滚动逻辑冲突, 可能搞乱时序
+        //       (之前用 .chat-area/.chat-messages/.messages 类名选择器, 都不存在, 啥也不做, 但保留调用是隐患)
     }
 
     // ========== 历史 log 重渲染 (持久化恢复) ==========
@@ -308,9 +314,9 @@
         const container = getChatContainer();
         if (!container) return 0;
 
-        // 收集已渲染的 ts
+        // 收集已渲染的 ts (限定在 chat-messages 容器, 避免拿到 watch-together 等其他容器)
         const existingTs = new Set();
-        const existingLines = document.querySelectorAll('.mcp-tool-log-line');
+        const existingLines = container.querySelectorAll('.mcp-tool-log-line');
         existingLines.forEach(function (el) {
             const ts = el.getAttribute('data-ts');
             if (ts) existingTs.add(String(ts));

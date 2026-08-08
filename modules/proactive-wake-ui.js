@@ -183,8 +183,26 @@
           </div>
         </div>
 
-        <!-- 任务列表卡片 -->
-        <div class="pw-card">
+        <!-- 应用内模式说明卡 (v0.2.07+: app 模式显示, push 模式隐藏) -->
+        <div class="pw-card" id="pw-app-mode-hint" style="display:none;">
+          <div class="pw-card-title">📱 应用内模式说明</div>
+          <div class="pw-card-body">
+            <div style="font-size:13px; line-height:1.7; color:#3a3a3a;">
+              当前是 <b>应用内模式</b>, <b>不需要</b>手动创建任务.<br>
+              AI 按 <b>老主动信息体系</b> 自动调度:<br>
+              • <b>频率</b>: <span id="pw-app-interval">30</span> 分钟 (在 <code>[设置 → 行为 → 主动消息频率]</code> 调整)<br>
+              • <b>冷却</b>: 从 <b>最后一条聊天消息</b> 起算 (你刚发完消息不会被打断)<br>
+              • <b>范围</b>: 只在 <b>[角色设置 → 启用主动消息]</b> 打开的角色上跑<br>
+              • <b>限制</b>: PWA 开着时有效, 杀后台失效 (要杀后台也能收, 切换 [🔔 系统推送])
+            </div>
+            <div style="margin-top:10px; font-size:12px; color:#8B7280;">
+              💡 Scheduler 启动状态: <span id="pw-app-scheduler-status">检查中...</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 任务列表卡片 (v0.2.07+: app 模式隐藏, push 模式显示) -->
+        <div class="pw-card pw-card-task-list">
           <div class="pw-card-title">📋 已创建任务 <span id="pw-task-count" class="pw-task-count"></span></div>
           <div class="pw-card-body">
             <div id="pw-task-list" class="pw-task-list">
@@ -349,6 +367,8 @@
     });
     // 同步 chat 设置页的角色级开关 (如果已打开)
     syncOldProactiveSwitch(current);
+    // v0.2.07+: 根据 mode 切换 UI (app 模式隐藏任务列表 + 显示说明卡, push 模式反之)
+    updateUiForDeliveryMode(current);
 
     // 实时保存 (change 触发)
     radios.forEach(radio => {
@@ -364,6 +384,8 @@
         } catch (e) {
           console.warn('[proactive-wake-ui] 保存投递方式失败:', e.message);
         }
+        // v0.2.07+: 切 mode 时立即更新 UI (隐藏/显示 任务列表 + 说明卡)
+        updateUiForDeliveryMode(mode);
         // 立即重启老功能 scheduler (mode 变了)
         try {
           if (typeof window.stopProactiveScheduler === 'function') window.stopProactiveScheduler();
@@ -388,6 +410,53 @@
         else alert(tip);
       });
     });
+  }
+
+  // ===== v0.2.07+: 根据投递方式显示不同 UI =====
+  // app 模式: 隐藏 [任务列表] + [+ 创建任务] 按钮; 显示 [应用内模式说明卡]
+  // push 模式: 显示 [任务列表] + [+ 创建任务] 按钮; 隐藏 [应用内模式说明卡]
+  // + 同步间隔数字 + scheduler 状态
+  function updateUiForDeliveryMode(mode) {
+    const taskListCard = document.querySelector('.pw-card-task-list');
+    const appHint = document.getElementById('pw-app-mode-hint');
+    const createBtn = document.getElementById('pw-create-task-btn');
+    const refreshBtn = document.getElementById('pw-refresh-tasks-btn');
+
+    if (mode === 'app') {
+      if (taskListCard) taskListCard.style.display = 'none';
+      if (createBtn) createBtn.style.display = 'none';
+      if (refreshBtn) refreshBtn.style.display = 'none';
+      if (appHint) appHint.style.display = '';
+    } else {  // push
+      if (taskListCard) taskListCard.style.display = '';
+      if (createBtn) createBtn.style.display = '';
+      if (refreshBtn) refreshBtn.style.display = '';
+      if (appHint) appHint.style.display = 'none';
+    }
+
+    // 同步说明卡里的间隔数字
+    const intervalEl = document.getElementById('pw-app-interval');
+    if (intervalEl) {
+      const m = Number(window.state?.globalSettings?.proactiveIntervalMinutes) || 30;
+      intervalEl.textContent = String(m);
+    }
+    // 同步 scheduler 启动状态
+    const statusEl = document.getElementById('pw-app-scheduler-status');
+    if (statusEl) {
+      // 查 scheduler intervalId 状态 (background-activity.js 用 module-level 变量, 我们没暴露 — 用启发式判断)
+      const intervalSet = Number(window.state?.globalSettings?.proactiveIntervalMinutes) || 0;
+      const enabled = !!window.startProactiveScheduler;
+      if (mode === 'app' && intervalSet > 0 && enabled) {
+        statusEl.innerHTML = '<b style="color:#34C759;">✅ 运行中</b> (每 60s 检查一次, 命中条件就调 LLM 主动发)';
+        statusEl.style.color = '';
+      } else if (mode === 'app' && intervalSet === 0) {
+        statusEl.innerHTML = '<b style="color:#FF9500;">⚠️ 间隔设为 0, scheduler 没启动</b> (在 [设置 → 行为 → 主动消息频率] 调整)';
+        statusEl.style.color = '';
+      } else {
+        statusEl.innerHTML = '<span style="color:#8B7280;">未启动 (push 模式不需要)</span>';
+        statusEl.style.color = '';
+      }
+    }
   }
 
   // ===== 同步 chat 设置页的角色级 "启用主动消息" 开关 (v0.1.91+) =====
@@ -488,6 +557,13 @@
 
   // ===== 加载任务列表 =====
   async function loadTaskList() {
+    // v0.2.07+: 应用内模式不需要 push-server 任务列表 (任务列表卡已隐藏)
+    const mode = window.state?.globalSettings?.proactiveDeliveryMode || 'app';
+    if (mode === 'app') {
+      console.log('[proactive-wake-ui] 应用内模式, 跳过查 push-server 任务列表');
+      return;
+    }
+
     const listEl = document.getElementById('pw-task-list');
     const countEl = document.getElementById('pw-task-count');
     if (!listEl) return;

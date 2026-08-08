@@ -1310,17 +1310,10 @@
         } else {
           console.warn('[hookProactiveWake] ProactiveWake 模块未加载');
         }
-        // 替换为 visible text (或者 visible_hint=false 时移除)
-        if (msg.visible_hint === false) {
-          msg._pwRemove = true;  // 标记移除
-        } else {
-          msg.type = 'text';
-          const recurrenceText = msg.recurrenceType === 'ai-decided' ? 'AI 决定时间'
-                                : msg.recurrenceType === 'daily' ? '每天'
-                                : msg.recurrenceType === 'weekly' ? '每周'
-                                : msg.recurrenceType === 'none' ? '只发一次' : '';
-          msg.content = `🌸（我已悄悄设了个提醒：${msg.userPrompt || '...'}${recurrenceText ? '，' + recurrenceText : ''}）`;
-        }
+        // 永远静默: create_push_task 是 AI 主动消息的幕后触发, 物理上不让 user 在 chat 里看到任何气泡
+        // 原因: 活人感来自"AI 突然想起你", 看到"🌸已悄悄设提醒"就直接破坏体验
+        // 双保险: 不管 AI 传 visible_hint=true 还是 false, 这里都强制 _pwRemove
+        msg._pwRemove = true;
       }
     }
     // 过滤掉 _pwRemove 的

@@ -1,5 +1,28 @@
 // Service Worker file (sw.js)
 // Whitelist cache strategy: cache only known static assets; API requests pass through.
+// 2026-08-08 v0.2.03: bump CACHE_VERSION 强制清缓存（修 mcp-tool-call-log 容器错位 + scroll 干扰 bug —
+//
+//   js/mcp-tool-call-log.js 4 处修复:
+//
+//   1) appendAfterLastMessage 找 lastBubble 失败时 (新聊天没消息), fallback 用 '.chat-area, .chat-messages, .messages' (类名),
+//      但 330 实际只有 #chat-messages (id, 唯一) — 类名全找不到, 退到 document.body, lineEl 被加到 body 末尾
+//      修法: 改用 getChatContainer() (#chat-messages), 找不到时插到 typingIndicator 之前 (跟 330 appendMessage 行为一致)
+//
+//   2) scrollChatToBottom 用 '.chat-area, .chat-messages, .messages, .chat-scroll' (类名) — 同样全找不到,
+//      scroller 是 null, 啥也不做 (虽然没生效, 但保留调用是隐患, 跟 330 滚动逻辑时序冲突)
+//      修法: 删 scrollChatToBottom 调用 + 函数 (死代码)。330 appendMessage 自己会 messagesContainer.scrollTop = scrollHeight
+//
+//   3) renderHistoricalLogs 用 document.querySelectorAll('.mcp-tool-log-line') 全局查, 可能拿到 watch-together 等其他容器的 line
+//      修法: 改用 container.querySelectorAll() 限定在 chat-messages 容器内
+//
+//   4) appendAfterLastMessage 用 document.querySelectorAll('.message-bubble[data-timestamp]') + document.querySelectorAll('.mcp-tool-log-group')
+//      修法: 全部改用 container.querySelectorAll() 限定容器
+//
+//   根因: user 反馈"调过 MCP 后, 后续消息一发送就出现在聊天框顶部" + "严重时超出屏幕" —
+//        group 偶尔被加到 body 末尾 (1 bug), 或 scrollChatToBottom 设错对象干扰 330 滚动时序 (2 bug),
+//        或 group 误插到 watch-together 容器影响布局 (3+4 bug)。4 个 bug 一起修。
+//
+//   回归 23/23 通过 (test-tool-call-log.mjs)
 // 2026-08-06 v0.1.91: bump CACHE_VERSION 强制清缓存（角色级总开关 + 渠道独立控制 —
 //   改 v0.1.90 的"二选一互斥"为"角色级 × 渠道独立"二维控制:
 //   角色级开关 (chat.settings.proactiveEnabled) = 总开关 (能不能发)
@@ -286,9 +309,22 @@
 //   mcp.amap.com/mcp 的 maps_geo 端点坏 (返 ENGINE_RESPONSE_DATA_ERROR),
 //   在 callTool 检测到 maps_geo + result.isError 时自动 fallback 到
 //   https://restapi.amap.com/v3/geocode/geo?address=...&key=server.bearerToken
-//   把 REST 的 {geocodes: [...]} 转成 MCP 风格 {results: [...]}, AI 完全无感
-//   其他 bug 端点 (text_search/around_search/weather) 暂不兜底, 走教程引导 REST 路径
-const CACHE_VERSION = 'v0.2.02';
+// 2026-08-08 v0.2.07: bump CACHE_VERSION 强制清缓存（修应用内模式 + push 模式完全断裂 —
+//   background-activity.js startProactiveScheduler: 删 v0.1.91 误加的 mode !== 'app' return 拦截
+//     (老 30 分钟 scheduler 本来就该跑, mode 默认 app)
+//   proactive-wake.js createTask/createFixedTask: 删 v0.1.91 误加的 mode !== 'push' throw 拦截
+//     (防御性检查留给 push-server 端 subscription 校验, UI 控制入口)
+//   proactive-wake.js tryHandleAction: mode === 'app' 时静默拒绝 + 提示切老 scheduler
+//     (app 模式 AI 不需要设任务, 老 scheduler 自动跑)
+//   proactive-wake-ui.js 管理页面: 加 [应用内模式说明卡] (默认隐藏, app 模式显示) +
+//     updateUiForDeliveryMode() 根据 mode 隐藏任务列表 + [+ 创建任务] 按钮
+//   loadTaskList: app 模式 early return, 不查 push-server (任务列表卡已隐藏)
+//   核心: 恢复 330 老版 "主动信息体系" (state.globalSettings.proactiveIntervalMinutes 频率 +
+//     chat.settings.proactiveEnabled 角色开关 + chat.history 最后一条消息起算冷却),
+//     push-server 任务管理是 push 模式专属 (v0.1.85+ 的设计不变)
+//   教训: v0.1.91 把 "应用内" 和 "系统推送" 当二选一互斥错了 — 应该是两条独立通道
+//   教训: 不要 hard-reject 已经实现的老功能, 这次让管理页面误导 user "管理页面没任务"
+// 2026-08-08 v0.2.03: bump CACHE_VERSION 强制清缓存（修 mcp-tool-call-log 容器错位 + scroll 干扰 bug —
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [

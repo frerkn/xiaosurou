@@ -529,8 +529,8 @@ async function main() {
             const fakeTs = ['2500', '4000', '4100'][i];
             const fakeLine = new MockElement('div');
             fakeLine.attrs = { class: 'mcp-tool-log-line', 'data-ts': fakeTs };
-            // 挂到 chatMessagesContainer (顺序按 ts)
-            chatMessagesContainer.children.push(fakeLine);
+            // 挂到 chatMessagesContainer (顺序按 ts) — 用 appendChild 设 parent, _contains 才返回 true
+            chatMessagesContainer.appendChild(fakeLine);
             _mockDoc._all.push(fakeLine);
         }
         const beforeCount = chatMessagesContainer.children.length;

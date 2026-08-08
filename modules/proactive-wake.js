@@ -354,12 +354,10 @@
     const state = window.state;
     if (!state) throw new Error('window.state 不可用');
 
-    // v0.1.91+ 渠道选择检查: 只有 'push' 时才允许创建推送任务
+    // v0.2.07+: 移除 v0.1.91 误加的 mode !== 'push' throw 拦截
+    // 设计: createTask 只服务 push 模式, 但拦截由管理页面 UI 控制 (app 模式时隐藏 [+ 创建任务] 按钮)
+    // 这里不再 hard reject — 防御性检查留给 push-server 端 (subscription 检查)
     // (角色级总开关 chat.settings.proactiveEnabled 在下面单独检查, 这里只管渠道)
-    const mode = state.globalSettings?.proactiveDeliveryMode || 'app';
-    if (mode !== 'push') {
-      throw new Error(`当前投递模式 "${mode}" 是应用内, 不能创建推送任务. 请在设置 → AI 主动消息 → 投递方式选 [🔔 系统推送]`);
-    }
 
     // 1. 拿当前 chat (优先 activeChatId)
     const activeChatId = chatId || state.activeChatId;
@@ -410,7 +408,21 @@
     const localTime = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
     const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-    // 7. 调 push-server /api/schedule-ai-task
+    // 7. 提取最近 20 条聊天历史作为 context (v0.2.05: 让 LLM 决定下次时间时能接上话)
+    let contextSummary = '';
+    if (chat && Array.isArray(chat.history) && chat.history.length > 0) {
+      const recent = chat.history.slice(-20);
+      contextSummary = recent.map(m => {
+        if (!m) return '';
+        const role = m.role === 'user' ? 'user' : (m.role === 'assistant' ? 'AI' : (m.role || '?'));
+        let text = '';
+        if (typeof m.content === 'string') text = m.content;
+        else if (Array.isArray(m.content)) text = m.content.filter(c => c && c.type === 'text').map(c => c.text || '').join('');
+        return text ? `${role}: ${text.substring(0, 200)}` : '';
+      }).filter(Boolean).join('\n');
+    }
+
+    // 8. 调 push-server /api/schedule-ai-task
     const response = await fetch(`${serverUrl}/api/schedule-ai-task`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -421,6 +433,7 @@
         contactName: finalContactName,
         contactPersonality: chat?.settings?.characterPersonality || null,
         userPrompt,
+        contextSummary,  // v0.2.05: 最近 20 条对话上下文
         recurrenceType,
         aiApiUrl,
         aiApiKey,
@@ -612,12 +625,8 @@
     const state = window.state;
     if (!state) throw new Error('window.state 不可用');
 
-    // v0.1.91+ 渠道选择检查: 只有 'push' 时才允许创建推送任务
+    // v0.2.07+: 移除 v0.1.91 误加的 mode !== 'push' throw 拦截 (同 createTask, 由 UI 控制)
     // (角色级总开关 chat.settings.proactiveEnabled 在下面单独检查, 这里只管渠道)
-    const mode = state.globalSettings?.proactiveDeliveryMode || 'app';
-    if (mode !== 'push') {
-      throw new Error(`当前投递模式 "${mode}" 是应用内, 不能创建推送任务. 请在设置 → AI 主动消息 → 投递方式选 [🔔 系统推送]`);
-    }
 
     const activeChatId = chatId || state.activeChatId;
     const chat = activeChatId ? state.chats?.[activeChatId] : null;
@@ -688,11 +697,12 @@
         return activeId ? window.state.chats?.[activeId] : null;
       })();
 
-      // v0.1.91+ 渠道选择检查: 只有 'push' 时 AI 才能创建推送任务
-      // (角色级总开关 chat.settings.proactiveEnabled 在下面单独检查, 这里只管渠道)
+      // v0.2.07+: 应用内模式 (默认) 静默拒绝 — 应用内不需要 AI 设任务, 老 scheduler 会自动跑
+      // 老 scheduler 路径: background-activity.js startProactiveScheduler (按 chat.history 最后一条消息 + interval 自动发)
+      // 要 push 模式 AI 才能创建任务 (走 push-server)
       const mode = window.state?.globalSettings?.proactiveDeliveryMode || 'app';
-      if (mode !== 'push') {
-        console.log(`${logPrefix} 当前投递模式 "${mode}" 是应用内, AI 不能创建推送任务 (设置 → AI 主动消息 → 投递方式 选 push)`);
+      if (mode === 'app') {
+        console.log(`${logPrefix} 应用内模式不需要 AI 设任务, 老 scheduler 会按 [启用主动消息] 的角色自动发 (要 AI 设任务, 切到 [🔔 系统推送])`);
         return true;  // 已处理 (拒绝也是处理), 不让 LLM 报错
       }
 
