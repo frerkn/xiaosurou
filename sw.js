@@ -352,6 +352,13 @@
 //     push-server 任务管理是 push 模式专属 (v0.1.85+ 的设计不变)
 //   教训: v0.1.91 把 "应用内" 和 "系统推送" 当二选一互斥错了 — 应该是两条独立通道
 //   教训: 不要 hard-reject 已经实现的老功能, 这次让管理页面误导 user "管理页面没任务"
+// 2026-08-08 v0.2.11: bump CACHE_VERSION 强制清缓存（补 v0.2.10 漏改的 2 处 userId fallback —
+//   v0.2.10 只改了 4 处, 漏了 proactive-wake.js 的 saveSubscription (line 528) + listTasks (line 568),
+//   这俩还在用老 fallback 'default-user' (state?.userId || state?.currentUserId || state?.deviceId || 'default-user')。
+//   真因: 你部署 v0.2.10 后, 你 / 琪琪 / 音音 点 "服务器推送" 开关 → 触发 saveSubscription → 用 'default-user' 存 → 覆盖你新 UUID 的订阅。
+//   DB 里 default-user 订阅 updated_at 13:31 (部署后 2 分钟) 就是证据。
+//   修法: 这 2 处也改 getOrCreatePushUserId()。
+//   教训: "修一个相关 bug 时, 应该顺手 review 同类 bug 模式" — v0.2.10 修串台没 review 所有 userId 取值链, 漏了 2 个。
 // 2026-08-08 v0.2.10: bump CACHE_VERSION 强制清缓存（修多 PWA 串台 bug —
 //   之前所有 push-server 操作的 userId fallback 是 'default-user' (test push) / 'anonymous' (订阅),
 //   导致多个 PWA 用户 (你 + 琪琪 + 音音) 装同一 netlify URL 时, 没配 state.userId 的全掉到 fallback,
@@ -363,7 +370,7 @@
 // 2026-08-08 v0.2.09: bump CACHE_VERSION 强制清缓存（修 v0.2.08 误报 bug —
 //   proactive-wake.js createTask + background-activity.js triggerProactivePushMessage 字段读取错 (state.globalSettings → state.apiConfig),
 //   notification-battery.js 删 v0.2.02 时代遗留的 "VAPID 未发现" 永远触发的检查。实测 web_fetch /api/vapid-public-key 返 87 字符 base64url ✅)
-const CACHE_VERSION = 'v0.2.10';
+const CACHE_VERSION = 'v0.2.11';
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [

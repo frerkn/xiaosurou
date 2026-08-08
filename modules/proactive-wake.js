@@ -523,9 +523,9 @@
       });
     }
 
-    // 保存到 push-server
+    // 保存到 push-server (v0.2.10+: 用每 PWA 唯一 UUID, 不再掉到 'default-user' fallback)
     const state = window.state;
-    const userId = state?.userId || state?.currentUserId || state?.deviceId || 'default-user';
+    const userId = getOrCreatePushUserId();
     const saveRes = await fetch(`${serverUrl}/api/save-subscription`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -565,7 +565,8 @@
   // ===== 查任务列表 =====
   async function listTasks(userId = null) {
     const state = window.state;
-    const finalUserId = userId || state?.userId || state?.currentUserId || state?.deviceId || 'default-user';
+    // v0.2.10+: 查任务列表也用每 PWA 唯一 UUID
+    const finalUserId = userId || getOrCreatePushUserId();
     const settings = state?.globalSettings || {};
     const pushConfig = settings.systemNotification?.pushServer || {};
     const serverUrl = (pushConfig.serverUrl || '').replace(/\/$/, '');
