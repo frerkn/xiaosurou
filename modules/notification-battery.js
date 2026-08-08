@@ -35,6 +35,37 @@ function urlBase64ToUint8Array(base64String) {
 }
 
 /**
+ * 获取或创建当前 PWA 的唯一 userId (v0.2.10+)
+ * ★ 关键: 同一个 netlify URL 上的不同 PWA 用户必须用不同 userId, 否则会"串台"
+ *   - 老逻辑: 用 state.onlineChatState?.userId / globalSettings?.nickname, 没配就掉到 'default-user' / 'anonymous'
+ *   - 多用户场景下, 所有人都掉到 fallback → 同一 userId → 推送全给最后订阅那个人
+ *   - 新逻辑: 每个 PWA 启动时生成自己的 UUID 存 localStorage, 永不换
+ *   - 即使卸载重装 PWA, localStorage 被清, 也会重新生成新的 UUID (新订阅)
+ * @returns {string} 唯一 userId (UUID 格式)
+ */
+function getOrCreatePushUserId() {
+  try {
+    const KEY = 'pushUserId_v1';
+    let uid = localStorage.getItem(KEY);
+    if (uid && /^[0-9a-f-]{32,}$/i.test(uid)) return uid;
+    // crypto.randomUUID 是现代浏览器/iOS PWA 都支持的
+    uid = (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : 'pwa-' + Date.now() + '-' + Math.random().toString(36).slice(2, 11);
+    localStorage.setItem(KEY, uid);
+    console.log('[服务器推送] 新 PWA 生成 pushUserId:', uid);
+    return uid;
+  } catch (e) {
+    // localStorage 异常 (隐私模式等) 退化: 用 sessionStorage + 时间戳, 至少保证本次会话内一致
+    console.warn('[服务器推送] getOrCreatePushUserId 异常, 用 session fallback:', e.message);
+    return 'pwa-fallback-' + Date.now() + '-' + Math.random().toString(36).slice(2, 11);
+  }
+}
+
+// 兼容老调用: window.getOrCreatePushUserId 也暴露, 方便其他模块直接用
+window.getOrCreatePushUserId = getOrCreatePushUserId;
+
+/**
  * 订阅服务器推送
  * @param {string} userId - 当前用户ID
  * @param {string} serverUrl - 推送服务器地址
@@ -1074,8 +1105,8 @@ async function unsubscribeFromPushServer() {
         if (enabled) {
           // 用户开启服务器推送
           try {
-            // 获取当前用户ID（从在线聊天状态中获取）
-            const userId = state.onlineChatState?.userId || state.globalSettings?.nickname || 'anonymous';
+            // 获取当前 PWA 的唯一 userId (v0.2.10+: 不用 onlineChatState/nickname, 避免多 PWA 串台)
+            const userId = getOrCreatePushUserId();
 
             // 获取服务器地址（从输入框读取，不再检查是否为空）
             let serverUrl = pushServerUrl?.value.trim() || state.globalSettings.systemNotification.pushServer.serverUrl || '';

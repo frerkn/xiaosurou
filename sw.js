@@ -352,8 +352,18 @@
 //     push-server 任务管理是 push 模式专属 (v0.1.85+ 的设计不变)
 //   教训: v0.1.91 把 "应用内" 和 "系统推送" 当二选一互斥错了 — 应该是两条独立通道
 //   教训: 不要 hard-reject 已经实现的老功能, 这次让管理页面误导 user "管理页面没任务"
-// 2026-08-08 v0.2.03: bump CACHE_VERSION 强制清缓存（修 mcp-tool-call-log 容器错位 + scroll 干扰 bug —
-const CACHE_VERSION = 'v0.2.09';
+// 2026-08-08 v0.2.10: bump CACHE_VERSION 强制清缓存（修多 PWA 串台 bug —
+//   之前所有 push-server 操作的 userId fallback 是 'default-user' (test push) / 'anonymous' (订阅),
+//   导致多个 PWA 用户 (你 + 琪琪 + 音音) 装同一 netlify URL 时, 没配 state.userId 的全掉到 fallback,
+//   串到同一 userId, 测试推送 + 巡视推送全推给同一个人 (实测 音音收所有人的)。
+//   修法: notification-battery.js 加 getOrCreatePushUserId() — 每 PWA 启动时生成 UUID 存 localStorage,
+//   永不换。4 处 (订阅/test push/createTask/createFixedTask/triggerProactivePushMessage) 全改用这个 UUID。
+//   教训: 多 PWA 同 URL 场景, fallback 必须是 per-device 唯一值 (UUID), 永远不能共享字符串 (如 'default-user')
+//   教训: 之前没暴露 per-device 唯一 ID 是设计漏洞, 必须 localStorage + crypto.randomUUID 兜底)
+// 2026-08-08 v0.2.09: bump CACHE_VERSION 强制清缓存（修 v0.2.08 误报 bug —
+//   proactive-wake.js createTask + background-activity.js triggerProactivePushMessage 字段读取错 (state.globalSettings → state.apiConfig),
+//   notification-battery.js 删 v0.2.02 时代遗留的 "VAPID 未发现" 永远触发的检查。实测 web_fetch /api/vapid-public-key 返 87 字符 base64url ✅)
+const CACHE_VERSION = 'v0.2.10';
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [

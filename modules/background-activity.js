@@ -2271,8 +2271,8 @@ ${tasksString}
       return;
     }
 
-    // 拿 userId
-    const userId = state.userId || state.currentUserId || state.deviceId || 'default-user';
+    // 拿 userId (v0.2.10+: 每 PWA 唯一 UUID, 防止多用户串台)
+    const userId = getOrCreatePushUserId();
 
     // 拿 LLM 配置 (push-server 内部要调 LLM 决定"要不要发" + 生成内容)
     // v0.2.09 修: 主 API 在 state.apiConfig, 之前 v0.2.08 读 globalSettings 是错的

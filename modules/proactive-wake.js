@@ -402,8 +402,8 @@
     const subscription = await registration.pushManager.getSubscription();
     if (!subscription) throw new Error('还没订阅推送, 请先在通知推送栏启用');
 
-    // 5. 拿 userId
-    const userId = state.userId || state.currentUserId || state.deviceId || 'default-user';
+    // 5. 拿 userId (v0.2.10+: 每 PWA 唯一 UUID, 防止串台)
+    const userId = getOrCreatePushUserId();
     if (!userId) throw new Error('userId 找不到');
 
     // 6. 拿 user 当地当前时间
@@ -592,7 +592,9 @@
   // ===== 发测试推送 (fixed 模式 - 立即测试推送链路) =====
   async function sendTestPush(options = {}) {
     const state = window.state;
-    const userId = state?.userId || state?.currentUserId || state?.deviceId || 'default-user';
+    // v0.2.10+: 用每 PWA 唯一 UUID, 不用 state.userId/currentUserId/deviceId + 'default-user' fallback
+    //   老逻辑会导致多 PWA 串台: user 1 没配 userId 掉到 'default-user', user 2 也一样 → 全推给同一个订阅
+    const userId = getOrCreatePushUserId();
     const settings = state?.globalSettings || {};
     const pushConfig = settings.systemNotification?.pushServer || {};
     const serverUrl = (pushConfig.serverUrl || '').replace(/\/$/, '');
@@ -651,7 +653,7 @@
     const subscription = await registration.pushManager.getSubscription();
     if (!subscription) throw new Error('还没订阅推送, 请先订阅');
 
-    const userId = state.userId || state.currentUserId || state.deviceId || 'default-user';
+    const userId = getOrCreatePushUserId(); // v0.2.10+: 每 PWA 唯一 UUID, 防止串台
 
     // 默认 1 分钟后发
     const finalFirstSendTime = firstSendTime || new Date(Date.now() + 60 * 1000).toISOString();
