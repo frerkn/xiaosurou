@@ -532,7 +532,8 @@
     const saveRes = await fetch(`${serverUrl}/api/save-subscription`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, subscription: subscription.toJSON() })
+      // v0.2.15.1 改: 手动构造 pushSubscription (修 ByteString), 只 endpoint + keys.p256dh + keys.auth
+    body: JSON.stringify({ userId, subscription: (() => { const s = subscription.toJSON(); return { endpoint: s.endpoint, keys: { p256dh: s.keys.p256dh, auth: s.keys.auth } }; })() })
     });
     if (!saveRes.ok) {
       const err = await saveRes.text();

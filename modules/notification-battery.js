@@ -120,7 +120,9 @@ async function subscribeToPushServer(userId, serverUrl) {
       },
       body: JSON.stringify({
         userId: userId,
-        subscription: subscription.toJSON()
+        // v0.2.15.1 改: 手动构造 pushSubscription (修 ByteString), 只 endpoint + keys.p256dh + keys.auth
+        //   砍掉 iOS Safari PWA 模式 subscription.toJSON() 返回的非 ASCII 额外字段
+        subscription: (() => { const s = subscription.toJSON(); return { endpoint: s.endpoint, keys: { p256dh: s.keys.p256dh, auth: s.keys.auth } }; })()
       })
     });
 
