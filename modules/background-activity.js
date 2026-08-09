@@ -2309,7 +2309,8 @@ ${tasksString}
           chatId,
           // v0.2.15: 手动构造 pushSubscription, 砍掉 iOS Safari PWA 模式 toJSON() 的非 ASCII 字段
           // 根因: V8 ByteString 错位 (character at index 7 value 20320/你字), 来自 subscription.toJSON() 的额外字段
-          pushSubscription: (() => { const s = subscription.toJSON(); return { endpoint: s.endpoint, keys: { p256dh: s.keys.p256dh, auth: s.keys.auth } }; })(),
+          // v0.2.15.2 改: 强制过滤非 ASCII 字符 (修 iOS Safari PWA 字段值本身污染 ByteString)
+          pushSubscription: (() => { const s = subscription.toJSON(); const e = String(s.endpoint || '').replace(/[^\x00-\x7F]/g, ''); const p = String(s.keys?.p256dh || '').replace(/[^\x00-\x7F]/g, ''); const a = String(s.keys?.auth || '').replace(/[^\x00-\x7F]/g, ''); return { endpoint: e, keys: { p256dh: p, auth: a } }; })(),
           contactName: chat.name,
           contactPersonality: chat.settings?.characterPersonality || null,
           contextSummary,

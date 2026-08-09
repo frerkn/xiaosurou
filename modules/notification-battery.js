@@ -112,7 +112,61 @@ async function subscribeToPushServer(userId, serverUrl) {
       console.log('[服务器推送] 已创建订阅 (Uint8Array fallback)');
     }
 
-    // 5. 将订阅信息发送到服务器
+    // 5. v0.2.15.2 改: 强制过滤非 ASCII 字符 + 坏订阅自动重新订阅 (修 iOS Safari PWA 字段值本身污染 ByteString 真因)
+    //   真凶: iOS Safari PWA 模式 subscription.toJSON() 返回的 endpoint / keys.p256dh / keys.auth 本身可能含非 ASCII 字符
+    //         (不是额外字段污染, 是字段值污染 — "你"字 0x4F60=20320 塞进 keys 字段)
+    //   V8 ByteString 错 (character at index 7 value 20320) 来自 web-push 内部 atob() 对非 ASCII keys 做 ToString
+    //   修法: 1) 提取 endpoint/keys.p256dh/keys.auth, 2) 用 [^\x00-\x7F] 过滤非 ASCII 字符,
+    //         3) 如过滤后字符串变短/为空 = 坏订阅, 自动 unsubscribe + 重新 subscribe (最多 3 次),
+    //         4) 仍坏则抛错让 user 联系开发者
+    const cleanPushSub = (rawSub) => {
+      const e = String(rawSub.endpoint || '').replace(/[^\x00-\x7F]/g, '');
+      const p = String(rawSub.keys?.p256dh || '').replace(/[^\x00-\x7F]/g, '');
+      const a = String(rawSub.keys?.auth || '').replace(/[^\x00-\x7F]/g, '');
+      return { endpoint: e, keys: { p256dh: p, auth: a } };
+    };
+    const isCorrupted = (clean, raw) => {
+      return !clean.endpoint || !clean.keys.p256dh || !clean.keys.auth ||
+        clean.endpoint !== String(raw.endpoint || '') ||
+        clean.keys.p256dh !== String(raw.keys?.p256dh || '') ||
+        clean.keys.auth !== String(raw.keys?.auth || '');
+    };
+    let rawJson = subscription.toJSON();
+    let cleanSub = cleanPushSub(rawJson);
+    if (isCorrupted(cleanSub, rawJson)) {
+      console.warn('[服务器推送] iOS Safari PWA 订阅污染 (字段值含非 ASCII), 自动重新订阅...', { rawEndpoint: rawJson.endpoint, rawP256dhLen: String(rawJson.keys?.p256dh || '').length, cleanedP256dhLen: cleanSub.keys.p256dh.length });
+      try { await subscription.unsubscribe(); } catch (e) {}
+      for (let retry = 0; retry < 3; retry++) {
+        try {
+          await new Promise(r => setTimeout(r, 500 * (retry + 1)));
+          const newAbKey = urlBase64ToUint8Array(publicKey);
+          let newSub;
+          try {
+            newSub = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: newAbKey });
+          } catch (e) {
+            newSub = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: new Uint8Array(newAbKey) });
+          }
+          const newRaw = newSub.toJSON();
+          const newClean = cleanPushSub(newRaw);
+          if (!isCorrupted(newClean, newRaw)) {
+            console.log(`[服务器推送] 重新订阅成功 (第 ${retry + 1} 次)`);
+            rawJson = newRaw;
+            cleanSub = newClean;
+            subscription = newSub;
+            break;
+          }
+          console.warn(`[服务器推送] 重新订阅仍污染 (第 ${retry + 1} 次), 再试...`);
+          try { await newSub.unsubscribe(); } catch (e) {}
+        } catch (retryErr) {
+          console.warn(`[服务器推送] 重新订阅失败 (第 ${retry + 1} 次):`, retryErr.message);
+        }
+      }
+      if (isCorrupted(cleanSub, rawJson)) {
+        throw new Error('iOS Safari PWA 订阅连续 3 次污染, 请联系开发者');
+      }
+    }
+
+    // 6. 将订阅信息发送到服务器 (用过滤后的 cleanSub, 永远不发污染的 rawJson)
     const saveResponse = await fetch(`${serverUrl}/api/save-subscription`, {
       method: 'POST',
       headers: {
@@ -120,9 +174,7 @@ async function subscribeToPushServer(userId, serverUrl) {
       },
       body: JSON.stringify({
         userId: userId,
-        // v0.2.15.1 改: 手动构造 pushSubscription (修 ByteString), 只 endpoint + keys.p256dh + keys.auth
-        //   砍掉 iOS Safari PWA 模式 subscription.toJSON() 返回的非 ASCII 额外字段
-        subscription: (() => { const s = subscription.toJSON(); return { endpoint: s.endpoint, keys: { p256dh: s.keys.p256dh, auth: s.keys.auth } }; })()
+        subscription: cleanSub
       })
     });
 
