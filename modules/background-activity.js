@@ -2276,8 +2276,9 @@ ${tasksString}
 
     // 拿 LLM 配置 (push-server 内部要调 LLM 决定"要不要发" + 生成内容)
     // v0.2.09 修: 主 API 在 state.apiConfig, 之前 v0.2.08 读 globalSettings 是错的
+    // v0.2.12 修: 优先直连 URL, 不传 proxyUrl (push-server 在云端, 不需要 CORS 绕过)
     const apiConfig = state.apiConfig || {};
-    const aiApiUrl = apiConfig.apiUrl || apiConfig.proxyUrl || settings.apiUrl || settings.mainApiUrl;
+    const aiApiUrl = apiConfig.apiUrl || apiConfig.mainApiUrl || apiConfig.proxyUrl || settings.apiUrl || settings.mainApiUrl;
     const aiApiKey = apiConfig.apiKey || apiConfig.mainApiKey || settings.apiKey || settings.mainApiKey;
     const aiModel = apiConfig.model || apiConfig.mainModel || settings.model || settings.mainModel || 'MiniMax/M3';
     if (!aiApiUrl || !aiApiKey) {

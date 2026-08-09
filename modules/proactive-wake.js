@@ -383,9 +383,10 @@
     // 2. 拿 user LLM 配置 (push-server 内部 LLM 用)
     // v0.2.09 修: 之前 v0.2.06 读 globalSettings.apiUrl 是错的, 主 API 实际在 state.apiConfig
     // (user 截图 "user 没配 LLM" 误报 → 实际 user 在 API 设置配了, 字段读错)
+    // v0.2.12 修: 优先直连 URL, 不传 proxyUrl (push-server 在云端, 不需要 CORS 绕过)
     const apiConfig = state.apiConfig || {};
     const settings = state.globalSettings || {};
-    const aiApiUrl = apiConfig.apiUrl || apiConfig.proxyUrl || settings.apiUrl || settings.mainApiUrl;
+    const aiApiUrl = apiConfig.apiUrl || apiConfig.mainApiUrl || apiConfig.proxyUrl || settings.apiUrl || settings.mainApiUrl;
     const aiApiKey = apiConfig.apiKey || apiConfig.mainApiKey || settings.apiKey || settings.mainApiKey;
     const aiModel = apiConfig.model || apiConfig.mainModel || settings.model || settings.mainModel || 'MiniMax/M3';
     if (!aiApiUrl || !aiApiKey) {

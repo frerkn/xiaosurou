@@ -352,6 +352,26 @@
 //     push-server 任务管理是 push 模式专属 (v0.1.85+ 的设计不变)
 //   教训: v0.1.91 把 "应用内" 和 "系统推送" 当二选一互斥错了 — 应该是两条独立通道
 //   教训: 不要 hard-reject 已经实现的老功能, 这次让管理页面误导 user "管理页面没任务"
+// 2026-08-09 v0.2.13: bump CACHE_VERSION 强制清缓存（修 push-server 调 LLM 用 proxyUrl 失败 —
+//   user 反馈"明明选了服务器推送但从没收到通知"+"创建任务 500 fetch failed"。
+//   真因: PWA 调 LLM 走 proxyUrl (CF worker) 是因为用户电脑没梯, 但 PWA 把 proxyUrl 传给了 push-server。
+//   push-server 在阿里云云端, 根本不需要 CORS 绕过, 应该走直连 LLM URL。
+//   实测: push-server 直连 api.minimax.chat 通, 连 mcp.lhualan338.workers.dev 超时 5s+。
+//   修法: 3 处 (proactive-wake.js createTask + background-activity.js triggerProactivePushMessage +
+//          proactive-wake-ui.js syncCurrentChatPushConfig) 改 LLM URL fallback 链:
+//          apiConfig.apiUrl || apiConfig.mainApiUrl || apiConfig.proxyUrl (proxyUrl 放到最后)
+//   教训: PWA 跟 server 用的 LLM URL 应该分开, PWA 优先 proxyUrl (浏览器 CORS), server 优先直连 (云端有 internet)
+//   教训: 任何"前端传给 server 调 LLM" 的代码, fallback 链不能让 server 拿到前端专用的 proxyUrl 当首选
+// 2026-08-08 v0.2.12: bump CACHE_VERSION 强制清缓存（push-server 端 10 分钟巡视 —
+//   user 反馈 "PWA 不划掉一会儿也会死, 我还以为是服务器上巡视呢" — 之前 v0.2.08 巡视跑在 PWA setInterval,
+//   PWA 被 iOS 杀后台就停了, 跟"无后台保活"承诺不符。
+//   修法: PWA 在"启用主动消息 + 系统推送"时, POST /api/push-config 同步 LLM 配置 + 角色 prompt + 最近 20 条 context 到 push-server。
+//   push-server 自己有 setInterval (10 分钟, 进程不挂就一直跑), 遍历 push_user_config 表, 调 LLM 决定要不要发, 推系统通知。
+//   完全不依赖 PWA 活着 (PWA 死了 push-server 照跑)。
+//   端点: POST /api/push-config (PWA sync) + DELETE /api/push-config (PWA unsync) + GET /api/push-config (调试) + POST /api/patrol-all (手动触发)。
+//   新表: push_user_config (user_id + chat_id 主键, enabled bool, llm_api_url/key/model, contact_personality, context_summary)。
+//   教训: 之前 v0.2.08 巡视设计时, 我和 user 都默认"前端能跑就行", 忘了 iOS PWA 后台随时被杀的现实。
+//   教训: "无后台保活" ≠ "server 主动找人" — 实际是"server 处理已触发的任务", 自主巡视要 push-server 自己做。
 // 2026-08-08 v0.2.11: bump CACHE_VERSION 强制清缓存（补 v0.2.10 漏改的 2 处 userId fallback —
 //   v0.2.10 只改了 4 处, 漏了 proactive-wake.js 的 saveSubscription (line 528) + listTasks (line 568),
 //   这俩还在用老 fallback 'default-user' (state?.userId || state?.currentUserId || state?.deviceId || 'default-user')。
@@ -370,7 +390,7 @@
 // 2026-08-08 v0.2.09: bump CACHE_VERSION 强制清缓存（修 v0.2.08 误报 bug —
 //   proactive-wake.js createTask + background-activity.js triggerProactivePushMessage 字段读取错 (state.globalSettings → state.apiConfig),
 //   notification-battery.js 删 v0.2.02 时代遗留的 "VAPID 未发现" 永远触发的检查。实测 web_fetch /api/vapid-public-key 返 87 字符 base64url ✅)
-const CACHE_VERSION = 'v0.2.11';
+const CACHE_VERSION = 'v0.2.13';
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [
