@@ -2310,7 +2310,9 @@ ${tasksString}
           // v0.2.15: 手动构造 pushSubscription, 砍掉 iOS Safari PWA 模式 toJSON() 的非 ASCII 字段
           // 根因: V8 ByteString 错位 (character at index 7 value 20320/你字), 来自 subscription.toJSON() 的额外字段
           // v0.2.15.2 改: 强制过滤非 ASCII 字符 (修 iOS Safari PWA 字段值本身污染 ByteString)
-          pushSubscription: (() => { const s = subscription.toJSON(); const e = String(s.endpoint || '').replace(/[^\x00-\x7F]/g, ''); const p = String(s.keys?.p256dh || '').replace(/[^\x00-\x7F]/g, ''); const a = String(s.keys?.auth || '').replace(/[^\x00-\x7F]/g, ''); return { endpoint: e, keys: { p256dh: p, auth: a } }; })(),
+          // v0.2.15.3 改: 绕开 toJSON() 污染源, 改用 subscription.getKey() 拿原始 ArrayBuffer + 手动 base64url 编码
+          //   之前 v0.2.15.2 失败: replace(/[^\x00-\x7F]/g, '') 只能去非 ASCII, 不能恢复原始 base64url 截短, web-push Buffer.from 还是炸
+          pushSubscription: window.buildCleanPushSub(subscription),
           contactName: chat.name,
           contactPersonality: chat.settings?.characterPersonality || null,
           contextSummary,

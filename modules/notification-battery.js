@@ -34,6 +34,47 @@ function urlBase64ToUint8Array(base64String) {
   return u8.buffer;
 }
 
+// v0.2.15.3 加: Uint8Array → base64url 字符串 (绕开 iOS PWA 模式 subscription.toJSON() 字段值污染 ByteString)
+//   v0.2.15.2 失败根因: replace(/[^\x00-\x7F]/g, '') 只能去非 ASCII 字符, 不能恢复原始 base64url 字符, 截短后 web-push Buffer.from(p256dh, 'base64url') 还是炸
+//   v0.2.15.3 修法: subscription.getKey() 返回 ArrayBuffer (不经过字符串转换, iOS bug 不会污染), 手动 base64url 编码 → 干净 base64url 字符
+function uint8ArrayToBase64Url(uint8Array) {
+  let binary = '';
+  for (let i = 0; i < uint8Array.length; i++) {
+    binary += String.fromCharCode(uint8Array[i]);
+  }
+  const base64 = btoa(binary);
+  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+// v0.2.15.3 加: 用 pushSubscription 对象 (不经 toJSON() 字符串转换) 构造干净 pushSubscription JSON
+//   subscription.endpoint 是 URL 字符串, 不会被 iOS bug 污染
+//   subscription.getKey('p256dh') + getKey('auth') 返回 ArrayBuffer, 不经过字符串转换, iOS bug 不会污染
+//   手动 base64url 编码 → 干净 base64url 字符 → 永远不发 rawJson (toJSON() 输出, 字段值可能被污染)
+function buildCleanPushSub(subscription) {
+  const endpoint = String(subscription.endpoint || '');
+  const p256dhBuffer = subscription.getKey('p256dh');
+  const authBuffer = subscription.getKey('auth');
+  let p256dh = '';
+  let auth = '';
+  if (p256dhBuffer) {
+    try {
+      p256dh = uint8ArrayToBase64Url(new Uint8Array(p256dhBuffer));
+    } catch (e) {
+      console.warn('[buildCleanPushSub] p256dh 编码失败:', e.message);
+    }
+  }
+  if (authBuffer) {
+    try {
+      auth = uint8ArrayToBase64Url(new Uint8Array(authBuffer));
+    } catch (e) {
+      console.warn('[buildCleanPushSub] auth 编码失败:', e.message);
+    }
+  }
+  return { endpoint, keys: { p256dh, auth } };
+}
+
+window.buildCleanPushSub = buildCleanPushSub;
+
 /**
  * 获取或创建当前 PWA 的唯一 userId (v0.2.10+)
  * ★ 关键: 同一个 netlify URL 上的不同 PWA 用户必须用不同 userId, 否则会"串台"
@@ -112,59 +153,13 @@ async function subscribeToPushServer(userId, serverUrl) {
       console.log('[服务器推送] 已创建订阅 (Uint8Array fallback)');
     }
 
-    // 5. v0.2.15.2 改: 强制过滤非 ASCII 字符 + 坏订阅自动重新订阅 (修 iOS Safari PWA 字段值本身污染 ByteString 真因)
-    //   真凶: iOS Safari PWA 模式 subscription.toJSON() 返回的 endpoint / keys.p256dh / keys.auth 本身可能含非 ASCII 字符
-    //         (不是额外字段污染, 是字段值污染 — "你"字 0x4F60=20320 塞进 keys 字段)
-    //   V8 ByteString 错 (character at index 7 value 20320) 来自 web-push 内部 atob() 对非 ASCII keys 做 ToString
-    //   修法: 1) 提取 endpoint/keys.p256dh/keys.auth, 2) 用 [^\x00-\x7F] 过滤非 ASCII 字符,
-    //         3) 如过滤后字符串变短/为空 = 坏订阅, 自动 unsubscribe + 重新 subscribe (最多 3 次),
-    //         4) 仍坏则抛错让 user 联系开发者
-    const cleanPushSub = (rawSub) => {
-      const e = String(rawSub.endpoint || '').replace(/[^\x00-\x7F]/g, '');
-      const p = String(rawSub.keys?.p256dh || '').replace(/[^\x00-\x7F]/g, '');
-      const a = String(rawSub.keys?.auth || '').replace(/[^\x00-\x7F]/g, '');
-      return { endpoint: e, keys: { p256dh: p, auth: a } };
-    };
-    const isCorrupted = (clean, raw) => {
-      return !clean.endpoint || !clean.keys.p256dh || !clean.keys.auth ||
-        clean.endpoint !== String(raw.endpoint || '') ||
-        clean.keys.p256dh !== String(raw.keys?.p256dh || '') ||
-        clean.keys.auth !== String(raw.keys?.auth || '');
-    };
-    let rawJson = subscription.toJSON();
-    let cleanSub = cleanPushSub(rawJson);
-    if (isCorrupted(cleanSub, rawJson)) {
-      console.warn('[服务器推送] iOS Safari PWA 订阅污染 (字段值含非 ASCII), 自动重新订阅...', { rawEndpoint: rawJson.endpoint, rawP256dhLen: String(rawJson.keys?.p256dh || '').length, cleanedP256dhLen: cleanSub.keys.p256dh.length });
-      try { await subscription.unsubscribe(); } catch (e) {}
-      for (let retry = 0; retry < 3; retry++) {
-        try {
-          await new Promise(r => setTimeout(r, 500 * (retry + 1)));
-          const newAbKey = urlBase64ToUint8Array(publicKey);
-          let newSub;
-          try {
-            newSub = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: newAbKey });
-          } catch (e) {
-            newSub = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: new Uint8Array(newAbKey) });
-          }
-          const newRaw = newSub.toJSON();
-          const newClean = cleanPushSub(newRaw);
-          if (!isCorrupted(newClean, newRaw)) {
-            console.log(`[服务器推送] 重新订阅成功 (第 ${retry + 1} 次)`);
-            rawJson = newRaw;
-            cleanSub = newClean;
-            subscription = newSub;
-            break;
-          }
-          console.warn(`[服务器推送] 重新订阅仍污染 (第 ${retry + 1} 次), 再试...`);
-          try { await newSub.unsubscribe(); } catch (e) {}
-        } catch (retryErr) {
-          console.warn(`[服务器推送] 重新订阅失败 (第 ${retry + 1} 次):`, retryErr.message);
-        }
-      }
-      if (isCorrupted(cleanSub, rawJson)) {
-        throw new Error('iOS Safari PWA 订阅连续 3 次污染, 请联系开发者');
-      }
-    }
+    // 5. v0.2.15.3 改: 不用 subscription.toJSON() (iOS PWA 模式污染源), 改用 subscription.getKey() 拿原始 ArrayBuffer + 手动 base64url 编码
+    //   v0.2.15.2 失败根因: replace(/[^\x00-\x7F]/g, '') 只能去非 ASCII 字符, 不能恢复原始 base64url 字符, 截短后 web-push Buffer.from(p256dh, 'base64url') 还是炸
+    //   v0.2.15.3 修法: subscription.endpoint (URL 字符串, 不会被污染) + subscription.getKey('p256dh') / getKey('auth') 返回 ArrayBuffer (不经过字符串转换, iOS bug 不污染)
+    //         → uint8ArrayToBase64Url 手动编码 → 干净 base64url 字符
+    //   永远不发 rawJson (toJSON() 输出, 字段值可能被污染), 只发 buildCleanPushSub 输出
+    const cleanSub = buildCleanPushSub(subscription);
+    console.log('[服务器推送] v0.2.15.3: 用 getKey() 构造干净 pushSubscription, endpoint 前 60 字符:', cleanSub.endpoint.slice(0, 60) + '..., p256dh 长度:', cleanSub.keys.p256dh.length, 'auth 长度:', cleanSub.keys.auth.length);
 
     // 6. 将订阅信息发送到服务器 (用过滤后的 cleanSub, 永远不发污染的 rawJson)
     const saveResponse = await fetch(`${serverUrl}/api/save-subscription`, {
