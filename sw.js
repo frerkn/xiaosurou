@@ -404,7 +404,11 @@
 // 2026-08-08 v0.2.09: bump CACHE_VERSION 强制清缓存（修 v0.2.08 误报 bug —
 //   proactive-wake.js createTask + background-activity.js triggerProactivePushMessage 字段读取错 (state.globalSettings → state.apiConfig),
 //   notification-battery.js 删 v0.2.02 时代遗留的 "VAPID 未发现" 永远触发的检查。实测 web_fetch /api/vapid-public-key 返 87 字符 base64url ✅)
-const CACHE_VERSION = 'v0.2.14';
+// 2026-08-09 v0.2.15.1: bump CACHE_VERSION 强制清缓存（修 ByteString 仍抛 —
+//   之前 v0.2.15 改 proactive-wake.js / background-activity.js + v0.2.15.1 改 notification-battery.js / proactive-wake.js 都忘了 bump SW cache, iPhone PWA SW 仍认 v0.2.14, 划掉重开也没用, SW 强制缓存旧 modules/*.js (v0.2.13) → 仍抛 ByteString (subscription.toJSON() 旧代码)。
+//   修法: bump CACHE_VERSION v0.2.14 → v0.2.15.1, SW activate event 会删 ephone-cache-v0.2.14 旧 cache, 装新 cache。
+//   同时加 3 个 modules 进 URLS_TO_CACHE (之前漏了, 现在白名单让 SW 主动管理这 3 个文件, 未来改这 3 个文件再 bump 就行)。
+const CACHE_VERSION = 'v0.2.15.1';
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [
@@ -436,7 +440,11 @@ const URLS_TO_CACHE = [
   'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
   'https://phoebeboo.github.io/mewoooo/pp.js',
   'https://cdn.jsdelivr.net/npm/streamsaver@2.0.6/StreamSaver.min.js',
-  'https://img.baidu.re/i/2026/07/w6p47e.png'
+  'https://img.baidu.re/i/2026/07/w6p47e.png',
+  // v0.2.15.1 新增: 修 ByteString 涉及的 3 个 modules (之前漏了, 现在加进白名单, SW 主动缓存)
+  './modules/proactive-wake.js',
+  './modules/notification-battery.js',
+  './modules/background-activity.js'
 ];
 
 self.addEventListener('install', event => {
