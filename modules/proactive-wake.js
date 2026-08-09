@@ -433,7 +433,9 @@
       body: JSON.stringify({
         userId,
         chatId: finalChatId,
-        pushSubscription: subscription.toJSON(),
+        // v0.2.15: 手动构造 pushSubscription, 砍掉 iOS Safari PWA 模式 toJSON() 返回的非 ASCII 字段
+        // 根因: V8 ByteString 错位 (character at index 7 value 20320/你字), 来自 subscription.toJSON() 的额外字段
+        pushSubscription: (() => { const s = subscription.toJSON(); return { endpoint: s.endpoint, keys: { p256dh: s.keys.p256dh, auth: s.keys.auth } }; })(),
         contactName: finalContactName,
         contactPersonality: chat?.settings?.characterPersonality || null,
         userPrompt,
@@ -666,7 +668,9 @@
       body: JSON.stringify({
         userId,
         chatId: activeChatId,
-        pushSubscription: subscription.toJSON(),
+        // v0.2.15: 手动构造 pushSubscription, 砍掉 iOS Safari PWA 模式 toJSON() 的非 ASCII 字段
+        // 根因: V8 ByteString 错位 (character at index 7 value 20320/你字), 来自 subscription.toJSON() 的额外字段
+        pushSubscription: (() => { const s = subscription.toJSON(); return { endpoint: s.endpoint, keys: { p256dh: s.keys.p256dh, auth: s.keys.auth } }; })(),
         contactName: finalContactName,
         contactPersonality: chat?.settings?.characterPersonality || null,
         messageType: 'fixed',

@@ -1,5 +1,19 @@
 // Service Worker file (sw.js)
 // Whitelist cache strategy: cache only known static assets; API requests pass through.
+// 2026-08-09 v0.2.04: bump CACHE_VERSION 强制清缓存（启动时清理老错位 group —
+//
+//   js/mcp-tool-call-log.js 加 cleanupMisplacedGroups():
+//   - 启动 100ms 后, 1s 后, 找 document.querySelectorAll('.mcp-tool-log-group')
+//   - 用 parent 链向上走检查是否在 #chat-messages 容器内
+//   - 不在的全 remove (在 body 末尾 / watch-together 容器 / truth-game 容器的老错位 group)
+//   - 打印清理数量
+//
+//   根因: v0.2.03 修的 4 个 bug 改的是"新触发"时的逻辑, 不会清理已渲染的老错位 group
+//         硬刷后老错位 group 还在 DOM, 撑高外层容器, 影响布局
+//   修法: 启动时主动清 (1 次 100ms 后 + 1 次 1s 后, 兼容容器还在渲染中的情况)
+//
+//   user 反馈: "为什么硬刷后还是信息出现在顶部" + "之前已经变高的位置会恢复正常吗"
+//   答: v0.2.03 修不了老错位, v0.2.04 加自清理, 硬刷后老错位 group 全 remove, 布局恢复正常
 // 2026-08-08 v0.2.03: bump CACHE_VERSION 强制清缓存（修 mcp-tool-call-log 容器错位 + scroll 干扰 bug —
 //
 //   js/mcp-tool-call-log.js 4 处修复:
@@ -390,7 +404,7 @@
 // 2026-08-08 v0.2.09: bump CACHE_VERSION 强制清缓存（修 v0.2.08 误报 bug —
 //   proactive-wake.js createTask + background-activity.js triggerProactivePushMessage 字段读取错 (state.globalSettings → state.apiConfig),
 //   notification-battery.js 删 v0.2.02 时代遗留的 "VAPID 未发现" 永远触发的检查。实测 web_fetch /api/vapid-public-key 返 87 字符 base64url ✅)
-const CACHE_VERSION = 'v0.2.13';
+const CACHE_VERSION = 'v0.2.14';
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [

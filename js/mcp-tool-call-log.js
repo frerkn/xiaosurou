@@ -439,10 +439,47 @@
         console.log('[McpToolLog] DOM observer 已安装 (chat-messages 变化 → 重渲染历史 log)');
     }
 
+    // ========== 启动时清理老错位 group ==========
+    // 2026-08-09 v0.2.04: 之前 v0.1.70 ~ v0.2.03 的 bug 让 group 偶尔被插到 body 末尾 / watch-together 容器
+    // 硬刷不会自动清这些老错位 group, 残留撑高外层, 影响滚动布局
+    // 启动时: 找不在 chat-messages 容器里的 .mcp-tool-log-group, 全 remove
+    function cleanupMisplacedGroups() {
+        const container = getChatContainer();
+        if (!container) return 0;
+        // 全局查所有 group
+        const allGroups = document.querySelectorAll('.mcp-tool-log-group');
+        let removed = 0;
+        for (let i = 0; i < allGroups.length; i++) {
+            const g = allGroups[i];
+            // 在 chat-messages 容器内? (用 _contains 模式: 向上走 parent 链遇到 container)
+            let cur = g.parentNode;
+            let inContainer = false;
+            while (cur) {
+                if (cur === container) { inContainer = true; break; }
+                cur = cur.parentNode;
+            }
+            if (!inContainer) {
+                console.warn('[McpToolLog] 清理老错位 group (不在 chat-messages 内):', g);
+                g.remove();
+                removed++;
+            }
+        }
+        if (removed > 0) {
+            console.log('[McpToolLog] 清理了 ' + removed + ' 个老错位 group');
+        }
+        return removed;
+    }
+
     // ========== 初始化 ==========
     if (global.McpBridge && typeof global.McpBridge.onCard === 'function') {
         global.McpBridge.onCard(onCard);
         console.log('[McpToolLog] 已注册 card listener, 监听所有 MCP 工具调用 (覆盖 mcd/luckin/amap/任意通用 MCP)');
+        // 2026-08-09 v0.2.04: 启动时清理老错位 group, 等容器准备好
+        setTimeout(function () {
+            cleanupMisplacedGroups();
+            // 1s 后再清一次 (容器可能还在渲染中)
+            setTimeout(cleanupMisplacedGroups, 1000);
+        }, 100);
         // 启动 DOM 观察, 切聊天/loadMore 时恢复历史 log
         installHistoryObserver();
     } else {
