@@ -783,7 +783,9 @@
     // 冷却相关
     getCooldownMinutes,
     isCooldownActive,
-    getCooldownRemainingMinutes
+    getCooldownRemainingMinutes,
+    // v0.2.17 暴露: 给 in-app-proactive-patrol.js (应用内模式 PWA 前端巡视) 调 LLM 生成消息
+    generateProactiveMessage
   };
 
   console.log('[proactive-wake] 模块加载完成');
