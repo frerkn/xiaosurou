@@ -1,5 +1,6 @@
 // Service Worker file (sw.js)
 // Whitelist cache strategy: cache only known static assets; API requests pass through.
+// 2026-08-12 v0.2.19: bump CACHE_VERSION 强制清缓存（in-app-proactive 弹通知听"聊天界面也弹通知"开关 —
 // 2026-08-09 v0.2.04: bump CACHE_VERSION 强制清缓存（启动时清理老错位 group —
 //
 //   js/mcp-tool-call-log.js 加 cleanupMisplacedGroups():
@@ -408,7 +409,7 @@
 //   之前 v0.2.15 改 proactive-wake.js / background-activity.js + v0.2.15.1 改 notification-battery.js / proactive-wake.js 都忘了 bump SW cache, iPhone PWA SW 仍认 v0.2.14, 划掉重开也没用, SW 强制缓存旧 modules/*.js (v0.2.13) → 仍抛 ByteString (subscription.toJSON() 旧代码)。
 //   修法: bump CACHE_VERSION v0.2.14 → v0.2.15.1, SW activate event 会删 ephone-cache-v0.2.14 旧 cache, 装新 cache。
 //   同时加 3 个 modules 进 URLS_TO_CACHE (之前漏了, 现在白名单让 SW 主动管理这 3 个文件, 未来改这 3 个文件再 bump 就行)。
-const CACHE_VERSION = 'v0.2.18';
+const CACHE_VERSION = 'v0.2.19';
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [

@@ -4,26 +4,29 @@
 //
 // 跟 push 模式 (server 端巡视 + web-push 推送) 完全独立:
 //   - PWA 前端 setInterval 巡视
-//   - 调 LLM 决策 send / skip (假装活人感)
+//   - 遍历所有开了主动消息的 chat (不依赖 activeChatId)
+//   - 对每个 chat 调 LLM 决策 send / skip (假装活人感)
 //   - send: 调 LLM 生成消息 + 浏览器 Notification API 弹通知 + 插历史
+//     - 如果 user **正在**那个 chat 看: 写历史不弹通知 (已经在看了)
+//     - 如果 user **不在**那个 chat: 写历史 + 弹通知
 //   - skip: 跳过 (用户看不到任何东西, 像没事发生)
 //   - PWA 死了 (iOS 强杀 setInterval) 就不巡视
 //   - 用户自己靠 iPhone 外放无声音频保活 PWA 在线 (1 小时左右)
 //
 // 跟旧"固定时间必然发"区别:
 //   旧: setInterval 触发 → 必然发 (死板)
-//   新: setInterval 触发 → 问 AI 要不要发 → 真人感 (70% skip / 30% send)
+//   新: setInterval 触发 → 问 AI 要不要发 → 真人感 (50% skip / 50% send)
 //
 // 配置 (window.state.globalSettings):
 //   inAppProactiveEnabled    bool, 默认 true (启用应用内模式巡视)
-//   inAppProactiveIntervalMin number, 默认 30 (间隔分钟)
+//   inAppProactiveIntervalMin number, 默认 20 (间隔分钟)
 //   inAppProactiveMinIdleMin  number, 默认 5 (距最后一条消息最小 idle 分钟)
 //
 // 触发条件 (全满足才巡视):
 //   1. inAppProactiveEnabled === true
-//   2. 当前不在睡眠时间 (23:00 - 08:00)
-//   3. active chat 存在 + chat.settings.proactiveEnabled === true
-//   4. 距最后一条消息 >= inAppProactiveMinIdleMin 分钟
+//   2. 当前不在睡眠时间 (inAppProactiveSleepEnabled + StartHour/EndHour)
+//   3. 至少有一个 chat 开了 proactiveEnabled
+//   4. 对每个 chat 距最后一条消息 >= inAppProactiveMinIdleMin 分钟
 // ============================================================
 
 (function() {
@@ -188,8 +191,13 @@
     const data = await response.json();
     let rawContent;
     if (isGemini) {
-      const getGeminiFn = window.getGeminiResponseText;
-      rawContent = typeof getGeminiFn === 'function' ? getGeminiFn(data) : (data?.candidates?.[0]?.content?.parts?.[0]?.text || '');
+      // v0.2.18+: 直接处理 Gemini parts, 过滤掉 thought parts (Gemini 2.5+ thinking mode)
+      // 不调 getGeminiResponseText — 它会拼接所有 parts 包括 thought, 我们要 strict JSON
+      const parts = data?.candidates?.[0]?.content?.parts || [];
+      rawContent = parts
+        .filter(part => !part.thought)  // 过滤 thought parts
+        .map(part => part.text || '')
+        .join('');
     } else {
       rawContent = data.choices?.[0]?.message?.content;
     }
@@ -199,21 +207,39 @@
     }
 
     const cleaned = String(rawContent)
+      // 1. 去 markdown code block (```json ... ```)
       .replace(/^\s*```(?:json)?\s*/i, '')
       .replace(/\s*```\s*$/i, '')
+      // 2. 去 reasoning model 的 <think>...</think> (M3 / DeepSeek R1 等)
+      .replace(/<think>[\s\S]*?<\/think>/gi, '')
+      // 3. 去 <thinking>...</thinking> (某些 Gemini 输出格式)
+      .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
+      // 4. 去 <reasoning>...</reasoning>
+      .replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '')
       .trim();
 
+    // 5. 优先直接 parse (清理后纯 JSON 的情况)
+    let parsed;
     try {
-      const parsed = JSON.parse(cleaned);
-      return {
-        action: parsed.action === 'send' ? 'send' : 'skip',
-        reason: parsed.reason || '(无原因)'
-      };
-    } catch (e) {
-      // 兜底: 默认 skip (避免刷屏)
-      console.warn('[in-app-proactive] 决策 JSON 解析失败, 默认 skip:', cleaned.substring(0, 100));
+      parsed = JSON.parse(cleaned);
+    } catch (e1) {
+      // 6. 兜底: 从剩余文本里抠 {..."action"...} JSON block (应对 think 后跟 JSON / reasoning 后跟 JSON)
+      const match = cleaned.match(/\{[\s\S]*?"action"[\s\S]*?"reason"[\s\S]*?\}/);
+      if (match) {
+        try { parsed = JSON.parse(match[0]); } catch (e2) {}
+      }
+    }
+
+    if (!parsed) {
+      // 7. 实在抠不出, 默认 skip (避免刷屏)
+      console.warn('[in-app-proactive] 决策 JSON 解析失败, 默认 skip:', cleaned.substring(0, 200));
       return { action: 'skip', reason: '决策 JSON 解析失败' };
     }
+
+    return {
+      action: parsed.action === 'send' ? 'send' : 'skip',
+      reason: parsed.reason || '(无原因)'
+    };
   }
 
   // ===== 浏览器通知 =====
@@ -270,9 +296,61 @@
     } catch (e) {}
   }
 
-  // ===== 单次巡视 =====
+  // ===== 单个 chat 巡视 (v0.2.18+: 从 activeChatId 改成遍历所有) =====
+  async function runPatrolForChat(chat, options = {}) {
+    const isUserViewingThisChat = window.state?.activeChatId === chat.id;
+
+    // idle 检查 (启动后第一次 tick 用 skipIdleCheck=true 跳过, 让 user 能立刻看到效果)
+    if (!options.skipIdleCheck) {
+      const config = getInAppProactiveConfig();
+      const idleMin = getMinutesSinceLastMessage(chat);
+      if (idleMin < config.minIdleMin) {
+        console.log(`[in-app-proactive] ${chat.name} idle ${idleMin.toFixed(1)} 分钟 < ${config.minIdleMin}, 跳过`);
+        return;
+      }
+    } else {
+      console.log(`[in-app-proactive] ${chat.name} 跳过 idle 检查 (启动后第一次 tick)`);
+    }
+
+    // 调 LLM 决策
+    const decision = await decideProactiveMessage(chat);
+    console.log(`[in-app-proactive] ${chat.name} LLM 决策: ${decision.action} (${decision.reason})`);
+    if (decision.action !== 'send') return;
+
+    // 调 LLM 生成消息 (复用 proactive-wake.js 的 generateProactiveMessage)
+    if (typeof window.ProactiveWake?.generateProactiveMessage !== 'function') {
+      throw new Error('ProactiveWake.generateProactiveMessage 不可用 (proactive-wake.js 可能没加载)');
+    }
+    const message = await window.ProactiveWake.generateProactiveMessage(chat, null);
+    if (!message) {
+      console.warn(`[in-app-proactive] ${chat.name} 消息生成空, 跳过`);
+      return;
+    }
+
+    // 插历史 + 持久化
+    await persistProactiveMessage(chat, message);
+
+    // 渲染 UI (如果当前显示这个 chat)
+    renderToUIIfActive(chat.id);
+
+    // 弹通知策略 (v0.2.18 round 4):
+    //   - 不在 chat → 永远弹
+    //   - 在 chat + "聊天界面也弹通知" 开关 ON → 弹 (user 想在 chat 也收通知)
+    //   - 在 chat + 开关 OFF → 不弹 (user 已经在看了, 重复通知没意义)
+    const notifyInChatPage = window.state?.globalSettings?.systemNotification?.notifyInChatPage || false;
+    const shouldShowNotification = !isUserViewingThisChat || notifyInChatPage;
+    if (shouldShowNotification) {
+      showInAppNotification(chat, message);
+    } else {
+      console.log(`[in-app-proactive] ${chat.name} user 正在看 + 关闭了"聊天界面也弹通知", 不弹通知`);
+    }
+
+    console.log(`[in-app-proactive] ✅ 已发 (${chat.name}): "${message.substring(0, 30)}..."`);
+  }
+
+  // ===== 单次巡视 (v0.2.18+: 遍历所有开主动消息的 chat) =====
   async function runInAppProactiveTick(options = {}) {
-    // v0.2.17+: mode='push' 时 v0.2.17 跳过, 让 push-server 接管
+    // v0.2.18+: mode='push' 时 v0.2.17 跳过, 让 push-server 接管
     const mode = window.state?.globalSettings?.proactiveDeliveryMode || 'app';
     if (mode === 'push') {
       console.log('[in-app-proactive] mode=push, 跳过 v0.2.17 (推送任务由 push-server 接管)');
@@ -289,55 +367,25 @@
         return;
       }
 
-      const chatId = state.activeChatId;
-      const chat = chatId ? state.chats?.[chatId] : null;
-      if (!chat) {
-        console.log('[in-app-proactive] 没 active chat, 跳过');
+      // v0.2.18+: 遍历所有开了主动消息的 chat, 不依赖 activeChatId
+      // 之前只对 activeChatId 跑 = PWA 在 home 页面就永远不跑, 是 bug
+      const proactiveChats = Object.values(state.chats || {})
+        .filter(c => !c.isGroup && c.settings?.proactiveEnabled === true);
+
+      if (proactiveChats.length === 0) {
+        console.log('[in-app-proactive] 没开启主动消息的聊天, 跳过');
         return;
       }
 
-      if (chat.settings?.proactiveEnabled !== true) {
-        console.log('[in-app-proactive] chat 未启用主动消息, 跳过');
-        return;
-      }
+      console.log(`[in-app-proactive] 遍历 ${proactiveChats.length} 个开了主动消息的 chat`);
 
-      // idle 检查 (启动后第一次 tick 用 skipIdleCheck=true 跳过, 让 user 能立刻看到效果)
-      if (!options.skipIdleCheck) {
-        const config = getInAppProactiveConfig();
-        const idleMin = getMinutesSinceLastMessage(chat);
-        if (idleMin < config.minIdleMin) {
-          console.log(`[in-app-proactive] idle ${idleMin.toFixed(1)} 分钟 < ${config.minIdleMin}, 跳过`);
-          return;
+      for (const chat of proactiveChats) {
+        try {
+          await runPatrolForChat(chat, options);
+        } catch (e) {
+          console.error(`[in-app-proactive] ${chat.name} 巡视失败:`, e.message);
         }
-      } else {
-        console.log('[in-app-proactive] 跳过 idle 检查 (启动后第一次 tick)');
       }
-
-      // 调 LLM 决策
-      const decision = await decideProactiveMessage(chat);
-      console.log(`[in-app-proactive] LLM 决策: ${decision.action} (${decision.reason})`);
-      if (decision.action !== 'send') return;
-
-      // 调 LLM 生成消息 (复用 proactive-wake.js 的 generateProactiveMessage)
-      if (typeof window.ProactiveWake?.generateProactiveMessage !== 'function') {
-        throw new Error('ProactiveWake.generateProactiveMessage 不可用 (proactive-wake.js 可能没加载)');
-      }
-      const message = await window.ProactiveWake.generateProactiveMessage(chat, null);
-      if (!message) {
-        console.warn('[in-app-proactive] 消息生成空, 跳过');
-        return;
-      }
-
-      // 插历史 + 持久化
-      await persistProactiveMessage(chat, message);
-
-      // 浏览器通知
-      showInAppNotification(chat, message);
-
-      // 渲染 UI
-      renderToUIIfActive(chatId);
-
-      console.log(`[in-app-proactive] ✅ 已发: "${message.substring(0, 30)}..."`);
     } catch (e) {
       console.error('[in-app-proactive] 巡视失败:', e.message);
     }
