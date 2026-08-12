@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // proactive-wake-ui.js — AI 主动消息管理 UI
 // v0.1.85 粉白色系
 //
@@ -140,19 +140,20 @@
           </div>
         </div>
 
-        <!-- 冷却时间设置卡片 -->
+        <!-- 冷却时间设置卡片 (v0.2.18+: 改描述, 只对 push 模式手动创建任务生效) -->
         <div class="pw-card">
-          <div class="pw-card-title">⏱ AI 设提醒冷却（防刷屏）</div>
+          <div class="pw-card-title">⏱ AI 设提醒冷却（仅 push 模式手动建任务生效）</div>
           <div class="pw-card-body">
             <div class="pw-status-row" style="align-items:center;">
               <span>同一角色聊天结束后</span>
               <div class="pw-cooldown-input">
                 <input type="number" id="pw-cooldown-input" min="0" max="120" step="1" value="30" style="width:60px;text-align:center;">
-                <span>分钟内, AI 不能重复设主动消息提醒</span>
+                <span>分钟内, 在 push 模式手动 [+ 创建任务] 时被拦截</span>
               </div>
             </div>
             <div class="settings-desc" style="font-size:12px;color:#8B7280;margin-top:6px;">
-              0 = 不限流 (AI 可能刷屏). 默认 30 分钟. 改完即生效.
+              0 = 不限流. 默认 30 分钟. 改完即生效.
+              <br><b style="color:#E56B82;">⚠️ 仅 push 模式</b>手动 [+ 创建任务] 时拦截, app 模式新巡视不走这个冷却, 靠 LLM 自由决定 (50% skip 软提示 + 锲而不舍 retry context).
             </div>
           </div>
         </div>
@@ -166,7 +167,7 @@
                 <input type="radio" name="pw-delivery-mode" value="app">
                 <div class="pw-radio-content">
                   <div class="pw-radio-title">📱 应用内（默认）</div>
-                  <div class="pw-radio-desc">只在 chat 里插入 AI 消息，<b>无系统通知</b>。<br>PWA 开着才能用，杀后台失效（不依赖 push-server）。</div>
+                  <div class="pw-radio-desc">AI 前端巡视插入消息 + 弹系统通知（受"系统级通知"总开关控制）。<br>PWA 开着才能用，杀后台失效（不依赖 push-server）。</div>
                 </div>
               </label>
               <label class="pw-radio-row">
@@ -183,21 +184,28 @@
           </div>
         </div>
 
-        <!-- 应用内模式说明卡 (v0.2.07+: app 模式显示, push 模式隐藏; v0.2.08 加巡视说明) -->
-        <div class="pw-card" id="pw-app-mode-hint" style="display:none;">
-          <div class="pw-card-title">📱 应用内模式说明</div>
+        <!-- 睡眠时间设置卡 (v0.2.18+ 新巡视) -->
+        <div class="pw-card" id="pw-sleep-settings">
+          <div class="pw-card-title">🌙 睡眠时间设置</div>
           <div class="pw-card-body">
-            <div style="font-size:13px; line-height:1.7; color:#3a3a3a;">
-              当前是 <b>应用内模式</b>, <b>不需要</b>手动创建任务.<br>
-              AI 按 <b>巡视机制</b> 自动调度 (v0.2.08 设计):<br>
-              • <b>巡视频率</b>: <span id="pw-app-interval">10</span> 分钟一次 (在 <code>[设置 → 行为 → 主动消息频率]</code> 调整)<br>
-              • <b>巡视逻辑</b>: user 最后一条消息距今超过间隔 → 调 LLM "要不要主动发" — LLM 自由决定<br>
-              • <b>锲而不舍</b>: AI 推了 user 没回, 巡视会告诉 LLM "已推几条没回", LLM 决定换角度再发 / 算了<br>
-              • <b>范围</b>: 只在 <b>[角色设置 → 启用主动消息]</b> 打开的角色上跑<br>
-              • <b>限制</b>: PWA 开着时有效, 杀后台失效 (要杀后台也能收, 切换 [🔔 系统推送])
+            <div class="pw-status-row" style="align-items:center;">
+              <label style="display:flex; align-items:center; gap:8px;">
+                <input type="checkbox" id="pw-sleep-enabled-switch" checked>
+                <span>启用睡眠时间跳过（关闭后新巡视 24 小时不间断）</span>
+              </label>
             </div>
-            <div style="margin-top:10px; font-size:12px; color:#8B7280;">
-              💡 Scheduler 启动状态: <span id="pw-app-scheduler-status">检查中...</span>
+            <div id="pw-sleep-time-range" style="margin-top:10px;">
+              <div class="pw-status-row" style="align-items:center;">
+                <span>睡眠开始（小时 0-23）：</span>
+                <input type="number" id="pw-sleep-start-hour" min="0" max="23" value="23" style="width:60px; text-align:center;">
+              </div>
+              <div class="pw-status-row" style="align-items:center;">
+                <span>睡眠结束（小时 0-23）：</span>
+                <input type="number" id="pw-sleep-end-hour" min="0" max="23" value="8" style="width:60px; text-align:center;">
+              </div>
+            </div>
+            <div class="settings-desc" style="font-size:12px; color:#8B7280; margin-top:6px;">
+              💡 支持跨午夜（如 23-8 = 晚上 11 点到早上 8 点不巡视；1-6 = 凌晨 1 点到 6 点不巡视）。起止相同 = 全天巡视。改完即生效。
             </div>
           </div>
         </div>
@@ -284,6 +292,7 @@
     loadSubscriptionStatus();
     loadCooldownSetting();
     loadDeliveryMode();
+    loadSleepSettings();
     loadTaskList();
   }
 
@@ -350,6 +359,65 @@
     });
   }
 
+  // ===== 加载睡眠时间设置 (v0.2.18+) =====
+  // 开关 + 起始/结束小时, 改完即生效, 持久化到 localStorage
+  function loadSleepSettings() {
+    const enabledSwitch = document.getElementById('pw-sleep-enabled-switch');
+    const startInput = document.getElementById('pw-sleep-start-hour');
+    const endInput = document.getElementById('pw-sleep-end-hour');
+    const timeRange = document.getElementById('pw-sleep-time-range');
+    if (!enabledSwitch || !startInput || !endInput || !timeRange) return;
+
+    const settings = window.state?.globalSettings || {};
+
+    // 加载开关 (默认 true)
+    enabledSwitch.checked = settings.inAppProactiveSleepEnabled !== false;
+    timeRange.style.display = enabledSwitch.checked ? 'block' : 'none';
+
+    // 加载小时数 (默认 23-8)
+    const startHour = (typeof settings.inAppProactiveSleepStartHour === 'number'
+      && settings.inAppProactiveSleepStartHour >= 0
+      && settings.inAppProactiveSleepStartHour <= 23)
+      ? settings.inAppProactiveSleepStartHour : 23;
+    const endHour = (typeof settings.inAppProactiveSleepEndHour === 'number'
+      && settings.inAppProactiveSleepEndHour >= 0
+      && settings.inAppProactiveSleepEndHour <= 23)
+      ? settings.inAppProactiveSleepEndHour : 8;
+    startInput.value = startHour;
+    endInput.value = endHour;
+
+    // 开关变化: 保存 + 显示/隐藏时间
+    enabledSwitch.addEventListener('change', () => {
+      if (!window.state.globalSettings) window.state.globalSettings = {};
+      window.state.globalSettings.inAppProactiveSleepEnabled = enabledSwitch.checked;
+      timeRange.style.display = enabledSwitch.checked ? 'block' : 'none';
+      try {
+        localStorage.setItem('globalSettings', JSON.stringify(window.state.globalSettings));
+      } catch (e) {
+        console.warn('[proactive-wake-ui] 保存睡眠开关失败:', e.message);
+      }
+      console.log('[proactive-wake-ui] 睡眠时间跳过已', enabledSwitch.checked ? '启用' : '关闭 (24小时巡视)');
+    });
+
+    // 时间输入变化: 校验 + 保存
+    function saveHour(input, field) {
+      let val = parseInt(input.value, 10);
+      if (isNaN(val) || val < 0) val = 0;
+      if (val > 23) val = 23;
+      input.value = val;
+      if (!window.state.globalSettings) window.state.globalSettings = {};
+      window.state.globalSettings[field] = val;
+      try {
+        localStorage.setItem('globalSettings', JSON.stringify(window.state.globalSettings));
+      } catch (e) {
+        console.warn(`[proactive-wake-ui] 保存 ${field} 失败:`, e.message);
+      }
+      console.log(`[proactive-wake-ui] ${field} 已更新为 ${val} 时`);
+    }
+    startInput.addEventListener('change', () => saveHour(startInput, 'inAppProactiveSleepStartHour'));
+    endInput.addEventListener('change', () => saveHour(endInput, 'inAppProactiveSleepEndHour'));
+  }
+
   // ===== 加载投递方式设置 (v0.1.91+) =====
   // 渠道选择: app = 应用内 (默认) / push = 系统推送
   // 注: 跟角色级总开关 (chat.settings.proactiveEnabled) 是两个独立维度
@@ -392,19 +460,19 @@
         }
         // v0.2.07+: 切 mode 时立即更新 UI (隐藏/显示 任务列表 + 说明卡)
         updateUiForDeliveryMode(mode);
-        // 立即重启老功能 scheduler (mode 变了)
+        // 立即重启 v0.2.17 in-app 巡视 (mode 变了)
         try {
-          if (typeof window.stopProactiveScheduler === 'function') window.stopProactiveScheduler();
+          if (typeof window.InAppProactive?.stop === 'function') window.InAppProactive.stop();
           if (mode === 'app') {
-            if (typeof window.startProactiveScheduler === 'function') {
-              window.startProactiveScheduler();
-              console.log(`[proactive-wake-ui] 投递模式 = 应用内, scheduler 已启动`);
+            if (typeof window.InAppProactive?.start === 'function') {
+              window.InAppProactive.start();
+              console.log(`[proactive-wake-ui] 投递模式 = 应用内, v0.2.17 已启动`);
             }
           } else {
-            console.log(`[proactive-wake-ui] 投递模式 = 系统推送, scheduler 已停止 (推送任务改由 push-server 接管)`);
+            console.log(`[proactive-wake-ui] 投递模式 = 系统推送, v0.2.17 已停止 (推送任务后期由 push-server 接管)`);
           }
         } catch (e) {
-          console.warn('[proactive-wake-ui] 重启 scheduler 失败:', e.message);
+          console.warn('[proactive-wake-ui] 重启 v0.2.17 失败:', e.message);
         }
         // v0.2.12+: 切 push 模式时, sync config 到 push-server (server 端 10 分钟巡视用)
         //          切 app 模式时, unsync (避免 push-server 重复跑)
@@ -537,12 +605,11 @@
   }
 
   // ===== v0.2.07+: 根据投递方式显示不同 UI =====
-  // app 模式: 隐藏 [任务列表] + [+ 创建任务] 按钮; 显示 [应用内模式说明卡]
-  // push 模式: 显示 [任务列表] + [+ 创建任务] 按钮; 隐藏 [应用内模式说明卡]
-  // + 同步间隔数字 + scheduler 状态
+  // app 模式: 隐藏 [任务列表] + [+ 创建任务] 按钮
+  // push 模式: 显示 [任务列表] + [+ 创建任务] 按钮
+  // v0.2.18: 应用内模式说明卡已删 (user 觉得说明过时/无意义)
   function updateUiForDeliveryMode(mode) {
     const taskListCard = document.querySelector('.pw-card-task-list');
-    const appHint = document.getElementById('pw-app-mode-hint');
     const createBtn = document.getElementById('pw-create-task-btn');
     const refreshBtn = document.getElementById('pw-refresh-tasks-btn');
 
@@ -550,36 +617,10 @@
       if (taskListCard) taskListCard.style.display = 'none';
       if (createBtn) createBtn.style.display = 'none';
       if (refreshBtn) refreshBtn.style.display = 'none';
-      if (appHint) appHint.style.display = '';
     } else {  // push
       if (taskListCard) taskListCard.style.display = '';
       if (createBtn) createBtn.style.display = '';
       if (refreshBtn) refreshBtn.style.display = '';
-      if (appHint) appHint.style.display = 'none';
-    }
-
-    // 同步说明卡里的间隔数字
-    const intervalEl = document.getElementById('pw-app-interval');
-    if (intervalEl) {
-      const m = Number(window.state?.globalSettings?.proactiveIntervalMinutes) || 30;
-      intervalEl.textContent = String(m);
-    }
-    // 同步 scheduler 启动状态
-    const statusEl = document.getElementById('pw-app-scheduler-status');
-    if (statusEl) {
-      // 查 scheduler intervalId 状态 (background-activity.js 用 module-level 变量, 我们没暴露 — 用启发式判断)
-      const intervalSet = Number(window.state?.globalSettings?.proactiveIntervalMinutes) || 0;
-      const enabled = !!window.startProactiveScheduler;
-      if (mode === 'app' && intervalSet > 0 && enabled) {
-        statusEl.innerHTML = '<b style="color:#34C759;">✅ 运行中</b> (每 60s 检查一次, 命中条件就调 LLM 主动发)';
-        statusEl.style.color = '';
-      } else if (mode === 'app' && intervalSet === 0) {
-        statusEl.innerHTML = '<b style="color:#FF9500;">⚠️ 间隔设为 0, scheduler 没启动</b> (在 [设置 → 行为 → 主动消息频率] 调整)';
-        statusEl.style.color = '';
-      } else {
-        statusEl.innerHTML = '<span style="color:#8B7280;">未启动 (push 模式不需要)</span>';
-        statusEl.style.color = '';
-      }
     }
   }
 

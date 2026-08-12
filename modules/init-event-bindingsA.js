@@ -2277,10 +2277,6 @@ window.initEventBindingsA = async function(state, db) {
       state.globalSettings.enableBackgroundActivity = backgroundSwitch.checked;
       state.globalSettings.backgroundActivityInterval = parseInt(intervalInput.value) || 60;
       state.globalSettings.blockCooldownHours = parseFloat(cooldownInput.value) || 1;
-      if (proactiveIntervalInput) {
-        const proactiveInterval = parseInt(proactiveIntervalInput.value, 10);
-        state.globalSettings.proactiveIntervalMinutes = Number.isFinite(proactiveInterval) && proactiveInterval > 0 ? proactiveInterval : 30;
-      }
       state.globalSettings.enableAiDrawing = document.getElementById('enable-ai-drawing-switch').checked;
 
       // 保存悬浮球开关
@@ -2376,14 +2372,6 @@ window.initEventBindingsA = async function(state, db) {
       } else {
         console.log("后台活动模拟已停止。");
       }
-      if (typeof stopProactiveScheduler === 'function') {
-        stopProactiveScheduler();
-      }
-      if (typeof startProactiveScheduler === 'function' && state.globalSettings.proactiveIntervalMinutes > 0) {
-        startProactiveScheduler();
-        console.log(`主动消息调度器已刷新，间隔: ${state.globalSettings.proactiveIntervalMinutes}分钟`);
-      }
-
       // 保存NovelAI配置到localStorage
       const novelaiEnabled = document.getElementById('novelai-switch').checked;
       const novelaiModel = document.getElementById('novelai-model').value;

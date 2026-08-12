@@ -29,10 +29,11 @@
 (function() {
   'use strict';
 
-  const DEFAULT_INTERVAL_MIN = 30;
+  const DEFAULT_INTERVAL_MIN = 20;
   const DEFAULT_MIN_IDLE_MIN = 5;
-  const SLEEP_START_HOUR = 23;
-  const SLEEP_END_HOUR = 8;
+  // v0.2.18+: 睡眠时间改读 globalSettings (UI 在 proactive-wake-ui.js)
+  const DEFAULT_SLEEP_START_HOUR = 23;
+  const DEFAULT_SLEEP_END_HOUR = 8;
 
   let inAppProactiveIntervalId = null;
 
@@ -50,9 +51,27 @@
     };
   }
 
+  // v0.2.18+: 改读 globalSettings, 支持跨午夜 (23-8, 1-6 等) + 关闭开关全天巡视
   function isSleepTime() {
+    const settings = window.state?.globalSettings;
+    if (!settings) return false;
+    // 关闭睡眠跳过 = 24小时都巡视
+    if (settings.inAppProactiveSleepEnabled === false) return false;
+
+    // 读小时, 缺省值与 UI 默认一致
+    const start = (typeof settings.inAppProactiveSleepStartHour === 'number'
+      && settings.inAppProactiveSleepStartHour >= 0
+      && settings.inAppProactiveSleepStartHour <= 23)
+      ? settings.inAppProactiveSleepStartHour : DEFAULT_SLEEP_START_HOUR;
+    const end = (typeof settings.inAppProactiveSleepEndHour === 'number'
+      && settings.inAppProactiveSleepEndHour >= 0
+      && settings.inAppProactiveSleepEndHour <= 23)
+      ? settings.inAppProactiveSleepEndHour : DEFAULT_SLEEP_END_HOUR;
+
     const hour = new Date().getHours();
-    return hour >= SLEEP_START_HOUR || hour < SLEEP_END_HOUR;
+    if (start === end) return false;  // 起止相同 = 不跳过 (全天巡视)
+    if (start < end) return hour >= start && hour < end;     // 不跨午夜 (1-6)
+    return hour >= start || hour < end;                       // 跨午夜 (23-8)
   }
 
   function getLastMessageTime(chat) {
@@ -67,11 +86,32 @@
     return (Date.now() - last) / 60000;
   }
 
+  // v0.2.17+: 移植自 v0.2.08 老巡视 retry context — 算"连续 AI 主动消息 user 没接"次数
+  // 给 LLM 信息 ("你发了 N 条没回"), 不强制约束, 让 LLM 自己想
+  function getConsecutiveUnreplied(chat) {
+    if (!chat?.history || chat.history.length === 0) return 0;
+    let count = 0;
+    for (let i = chat.history.length - 1; i >= 0; i--) {
+      const m = chat.history[i];
+      if (!m) break;
+      if (m.role === 'user') break;  // user 接了一条, 计数停
+      if (m.role === 'assistant' && m.proactive) {
+        count++;
+      } else if (m.role === 'assistant' && !m.proactive) {
+        break;  // 正常对话 AI 消息, 停
+      }
+    }
+    return count;
+  }
+
   // ===== 调 LLM 决策 send/skip =====
   async function decideProactiveMessage(chat) {
     if (typeof window.buildProactiveContext !== 'function') {
       throw new Error('buildProactiveContext 不可用 (ai-group.js 可能没加载)');
     }
+
+    // v0.2.17+: retry context — 告诉 LLM 你发了 N 条 user 没回, 让 LLM 自己想
+    const consecutiveUnreplied = getConsecutiveUnreplied(chat);
 
     const ctx = await window.buildProactiveContext(chat, { queryText: '主动消息巡视决策' });
 
@@ -87,7 +127,7 @@
 - user 最近有没有回复你 (如果没回, 不要再刷屏)
 - 是不是深夜 / user 在忙
 
-请像真人一样判断, 不要每次都发. 70% 的概率应该 skip, 30% 概率 send.
+请像真人一样判断, 完全根据你的人设、记忆、上下文决定要不要发. 你刚才已经发了 ${consecutiveUnreplied} 条 user 没回, 你自己想想, 50% 的概率应该 skip, 50% 概率 send.
 
 只输出严格 JSON: {"action": "send" | "skip", "reason": "你的判断理由"}`;
 
@@ -183,6 +223,11 @@
       console.warn('[in-app-proactive] 通知权限未授权, 跳过弹通知');
       return;
     }
+    // v0.2.18+: 听 systemNotification 总开关 (v0.2.17 之前绕过, 关总开关照样弹)
+    if (!window.state?.globalSettings?.systemNotification?.enabled) {
+      console.log('[in-app-proactive] 系统通知总开关关闭, 跳过弹通知 (消息仍写入历史)');
+      return;
+    }
     try {
       const n = new Notification(`💬 ${chat.name || 'AI'}`, {
         body: message.substring(0, 100),
@@ -227,6 +272,12 @@
 
   // ===== 单次巡视 =====
   async function runInAppProactiveTick(options = {}) {
+    // v0.2.17+: mode='push' 时 v0.2.17 跳过, 让 push-server 接管
+    const mode = window.state?.globalSettings?.proactiveDeliveryMode || 'app';
+    if (mode === 'push') {
+      console.log('[in-app-proactive] mode=push, 跳过 v0.2.17 (推送任务由 push-server 接管)');
+      return;
+    }
     try {
       console.log('[in-app-proactive] 巡视 tick...');
 

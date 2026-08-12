@@ -204,6 +204,10 @@ document.addEventListener('DOMContentLoaded', () => {
         lastPushSubscriptionCheckedAt: '',
         notificationHealthStatus: 'unknown'
       },
+      // v0.2.18+: 新巡视睡眠时间设置 (UI 在 proactive-wake-ui.js 里, 改完即生效)
+      inAppProactiveSleepEnabled: true,    // 默认启用睡眠跳过
+      inAppProactiveSleepStartHour: 23,    // 23:00 开始睡眠
+      inAppProactiveSleepEndHour: 8,       // 08:00 结束睡眠
     };
     state.globalSettings = {
       ...defaultGlobalSettings,
@@ -709,12 +713,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (typeof startAIReminderScheduler === 'function') {
       startAIReminderScheduler();
-    }
-    // 【2026-07-18 修复】主动消息 scheduler 写好了但 init 时没人调——导致功能完全没跑
-    // 条件：全局 proactiveIntervalMinutes 有值（0/未设 视为禁用）
-    if (typeof startProactiveScheduler === 'function' && state.globalSettings.proactiveIntervalMinutes) {
-      startProactiveScheduler();
-      console.log(`主动消息调度器已启动 (频率: ${state.globalSettings.proactiveIntervalMinutes} 分钟)。`);
     }
     loadShoppingCart(); // 加载购物车数据
     

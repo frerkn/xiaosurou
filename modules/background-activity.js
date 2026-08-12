@@ -1,4 +1,4 @@
-// ========== 后台活动模块 ==========
+﻿// ========== 后台活动模块 ==========
 // 来源：script.js 第 21043~21384, 37449~37788, 47205~47250 行
 // 功能：后台模拟活动、NPC行动生成
 // 包含：startBackgroundSimulation, stopBackgroundSimulation, runBackgroundSimulationTick,
@@ -2067,12 +2067,6 @@ ${tasksString}
       return;
     }
 
-
-    // 主动消息 catch-up 频率
-    const proactiveIntervalMs = getProactiveIntervalMinutes() * 60 * 1000;
-    // 主动消息 catch-up 上限（防止离线太久刷爆 API）
-    const PROACTIVE_CATCHUP_MAX = 3;
-
     for (const char of activeCharacters) {
 
       const cooldownMinutes = char.settings.actionCooldownMinutes || 15;
@@ -2104,33 +2098,7 @@ ${tasksString}
       }
     }
 
-    // ===== 通道 2：独立"主动发消息" catch-up =====
-    // 只看角色级 proactiveEnabled，不依赖后台活动总开关、后台活动角色开关或好友关系。
-    if (typeof triggerProactiveMessage === 'function') {
-      for (const char of proactiveCharacters) {
-        let missedCount = 0;
-        if (char.lastProactiveTimestamp) {
-          const elapsedMs = Date.now() - char.lastProactiveTimestamp;
-          missedCount = Math.floor(elapsedMs / proactiveIntervalMs);
-        } else {
-          missedCount = Math.max(1, Math.floor(minutesOffline / (proactiveIntervalMs / 60000)));
-        }
-        if (missedCount <= 0) continue;
-
-        const toSend = Math.min(missedCount, PROACTIVE_CATCHUP_MAX);
-        console.log(`[Proactive/CatchUp] 角色 "${char.name}" 离线 ${Math.round(minutesOffline)} 分钟，欠 ${missedCount} 次主动消息，将补发 ${toSend} 条（上限 ${PROACTIVE_CATCHUP_MAX}）...`);
-        for (let i = 0; i < toSend; i++) {
-          try {
-            await triggerProactiveMessage(char.id);
-            if (i < toSend - 1) {
-              await new Promise(r => setTimeout(r, 2000));
-            }
-          } catch (e) {
-            console.error(`[Proactive/CatchUp] 角色 "${char.name}" 第 ${i + 1}/${toSend} 条主动消息补发失败:`, e);
-          }
-        }
-      }
-    }
+    // v0.2.18: 删了通道 2 主动消息 catch-up, 由 modules/in-app-proactive-patrol.js (新巡视) 接管
   }
 
   // ========== 后台活动里 AI 主动唱歌（10% 概率触发） ==========
@@ -2196,51 +2164,6 @@ ${tasksString}
       console.log(`[BG-Sing] 角色 "${chat.name}" 主动唱了《${songTitle}》`);
     } catch (err) {
       console.error('[BG-Sing] 失败:', err);
-    }
-  }
-
-  // ============================================================
-  // 主动消息调度器 (2026-07-18 加)
-  // 独立于"AI 自由模式"，按用户设置的 interval 定时触发 triggerProactiveMessage
-  // 频率：state.globalSettings.proactiveIntervalMinutes (默认 30 分钟)
-  // 角色级开关：chat.settings.proactiveEnabled (默认 false，需用户手动开)
-  // PWA 死了重开时的 catch-up 由 simulateBackgroundActivity 处理
-  // ============================================================
-  let proactiveSchedulerIntervalId = null;
-  let proactiveSchedulerInFlight = false;
-
-  function getProactiveIntervalMinutes() {
-    const interval = Number(state.globalSettings.proactiveIntervalMinutes);
-    return Number.isFinite(interval) && interval > 0 ? interval : 30;
-  }
-
-  function startProactiveScheduler() {
-    if (proactiveSchedulerIntervalId) return;
-    // v0.2.07+: 移除 v0.1.91 误加的 mode !== 'app' return 拦截
-    // v0.2.08+: 两个模式都跑巡视 scheduler, 触发路径分发
-    //   - app 模式: triggerProactiveMessage (直接 LLM 生成 + 插 chat.history)
-    //   - push 模式: triggerProactivePushMessage (调 push-server /api/proactive-patrol, 推系统通知)
-    // 巡视频率: state.globalSettings.proactiveIntervalMinutes (默认 10 分钟, v0.2.08 改)
-    console.log(`[Proactive] 启动主动消息巡视调度器 (每 ${getProactiveIntervalMinutes()} 分钟检查一次, 命中条件就问 LLM 要不要主动发)`);
-    // 首次启动：把所有 proactiveEnabled 开启的角色的 lastProactiveTimestamp 初始化为 now
-    // 这样不会立即触发，而是等一个 interval 后再触发（避免启动时一窝蜂）
-    for (const chat of Object.values(state.chats)) {
-      if (!chat.isGroup && chat.settings?.proactiveEnabled === true && !chat.lastProactiveTimestamp) {
-        chat.lastProactiveTimestamp = Date.now();
-        try { db.chats.put(chat); } catch(e) {}
-      }
-    }
-    // 60s tick 跑
-    proactiveSchedulerIntervalId = setInterval(runProactiveTick, 60 * 1000);
-    // 启动时立即跑一次（让"刚启动"也能立刻检查）
-    runProactiveTick();
-  }
-
-  function stopProactiveScheduler() {
-    if (proactiveSchedulerIntervalId) {
-      clearInterval(proactiveSchedulerIntervalId);
-      proactiveSchedulerIntervalId = null;
-      console.log('[Proactive] 停止主动消息调度器');
     }
   }
 
@@ -2336,87 +2259,6 @@ ${tasksString}
     }
   }
 
-  async function runProactiveTick() {
-    // 防并发：上一次 tick 还没跑完就跳过
-    if (proactiveSchedulerInFlight) return;
-    proactiveSchedulerInFlight = true;
-    try {
-      const intervalMinutes = getProactiveIntervalMinutes();
-      const intervalMs = intervalMinutes * 60 * 1000;
-      const now = Date.now();
-
-      // v0.2.08+: 拿到投递模式, 决定触发路径
-      const mode = state.globalSettings?.proactiveDeliveryMode || 'app';
-
-      for (const chat of Object.values(state.chats)) {
-        // 过滤：非群聊 + 角色级主动消息开启
-        if (chat.isGroup) continue;
-        if (chat.settings?.proactiveEnabled !== true) continue;
-
-        // 计时基准 = chat.history 最后一条消息的时间戳
-        const lastMsg = (chat.history && chat.history.length > 0) ? chat.history[chat.history.length - 1] : null;
-        // 首次互动（chat.history 为空）不主动发，避免打开新 chat 就立刻插嘴
-        if (!lastMsg) continue;
-        const lastMsgTime = lastMsg.timestamp || 0;
-        const elapsed = now - lastMsgTime;
-        if (elapsed < intervalMs) continue;
-
-        // v0.2.08+: 收集 retry info 给 LLM
-        // - 距离 user 最后一条消息多久
-        // - 上次 AI 主动推是什么时候
-        // - 上次推完之后 user 回了没 (chat.history 最后一条是不是 user 发的)
-        // - 连推几次 user 都没回
-        const lastMsgIsUser = lastMsg.role === 'user';
-        const lastProactivePushAt = chat.lastProactivePushAt || 0;
-        const sinceLastPush = lastProactivePushAt > 0 ? now - lastProactivePushAt : null;
-        let consecutiveUnreplied = 0;
-        if (lastProactivePushAt > 0 && !lastMsgIsUser) {
-          // 上次推过, user 还没回 → 算连推次数
-          // 简单算法: 从后往前数 chat.history, 数 AI 主动消息有几条 user 后面没接
-          for (let i = chat.history.length - 1; i >= 0; i--) {
-            const m = chat.history[i];
-            if (!m) break;
-            if (m.role === 'user') break;  // user 回了一条, 计数停
-            if (m.role === 'assistant' && m.timestamp >= lastProactivePushAt) {
-              consecutiveUnreplied++;
-            } else {
-              break;
-            }
-          }
-        }
-        const retryContext = {
-          minutesSinceUserMsg: Math.round(elapsed / 60000),
-          lastProactivePushAt,
-          minutesSinceLastPush: sinceLastPush !== null ? Math.round(sinceLastPush / 60000) : null,
-          lastMsgIsUser,
-          consecutiveUnreplied
-        };
-
-        // 触发主动消息
-        console.log(`[Proactive] 角色 "${chat.name}" 巡视 (设置频率 ${intervalMinutes} 分钟, mode=${mode}, user 已 ${Math.round(elapsed / 60000)} 分钟没说话${consecutiveUnreplied > 0 ? `, AI 连推 ${consecutiveUnreplied} 次没回` : ''}), 触发 LLM 决定...`);
-        try {
-          if (mode === 'push') {
-            if (typeof triggerProactivePushMessage === 'function') {
-              await triggerProactivePushMessage(chat.id, retryContext);
-            }
-          } else {
-            // app 模式: 直接调 LLM 生成 + 插消息
-            if (typeof triggerProactiveMessage === 'function') {
-              await triggerProactiveMessage(chat.id, { retryContext });
-              // 推完更新 lastProactivePushAt (跟 push 模式一致, 用于下个 tick 算 retry)
-              chat.lastProactivePushAt = Date.now();
-              try { db.chats.put(chat); } catch (e) {}
-            }
-          }
-        } catch (e) {
-          console.error(`[Proactive] 角色 "${chat.name}" 主动消息触发失败:`, e);
-        }
-      }
-    } finally {
-      proactiveSchedulerInFlight = false;
-    }
-  }
-
   // ========== 全局暴露 ==========
   window.generateAiReminderText = generateAiReminderText;
   window.scanDueAiReminders = scanDueAiReminders;
@@ -2439,7 +2281,5 @@ ${tasksString}
   window.loadBackgroundKeepAliveSettings = loadBackgroundKeepAliveSettings;
   window.bindBackgroundKeepAliveEvents = bindBackgroundKeepAliveEvents;
   // 主动消息调度器 (2026-07-18 加 / 2026-08-08 v0.2.08 加 push 模式巡视)
-  window.startProactiveScheduler = startProactiveScheduler;
-  window.stopProactiveScheduler = stopProactiveScheduler;
-  window.runProactiveTick = runProactiveTick;
+  // v0.2.18: 删 startProactiveScheduler/stopProactiveScheduler/runProactiveTick 暴露 (函数已删, 留着 ReferenceError 让整个 IIFE 挂掉)
   window.triggerProactivePushMessage = triggerProactivePushMessage;

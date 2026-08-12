@@ -1002,12 +1002,7 @@
     document.getElementById('background-activity-switch').checked = state.globalSettings.enableBackgroundActivity || false;
     document.getElementById('background-interval-input').value = state.globalSettings.backgroundActivityInterval || 60;
     document.getElementById('block-cooldown-input').value = state.globalSettings.blockCooldownHours || 1;
-    const proactiveIntervalInput = document.getElementById('proactive-interval-input');
-    if (proactiveIntervalInput) {
-      const proactiveInterval = Number(state.globalSettings.proactiveIntervalMinutes);
-      proactiveIntervalInput.value = Number.isFinite(proactiveInterval) && proactiveInterval > 0 ? proactiveInterval : 30;
-    }
-    
+
     // 新增：加载后台查看用户手机设置
     document.getElementById('global-enable-view-myphone-bg-switch').checked = state.globalSettings.enableViewMyPhoneInBackground || false;
     document.getElementById('global-view-myphone-chance-input').value = state.globalSettings.viewMyPhoneChance !== null && state.globalSettings.viewMyPhoneChance !== undefined ? state.globalSettings.viewMyPhoneChance : '';
