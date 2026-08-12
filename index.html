@@ -9005,39 +9005,52 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
   // 验证完删这段
   (function () {
     if (!('serviceWorker' in navigator)) return;
-    navigator.serviceWorker.getRegistration().then(function (reg) {
-      if (!reg) return null;
-      return reg.pushManager.getSubscription();
-    }).then(function (sub) {
-      if (!sub) {
-        showTag('⚠️NO-SUBSCRIPTION 还没订阅，点"服务器推送"开关后再看', '#a00');
-        return null;
-      }
-      var key = sub.getKey('p256dh');
-      if (!key) {
-        showTag('⚠️getKey() 返 null', '#a00');
-        return;
-      }
-      var bytes = new Uint8Array(key);
-      var hex = Array.from(bytes).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
-      var allAscii = Array.from(bytes).every(function (b) { return b < 0x80; });
-      var isClean = allAscii && bytes.length === 65;
-      var txt = '[推送污染检测 v0.2.20] p256dh ' + (isClean ? '✅CLEAN' : (allAscii ? '❌WRONG-LEN' : '❌POLLUTED')) + ' ' + bytes.length + 'B / hex: ' + hex.slice(0, 80) + (hex.length > 80 ? '...' : '');
-      showTag(txt, isClean ? '#0a0' : '#a00');
-    }).catch(function (err) {
-      showTag('❌检测失败: ' + err.message, '#a00');
-      console.warn('[debug-push-pollution] 检测失败:', err.message);
-    });
+    var tag = null;
     function showTag(txt, bg) {
       if (!document.body) {
         setTimeout(function () { showTag(txt, bg); }, 100);
         return;
       }
-      var tag = document.createElement('div');
-      tag.style.cssText = 'position:fixed;top:0;left:0;right:0;background:' + bg + ';color:#fff;padding:8px 10px;z-index:99999;font-size:11px;font-family:monospace;word-break:break-all;line-height:1.4;';
+      if (!tag) {
+        tag = document.createElement('div');
+        tag.id = 'push-pollution-debug-banner';
+        tag.style.cssText = 'position:fixed;top:0;left:0;right:0;background:' + bg + ';color:#fff;padding:8px 10px;z-index:99999;font-size:11px;font-family:monospace;word-break:break-all;line-height:1.4;';
+        document.body.appendChild(tag);
+      } else {
+        tag.style.background = bg;
+      }
       tag.textContent = txt;
-      document.body.appendChild(tag);
     }
+    function tryGetKey() {
+      navigator.serviceWorker.getRegistration().then(function (reg) {
+        if (!reg) return null;
+        return reg.pushManager.getSubscription();
+      }).then(function (sub) {
+        if (!sub) {
+          showTag('⚠️NO-SUBSCRIPTION 还没订阅，点"服务器推送"开关后再看', '#a00');
+          return;
+        }
+        var key = sub.getKey('p256dh');
+        if (!key) {
+          showTag('⚠️getKey() 返 null', '#a00');
+          return;
+        }
+        var bytes = new Uint8Array(key);
+        var hex = Array.from(bytes).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+        var allAscii = Array.from(bytes).every(function (b) { return b < 0x80; });
+        var isClean = allAscii && bytes.length === 65;
+        var txt = '[推送污染检测 v0.2.20.2] p256dh ' + (isClean ? '✅CLEAN' : (allAscii ? '❌WRONG-LEN' : '❌POLLUTED')) + ' ' + bytes.length + 'B / hex: ' + hex.slice(0, 80) + (hex.length > 80 ? '...' : '');
+        showTag(txt, isClean ? '#0a0' : '#a00');
+      }).catch(function (err) {
+        showTag('❌检测失败: ' + err.message, '#a00');
+        console.warn('[debug-push-pollution] 检测失败:', err.message);
+      });
+    }
+    tryGetKey();
+    // 2026-08-13 fix: 之前 banner 只跑一次, 订阅成功后不更新。加 polling 让 user 点开关后 banner 自动更新
+    setTimeout(tryGetKey, 2000);
+    setTimeout(tryGetKey, 5000);
+    setTimeout(tryGetKey, 10000);
   })();
 </script>
 
