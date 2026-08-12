@@ -9013,15 +9013,17 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
         showTag('⚠️NO-SUBSCRIPTION 还没订阅，点"服务器推送"开关后再看', '#a00');
         return null;
       }
-      return sub.getKey('p256dh').then(function (key) {
-        if (!key) return;
-        var bytes = new Uint8Array(key);
-        var hex = Array.from(bytes).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
-        var allAscii = Array.from(bytes).every(function (b) { return b < 0x80; });
-        var isClean = allAscii && bytes.length === 65;
-        var txt = '[推送污染检测 v0.2.20] p256dh ' + (isClean ? '✅CLEAN' : (allAscii ? '❌WRONG-LEN' : '❌POLLUTED')) + ' ' + bytes.length + 'B / hex: ' + hex.slice(0, 80) + (hex.length > 80 ? '...' : '');
-        showTag(txt, isClean ? '#0a0' : '#a00');
-      });
+      var key = sub.getKey('p256dh');
+      if (!key) {
+        showTag('⚠️getKey() 返 null', '#a00');
+        return;
+      }
+      var bytes = new Uint8Array(key);
+      var hex = Array.from(bytes).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+      var allAscii = Array.from(bytes).every(function (b) { return b < 0x80; });
+      var isClean = allAscii && bytes.length === 65;
+      var txt = '[推送污染检测 v0.2.20] p256dh ' + (isClean ? '✅CLEAN' : (allAscii ? '❌WRONG-LEN' : '❌POLLUTED')) + ' ' + bytes.length + 'B / hex: ' + hex.slice(0, 80) + (hex.length > 80 ? '...' : '');
+      showTag(txt, isClean ? '#0a0' : '#a00');
     }).catch(function (err) {
       showTag('❌检测失败: ' + err.message, '#a00');
       console.warn('[debug-push-pollution] 检测失败:', err.message);

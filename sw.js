@@ -1,5 +1,9 @@
 // Service Worker file (sw.js)
 // Whitelist cache strategy: cache only known static assets; API requests pass through.
+// 2026-08-13 v0.2.20.1: bump CACHE_VERSION 强制清缓存（推送污染检测 debug banner fix —
+//   之前 v0.2.20 写错了 getKey().then(), getKey() 是同步方法返回 ArrayBuffer, 报 .then is not a function。
+//   改同步写法 + 修 notification-battery.js 内 await 多余。
+//   验证完删 debug 代码 + 回退 CACHE_VERSION。
 // 2026-08-13 v0.2.20: bump CACHE_VERSION 强制清缓存（推送污染检测 debug banner —
 //   验证 iOS PWA getKey() 拿到的 p256dh ArrayBuffer 是否被 iOS 系统层污染。
 //   DeepSeek 假设 getKey() 返回原生 Uint8Array 没污染（iOS 污染只在 toJSON() 字符串路径）。
@@ -413,7 +417,7 @@
 //   之前 v0.2.15 改 proactive-wake.js / background-activity.js + v0.2.15.1 改 notification-battery.js / proactive-wake.js 都忘了 bump SW cache, iPhone PWA SW 仍认 v0.2.14, 划掉重开也没用, SW 强制缓存旧 modules/*.js (v0.2.13) → 仍抛 ByteString (subscription.toJSON() 旧代码)。
 //   修法: bump CACHE_VERSION v0.2.14 → v0.2.15.1, SW activate event 会删 ephone-cache-v0.2.14 旧 cache, 装新 cache。
 //   同时加 3 个 modules 进 URLS_TO_CACHE (之前漏了, 现在白名单让 SW 主动管理这 3 个文件, 未来改这 3 个文件再 bump 就行)。
-const CACHE_VERSION = 'v0.2.20';
+const CACHE_VERSION = 'v0.2.20.1';
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [

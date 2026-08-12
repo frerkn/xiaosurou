@@ -602,7 +602,8 @@ async function unsubscribeFromPushServer() {
     try {
       const dbgSub = await registration.pushManager.getSubscription();
       if (dbgSub) {
-        const dbgKey = await dbgSub.getKey('p256dh');
+        // 2026-08-13 fix: getKey() 是同步方法, 返回 ArrayBuffer, 不是 Promise — 之前 await 多余
+        const dbgKey = dbgSub.getKey('p256dh');
         if (dbgKey) {
           const dbgBytes = new Uint8Array(dbgKey);
           const dbgHex = Array.from(dbgBytes).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
