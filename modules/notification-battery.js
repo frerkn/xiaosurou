@@ -596,6 +596,26 @@ async function unsubscribeFromPushServer() {
         applicationServerKey: new Uint8Array(applicationServerKey)
       });
     }
+    // 2026-08-13 debug: 验证 iOS PWA getKey() 拿到的 ArrayBuffer 是否被 iOS 系统层污染
+    // DeepSeek 假设 getKey() 返回原生 Uint8Array 没污染；如果 CLEAN = 真解；如果 POLLUTED = 死路
+    // 验证完删这段
+    try {
+      const dbgSub = await registration.pushManager.getSubscription();
+      if (dbgSub) {
+        const dbgKey = await dbgSub.getKey('p256dh');
+        if (dbgKey) {
+          const dbgBytes = new Uint8Array(dbgKey);
+          const dbgHex = Array.from(dbgBytes).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+          const dbgIsClean = Array.from(dbgBytes).every(function (b) { return b < 0x80; }) && dbgBytes.length === 65;
+          const dbgTag = document.createElement('div');
+          dbgTag.style.cssText = 'position:fixed;top:0;left:0;right:0;background:' + (dbgIsClean ? '#0a0' : '#a00') + ';color:#fff;padding:8px 10px;z-index:99999;font-size:11px;font-family:monospace;word-break:break-all;line-height:1.4;';
+          dbgTag.textContent = '[推送污染检测 v0.2.20] p256dh ' + (dbgIsClean ? '✅CLEAN' : '❌POLLUTED') + ' ' + dbgBytes.length + 'B / hex: ' + dbgHex.slice(0, 80) + (dbgHex.length > 80 ? '...' : '');
+          document.body && document.body.appendChild(dbgTag);
+        }
+      }
+    } catch (dbgErr) {
+      console.warn('[debug-push-pollution] 检测失败:', dbgErr.message);
+    }
     return {
       ok: true,
       message: '本地 Push 订阅已创建'
