@@ -8999,6 +8999,45 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
 <script src="js/mcp-menu-card.js?v=1.0.0"></script>
 <script src="js/mcp-pay-card.js?v=1.0.0"></script>
 <script src="js/mcp-tool-call-log.js?v=1.0.0"></script>
+<script>
+  // 2026-08-13 v0.2.20 debug: 验证 iOS PWA getKey() 拿到的 ArrayBuffer 是否被 iOS 系统层污染
+  // DeepSeek 假设 getKey() 返回原生 Uint8Array 没污染；如果 CLEAN = 真解；如果 POLLUTED = 死路
+  // 验证完删这段
+  (function () {
+    if (!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.getRegistration().then(function (reg) {
+      if (!reg) return null;
+      return reg.pushManager.getSubscription();
+    }).then(function (sub) {
+      if (!sub) {
+        showTag('⚠️NO-SUBSCRIPTION 还没订阅，点"服务器推送"开关后再看', '#a00');
+        return null;
+      }
+      return sub.getKey('p256dh').then(function (key) {
+        if (!key) return;
+        var bytes = new Uint8Array(key);
+        var hex = Array.from(bytes).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+        var allAscii = Array.from(bytes).every(function (b) { return b < 0x80; });
+        var isClean = allAscii && bytes.length === 65;
+        var txt = '[推送污染检测 v0.2.20] p256dh ' + (isClean ? '✅CLEAN' : (allAscii ? '❌WRONG-LEN' : '❌POLLUTED')) + ' ' + bytes.length + 'B / hex: ' + hex.slice(0, 80) + (hex.length > 80 ? '...' : '');
+        showTag(txt, isClean ? '#0a0' : '#a00');
+      });
+    }).catch(function (err) {
+      showTag('❌检测失败: ' + err.message, '#a00');
+      console.warn('[debug-push-pollution] 检测失败:', err.message);
+    });
+    function showTag(txt, bg) {
+      if (!document.body) {
+        setTimeout(function () { showTag(txt, bg); }, 100);
+        return;
+      }
+      var tag = document.createElement('div');
+      tag.style.cssText = 'position:fixed;top:0;left:0;right:0;background:' + bg + ';color:#fff;padding:8px 10px;z-index:99999;font-size:11px;font-family:monospace;word-break:break-all;line-height:1.4;';
+      tag.textContent = txt;
+      document.body.appendChild(tag);
+    }
+  })();
+</script>
 
 </body>
 </html>
