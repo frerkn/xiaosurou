@@ -1,17 +1,12 @@
 // Service Worker file (sw.js)
 // Whitelist cache strategy: cache only known static assets; API requests pass through.
-// 2026-08-13 v0.2.20.2: bump CACHE_VERSION 强制清缓存（推送污染检测 banner 加 polling —
-//   之前 v0.2.20.1 banner 只在 PWA 加载时跑一次, user 点"启用服务器推送"开关订阅成功后 banner 不更新。
-//   改 polling: 立即 + 2秒 + 5秒 + 10秒各查一次, 任意时机拿到 subscription 都会更新 banner。
-//   验证完删 debug 代码 + 回退 CACHE_VERSION。
-// 2026-08-13 v0.2.20.1: bump CACHE_VERSION 强制清缓存（推送污染检测 debug banner fix —
-//   之前 v0.2.20 写错了 getKey().then(), getKey() 是同步方法返回 ArrayBuffer, 报 .then is not a function。
-//   改同步写法 + 修 notification-battery.js 内 await 多余。
-//   验证完删 debug 代码 + 回退 CACHE_VERSION。
-// 2026-08-13 v0.2.20: bump CACHE_VERSION 强制清缓存（推送污染检测 debug banner —
-//   验证 iOS PWA getKey() 拿到的 p256dh ArrayBuffer 是否被 iOS 系统层污染。
-//   DeepSeek 假设 getKey() 返回原生 Uint8Array 没污染（iOS 污染只在 toJSON() 字符串路径）。
-//   顶部红/绿 banner 一眼看出结果。验证完删这段代码 + 回退 CACHE_VERSION。
+// 2026-08-13 v0.2.20: bump CACHE_VERSION 强制清缓存（修 syncCurrentChatPushConfig activeChatId 设计 bug —
+//   切 push 模式时 user 经常不在 chat 里, activeChatId 是 null 直接 return, push_user_config 一直 0 行
+//   → push-server 10 分钟 scheduler 没事干, 主动消息一周 0 推送
+//   改成遍历所有 proactiveEnabled chat 一起 sync, 切模式时 push_user_config 立即有 N 行
+//   user 2026-08-13 16:23 真机验证测试通知能来 = iOS PWA web-push 协议 work, 500 错是 push-server 端具体 bug, 不是 iOS 污染)
+// 2026-08-13 cleanup: 回退 v0.2.20-debug-banner / v0.2.20.1 / v0.2.20.2 debug banner（结论：getKey() 拿到的 ArrayBuffer 干净，
+//   iOS PWA 污染只在 toJSON() 字符串路径。明天按 DeepSeek 方案用 getKey() + FormData 二进制上传改造）。
 // 2026-08-12 v0.2.19: bump CACHE_VERSION 强制清缓存（in-app-proactive 弹通知听"聊天界面也弹通知"开关 —
 // 2026-08-09 v0.2.04: bump CACHE_VERSION 强制清缓存（启动时清理老错位 group —
 //
@@ -421,7 +416,7 @@
 //   之前 v0.2.15 改 proactive-wake.js / background-activity.js + v0.2.15.1 改 notification-battery.js / proactive-wake.js 都忘了 bump SW cache, iPhone PWA SW 仍认 v0.2.14, 划掉重开也没用, SW 强制缓存旧 modules/*.js (v0.2.13) → 仍抛 ByteString (subscription.toJSON() 旧代码)。
 //   修法: bump CACHE_VERSION v0.2.14 → v0.2.15.1, SW activate event 会删 ephone-cache-v0.2.14 旧 cache, 装新 cache。
 //   同时加 3 个 modules 进 URLS_TO_CACHE (之前漏了, 现在白名单让 SW 主动管理这 3 个文件, 未来改这 3 个文件再 bump 就行)。
-const CACHE_VERSION = 'v0.2.20.2';
+const CACHE_VERSION = 'v0.2.20';
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [

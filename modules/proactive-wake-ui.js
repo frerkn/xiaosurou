@@ -497,22 +497,18 @@
     });
   }
 
-  // ===== v0.2.12: sync 当前 chat 的 push config 到 push-server =====
+  // ===== v0.2.20: sync 所有 chat 的 push config 到 push-server =====
   // 投递方式切到 push 时调, push-server 端 10 分钟巡视会读这张表调 LLM
   // 即使 PWA 死了, push-server 也能照这个 config 调 LLM 决定要不要发
+  // v0.2.20 修 (user 2026-08-13 16:23 揭穿): 不再限制 activeChatId
+  //   切 push 模式时 user 可能在任何界面 (主页/角色列表/聊天详情/设置), activeChatId 经常是 null
+  //   user 原话: "切 push 模式时本来就不在 chat 里, activeChatId 限制是设计 bug"
+  //   改成遍历所有开了 [启用主动消息] 的 chat 一起 sync
+  //   修前: push_user_config 0 行 → push-server scheduler 没事干 → 一周 0 推送
+  //   修后: 切 push 模式时 push_user_config 立即有 N 行 (N = 开 proactiveEnabled 的 chat 数)
   async function syncCurrentChatPushConfig() {
     const state = window.state;
     if (!state) return;
-    const chatId = state.activeChatId;
-    if (!chatId) return;
-    const chat = state.chats[chatId];
-    if (!chat) return;
-
-    // v0.2.12: 必须 chat.settings.proactiveEnabled = true 才 sync (用户没开就别让 server 跑)
-    if (!chat.settings?.proactiveEnabled) {
-      console.log('[proactive-wake-ui] 当前 chat 没开 [启用主动消息], 跳过 sync push config');
-      return;
-    }
 
     // 拿 push-server URL
     const serverUrl = (state.globalSettings?.systemNotification?.pushServer?.serverUrl || '').replace(/\/$/, '');
@@ -530,9 +526,26 @@
     const llmApiKey = apiConfig.apiKey || apiConfig.mainApiKey;
     const llmModel = apiConfig.model || apiConfig.mainModel;
 
-    // 拿角色信息 + 最近对话上下文 (跟 triggerProactivePushMessage 同模式: chat.history.slice(-20))
+    // v0.2.20 改: 遍历所有 proactiveEnabled chat (不再依赖 activeChatId)
+    const enabledChats = Object.values(state.chats).filter(c => c && c.settings?.proactiveEnabled);
+    if (enabledChats.length === 0) {
+      console.log('[proactive-wake-ui] 没有 chat 开启 [启用主动消息], 跳过 sync push config');
+      return;
+    }
+
+    const userId = getOrCreatePushUserId();
+    for (const chat of enabledChats) {
+      await doSyncChat(chat, userId, serverUrl, llmApiUrl, llmApiKey, llmModel);
+    }
+  }
+
+  // ===== v0.2.20: 实际 sync 单个 chat 的 push config =====
+  // 抽出来便于遍历调用, 之前都堆在 syncCurrentChatPushConfig 里
+  async function doSyncChat(chat, userId, serverUrl, llmApiUrl, llmApiKey, llmModel) {
+    const chatId = chat.id;
     const contactName = chat.name || chatId;
     const contactPersonality = chat.settings?.aiPersona || chat.settings?.characterPrompt || chat.settings?.characterPersonality || '';
+
     let contextSummary = '';
     if (Array.isArray(chat.history) && chat.history.length > 0) {
       const recent = chat.history.slice(-20);
@@ -546,17 +559,10 @@
       }).filter(Boolean).join('\n');
     }
 
-    const userId = getOrCreatePushUserId();
     const body = {
-      userId,
-      chatId,
-      enabled: true,
-      contactName,
-      contactPersonality,
-      contextSummary,
-      llmApiUrl,
-      llmApiKey,
-      llmModel
+      userId, chatId, enabled: true,
+      contactName, contactPersonality, contextSummary,
+      llmApiUrl, llmApiKey, llmModel
     };
 
     try {
@@ -567,40 +573,44 @@
       });
       if (!res.ok) {
         const errText = await res.text().catch(() => '');
-        console.warn(`[proactive-wake-ui] sync push config 失败: ${res.status} ${errText.substring(0, 200)}`);
+        console.warn(`[proactive-wake-ui] sync push config 失败: chatId=${chatId} ${res.status} ${errText.substring(0, 200)}`);
       } else {
-        console.log(`[proactive-wake-ui] ✅ sync push config 成功: chatId=${chatId} model=${llmModel}`);
+        console.log(`[proactive-wake-ui] ✅ sync push config 成功: chatId=${chatId} model=${llmModel || '?'}`);
       }
     } catch (e) {
-      console.warn('[proactive-wake-ui] sync push config 网络错误:', e.message);
+      console.warn(`[proactive-wake-ui] sync push config 网络错误 chatId=${chatId}:`, e.message);
     }
   }
 
-  // ===== v0.2.12: unsync 当前 chat 的 push config =====
-  // 切到 app 模式时调, 告诉 push-server 别再巡视这个 chat
+  // ===== v0.2.20: unsync 所有 chat 的 push config =====
+  // 切到 app 模式时调, 告诉 push-server 别再巡视这些 chat
+  // v0.2.20 改: 跟 sync 对称, 遍历所有 chat (不再限制 activeChatId)
   async function unsyncCurrentChatPushConfig() {
     const state = window.state;
     if (!state) return;
-    const chatId = state.activeChatId;
-    if (!chatId) return;
 
     const serverUrl = (state.globalSettings?.systemNotification?.pushServer?.serverUrl || '').replace(/\/$/, '');
     if (!serverUrl) return;
 
     const userId = getOrCreatePushUserId();
-    try {
-      const res = await fetch(`${serverUrl}/api/push-config`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, chatId })
-      });
-      if (!res.ok) {
-        console.warn(`[proactive-wake-ui] unsync push config 失败: ${res.status}`);
-      } else {
-        console.log(`[proactive-wake-ui] ✅ unsync push config 成功: chatId=${chatId}`);
+    // 遍历所有 chat (不只是 proactiveEnabled, 因为 server 端可能存了过期的 enabled=true)
+    const allChats = Object.values(state.chats).filter(c => c);
+    for (const chat of allChats) {
+      const chatId = chat.id;
+      try {
+        const res = await fetch(`${serverUrl}/api/push-config`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, chatId })
+        });
+        if (!res.ok) {
+          console.warn(`[proactive-wake-ui] unsync push config 失败: chatId=${chatId} ${res.status}`);
+        } else {
+          console.log(`[proactive-wake-ui] ✅ unsync push config 成功: chatId=${chatId}`);
+        }
+      } catch (e) {
+        console.warn(`[proactive-wake-ui] unsync push config 网络错误 chatId=${chatId}:`, e.message);
       }
-    } catch (e) {
-      console.warn('[proactive-wake-ui] unsync push config 网络错误:', e.message);
     }
   }
 
