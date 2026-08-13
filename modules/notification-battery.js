@@ -153,24 +153,43 @@ async function subscribeToPushServer(userId, serverUrl) {
       console.log('[服务器推送] 已创建订阅 (Uint8Array fallback)');
     }
 
-    // 5. v0.2.15.3 改: 不用 subscription.toJSON() (iOS PWA 模式污染源), 改用 subscription.getKey() 拿原始 ArrayBuffer + 手动 base64url 编码
-    //   v0.2.15.2 失败根因: replace(/[^\x00-\x7F]/g, '') 只能去非 ASCII 字符, 不能恢复原始 base64url 字符, 截短后 web-push Buffer.from(p256dh, 'base64url') 还是炸
-    //   v0.2.15.3 修法: subscription.endpoint (URL 字符串, 不会被污染) + subscription.getKey('p256dh') / getKey('auth') 返回 ArrayBuffer (不经过字符串转换, iOS bug 不污染)
-    //         → uint8ArrayToBase64Url 手动编码 → 干净 base64url 字符
-    //   永远不发 rawJson (toJSON() 输出, 字段值可能被污染), 只发 buildCleanPushSub 输出
-    const cleanSub = buildCleanPushSub(subscription);
-    console.log('[服务器推送] v0.2.15.3: 用 getKey() 构造干净 pushSubscription, endpoint 前 60 字符:', cleanSub.endpoint.slice(0, 60) + '..., p256dh 长度:', cleanSub.keys.p256dh.length, 'auth 长度:', cleanSub.keys.auth.length);
+    // 5. v0.2.21: 二进制 raw bytes 传输 (DeepSeek 方案, 不用 FormData/multer 避免引入新包)
+    //   之前 v0.2.15.3 base64url string 还是会触发 push-server 端 V8 ToStringByteString 错
+    //   现在 PWA 端拿干净 ArrayBuffer (getKey 不经字符串转换, iOS bug 不污染) + 手写 raw bytes 协议
+    //   push-server 端 express.raw 接 Buffer, 直接存 Neon BYTEA, web-push 库从 BYTEA 还原
+    //   协议: [2 字节 endpoint 长度 (uint16) | N 字节 endpoint (UTF-8) | 65 字节 p256dh (raw) | 16 字节 auth (raw)]
+    const p256dhBuffer = subscription.getKey('p256dh');
+    const authBuffer = subscription.getKey('auth');
+    if (!p256dhBuffer || !authBuffer) {
+      throw new Error('subscription.getKey 返回空, 浏览器可能不支持原生 Push API');
+    }
+    const p256dhU8 = new Uint8Array(p256dhBuffer);
+    const authU8 = new Uint8Array(authBuffer);
+    if (p256dhU8.length !== 65) {
+      console.warn('[服务器推送] p256dh 字节数异常:', p256dhU8.length, '(预期 65, web-push P-256 uncompressed public key)');
+    }
+    if (authU8.length !== 16) {
+      console.warn('[服务器推送] auth 字节数异常:', authU8.length, '(预期 16, web-push auth secret)');
+    }
+    const enc = new TextEncoder();
+    const endpointBytes = enc.encode(String(subscription.endpoint || ''));
+    if (endpointBytes.length > 65535) {
+      throw new Error('endpoint 太长 (超过 65535 字节)');
+    }
+    const totalLen = 2 + endpointBytes.length + p256dhU8.length + authU8.length;
+    const body = new Uint8Array(totalLen);
+    const dv = new DataView(body.buffer);
+    dv.setUint16(0, endpointBytes.length);
+    body.set(endpointBytes, 2);
+    body.set(p256dhU8, 2 + endpointBytes.length);
+    body.set(authU8, 2 + endpointBytes.length + p256dhU8.length);
+    console.log('[服务器推送] v0.2.21: raw bytes 上传, endpoint 字节数:', endpointBytes.length, 'p256dh:', p256dhU8.length, 'auth:', authU8.length, '总:', totalLen);
 
-    // 6. 将订阅信息发送到服务器 (用过滤后的 cleanSub, 永远不发污染的 rawJson)
+    // 6. raw bytes POST (application/octet-stream), 完全不走 string 转换
     const saveResponse = await fetch(`${serverUrl}/api/save-subscription`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        userId: userId,
-        subscription: cleanSub
-      })
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body
     });
 
     if (!saveResponse.ok) {

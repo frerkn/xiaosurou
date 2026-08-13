@@ -530,16 +530,32 @@
     }
 
     // 保存到 push-server (v0.2.10+: 用每 PWA 唯一 UUID, 不再掉到 'default-user' fallback)
+    // v0.2.21 改: 二进制 raw bytes 上传, 跟 notification-battery.js 同步 (DeepSeek 方案, 不用 FormData)
     const state = window.state;
     const userId = getOrCreatePushUserId();
+    const p256dhBuffer = subscription.getKey('p256dh');
+    const authBuffer = subscription.getKey('auth');
+    if (!p256dhBuffer || !authBuffer) {
+      throw new Error('subscription.getKey 返回空, 浏览器可能不支持原生 Push API');
+    }
+    const p256dhU8 = new Uint8Array(p256dhBuffer);
+    const authU8 = new Uint8Array(authBuffer);
+    const enc = new TextEncoder();
+    const endpointBytes = enc.encode(String(subscription.endpoint || ''));
+    if (endpointBytes.length > 65535) {
+      throw new Error('endpoint 太长 (超过 65535 字节)');
+    }
+    const totalLen = 2 + endpointBytes.length + p256dhU8.length + authU8.length;
+    const body = new Uint8Array(totalLen);
+    const dv = new DataView(body.buffer);
+    dv.setUint16(0, endpointBytes.length);
+    body.set(endpointBytes, 2);
+    body.set(p256dhU8, 2 + endpointBytes.length);
+    body.set(authU8, 2 + endpointBytes.length + p256dhU8.length);
     const saveRes = await fetch(`${serverUrl}/api/save-subscription`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      // v0.2.15.1 改: 手动构造 pushSubscription (修 ByteString), 只 endpoint + keys.p256dh + keys.auth
-    // v0.2.15.2 改: 强制过滤非 ASCII 字符 (修 iOS Safari PWA 字段值本身污染 ByteString)
-    // v0.2.15.3 改: 绕开 toJSON() 污染源, 改用 subscription.getKey() 拿原始 ArrayBuffer + 手动 base64url 编码
-    //   之前 v0.2.15.2 失败: replace(/[^\x00-\x7F]/g, '') 只能去非 ASCII, 不能恢复原始 base64url 截短, web-push Buffer.from 还是炸
-    body: JSON.stringify({ userId, subscription: window.buildCleanPushSub(subscription) })
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body
     });
     if (!saveRes.ok) {
       const err = await saveRes.text();
