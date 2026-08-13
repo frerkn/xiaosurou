@@ -531,6 +531,8 @@
 
     // 保存到 push-server (v0.2.10+: 用每 PWA 唯一 UUID, 不再掉到 'default-user' fallback)
     // v0.2.21 改: 二进制 raw bytes 上传, 跟 notification-battery.js 同步 (DeepSeek 方案, 不用 FormData)
+    // v0.2.21+userId fix: 协议加 4 字节 userId 长度 + N 字节 userId (UTF-8) 在 body 头部, 匹配 push-server 端解析
+    //   协议: [4 字节 userId 长度 (uint32) | N 字节 userId (UTF-8) | 2 字节 endpoint 长度 (uint16) | N 字节 endpoint (UTF-8) | 65 字节 p256dh (raw) | 16 字节 auth (raw)]
     const state = window.state;
     const userId = getOrCreatePushUserId();
     const p256dhBuffer = subscription.getKey('p256dh');
@@ -541,17 +543,24 @@
     const p256dhU8 = new Uint8Array(p256dhBuffer);
     const authU8 = new Uint8Array(authBuffer);
     const enc = new TextEncoder();
+    const userIdBytes = enc.encode(String(userId || ''));
+    if (userIdBytes.length > 4294967295) {
+      throw new Error('userId 太长 (超过 4GB)');
+    }
     const endpointBytes = enc.encode(String(subscription.endpoint || ''));
     if (endpointBytes.length > 65535) {
       throw new Error('endpoint 太长 (超过 65535 字节)');
     }
-    const totalLen = 2 + endpointBytes.length + p256dhU8.length + authU8.length;
+    const totalLen = 4 + userIdBytes.length + 2 + endpointBytes.length + p256dhU8.length + authU8.length;
     const body = new Uint8Array(totalLen);
     const dv = new DataView(body.buffer);
-    dv.setUint16(0, endpointBytes.length);
-    body.set(endpointBytes, 2);
-    body.set(p256dhU8, 2 + endpointBytes.length);
-    body.set(authU8, 2 + endpointBytes.length + p256dhU8.length);
+    dv.setUint32(0, userIdBytes.length);
+    body.set(userIdBytes, 4);
+    const off1 = 4 + userIdBytes.length;
+    dv.setUint16(off1, endpointBytes.length);
+    body.set(endpointBytes, off1 + 2);
+    body.set(p256dhU8, off1 + 2 + endpointBytes.length);
+    body.set(authU8, off1 + 2 + endpointBytes.length + p256dhU8.length);
     const saveRes = await fetch(`${serverUrl}/api/save-subscription`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/octet-stream' },

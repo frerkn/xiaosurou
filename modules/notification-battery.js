@@ -153,11 +153,12 @@ async function subscribeToPushServer(userId, serverUrl) {
       console.log('[服务器推送] 已创建订阅 (Uint8Array fallback)');
     }
 
-    // 5. v0.2.21: 二进制 raw bytes 传输 (DeepSeek 方案, 不用 FormData/multer 避免引入新包)
+    // 5. v0.2.21+userId: 二进制 raw bytes 传输 (DeepSeek 方案, 不用 FormData/multer 避免引入新包)
     //   之前 v0.2.15.3 base64url string 还是会触发 push-server 端 V8 ToStringByteString 错
     //   现在 PWA 端拿干净 ArrayBuffer (getKey 不经字符串转换, iOS bug 不污染) + 手写 raw bytes 协议
     //   push-server 端 express.raw 接 Buffer, 直接存 Neon BYTEA, web-push 库从 BYTEA 还原
-    //   协议: [2 字节 endpoint 长度 (uint16) | N 字节 endpoint (UTF-8) | 65 字节 p256dh (raw) | 16 字节 auth (raw)]
+    //   协议: [4 字节 userId 长度 (uint32) | N 字节 userId (UTF-8) | 2 字节 endpoint 长度 (uint16) | N 字节 endpoint (UTF-8) | 65 字节 p256dh (raw) | 16 字节 auth (raw)]
+    //   ★ userId 必须在 body 头部 (push-server 端 express.raw 不解析 URL query, 跟 /api/heartbeat 等 JSON 端点不同)
     const p256dhBuffer = subscription.getKey('p256dh');
     const authBuffer = subscription.getKey('auth');
     if (!p256dhBuffer || !authBuffer) {
@@ -172,18 +173,25 @@ async function subscribeToPushServer(userId, serverUrl) {
       console.warn('[服务器推送] auth 字节数异常:', authU8.length, '(预期 16, web-push auth secret)');
     }
     const enc = new TextEncoder();
+    const userIdBytes = enc.encode(String(userId || ''));
+    if (userIdBytes.length > 4294967295) {
+      throw new Error('userId 太长 (超过 4GB)');
+    }
     const endpointBytes = enc.encode(String(subscription.endpoint || ''));
     if (endpointBytes.length > 65535) {
       throw new Error('endpoint 太长 (超过 65535 字节)');
     }
-    const totalLen = 2 + endpointBytes.length + p256dhU8.length + authU8.length;
+    const totalLen = 4 + userIdBytes.length + 2 + endpointBytes.length + p256dhU8.length + authU8.length;
     const body = new Uint8Array(totalLen);
     const dv = new DataView(body.buffer);
-    dv.setUint16(0, endpointBytes.length);
-    body.set(endpointBytes, 2);
-    body.set(p256dhU8, 2 + endpointBytes.length);
-    body.set(authU8, 2 + endpointBytes.length + p256dhU8.length);
-    console.log('[服务器推送] v0.2.21: raw bytes 上传, endpoint 字节数:', endpointBytes.length, 'p256dh:', p256dhU8.length, 'auth:', authU8.length, '总:', totalLen);
+    dv.setUint32(0, userIdBytes.length);
+    body.set(userIdBytes, 4);
+    const off1 = 4 + userIdBytes.length;
+    dv.setUint16(off1, endpointBytes.length);
+    body.set(endpointBytes, off1 + 2);
+    body.set(p256dhU8, off1 + 2 + endpointBytes.length);
+    body.set(authU8, off1 + 2 + endpointBytes.length + p256dhU8.length);
+    console.log('[服务器推送] v0.2.21: raw bytes 上传, userId 字节数:', userIdBytes.length, 'endpoint 字节数:', endpointBytes.length, 'p256dh:', p256dhU8.length, 'auth:', authU8.length, '总:', totalLen);
 
     // 6. raw bytes POST (application/octet-stream), 完全不走 string 转换
     const saveResponse = await fetch(`${serverUrl}/api/save-subscription`, {
