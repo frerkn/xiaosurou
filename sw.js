@@ -4,7 +4,9 @@
 //   切 push 模式时 user 经常不在 chat 里, activeChatId 是 null 直接 return, push_user_config 一直 0 行
 //   → push-server 10 分钟 scheduler 没事干, 主动消息一周 0 推送
 //   改成遍历所有 proactiveEnabled chat 一起 sync, 切模式时 push_user_config 立即有 N 行
-//   user 2026-08-13 16:23 真机验证测试通知能来 = iOS PWA web-push 协议 work, 500 错是 push-server 端具体 bug, 不是 iOS 污染)
+//   user 2026-08-13 16:23 真机验证测试通知能来 = iOS PWA web-push 协议 work, 500 错是 push-server 端具体 bug, 不是 iOS 污染
+//   + 1 分钟 setInterval 轮询 lastUserMsgAt (chat.history 末条 user 消息时间), server 巡视时 < 5 分钟前 → 跳过整个 chat
+//   (user 2026-08-13: "看最后一条记录的时间来决定要不要巡视, 正在聊天也调就又浪费又多余")
 // 2026-08-13 cleanup: 回退 v0.2.20-debug-banner / v0.2.20.1 / v0.2.20.2 debug banner（结论：getKey() 拿到的 ArrayBuffer 干净，
 //   iOS PWA 污染只在 toJSON() 字符串路径。明天按 DeepSeek 方案用 getKey() + FormData 二进制上传改造）。
 // 2026-08-12 v0.2.19: bump CACHE_VERSION 强制清缓存（in-app-proactive 弹通知听"聊天界面也弹通知"开关 —
@@ -417,6 +419,7 @@
 //   修法: bump CACHE_VERSION v0.2.14 → v0.2.15.1, SW activate event 会删 ephone-cache-v0.2.14 旧 cache, 装新 cache。
 //   同时加 3 个 modules 进 URLS_TO_CACHE (之前漏了, 现在白名单让 SW 主动管理这 3 个文件, 未来改这 3 个文件再 bump 就行)。
 const CACHE_VERSION = 'v0.2.20';
+// (v0.2.20 同一版本号再加 lastUserMsgAt 轮询机制, 一起重推)
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [

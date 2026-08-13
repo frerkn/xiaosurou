@@ -498,7 +498,7 @@
   }
 
   // ===== v0.2.20: sync 所有 chat 的 push config 到 push-server =====
-  // 投递方式切到 push 时调, push-server 端 10 分钟巡视会读这张表调 LLM
+  // 投递方式切到 push 时调, push-server 端 20 分钟巡视会读这张表调 LLM
   // 即使 PWA 死了, push-server 也能照这个 config 调 LLM 决定要不要发
   // v0.2.20 修 (user 2026-08-13 16:23 揭穿): 不再限制 activeChatId
   //   切 push 模式时 user 可能在任何界面 (主页/角色列表/聊天详情/设置), activeChatId 经常是 null
@@ -506,6 +506,8 @@
   //   改成遍历所有开了 [启用主动消息] 的 chat 一起 sync
   //   修前: push_user_config 0 行 → push-server scheduler 没事干 → 一周 0 推送
   //   修后: 切 push 模式时 push_user_config 立即有 N 行 (N = 开 proactiveEnabled 的 chat 数)
+  // v0.2.20+ 加 lastUserMsgAt: PWA 1 分钟轮询更新 user 最后发言时间, server 巡视时 < 5 分钟前 → 跳过整个 chat
+  //   (user 2026-08-13: "看最后一条记录的时间来决定要不要巡视", 避免正在聊天的 chat 被推送打扰)
   async function syncCurrentChatPushConfig() {
     const state = window.state;
     if (!state) return;
@@ -535,13 +537,65 @@
 
     const userId = getOrCreatePushUserId();
     for (const chat of enabledChats) {
-      await doSyncChat(chat, userId, serverUrl, llmApiUrl, llmApiKey, llmModel);
+      const lastUserMsgAt = getLastUserMsgAt(chat);
+      await doSyncChat(chat, userId, serverUrl, llmApiUrl, llmApiKey, llmModel, lastUserMsgAt);
     }
+
+    // v0.2.20+ 启动 1 分钟轮询 lastUserMsgAt (切 push 模式才需要)
+    startLastUserMsgAtSyncTimer();
+  }
+
+  // ===== v0.2.20+: 拿 chat 最后 user 消息的 timestamp (unix ms) =====
+  function getLastUserMsgAt(chat) {
+    if (!chat || !Array.isArray(chat.history) || chat.history.length === 0) return null;
+    for (let i = chat.history.length - 1; i >= 0; i--) {
+      const m = chat.history[i];
+      if (m && m.role === 'user' && typeof m.timestamp === 'number') return m.timestamp;
+    }
+    return null;
+  }
+
+  // ===== v0.2.20+: 1 分钟轮询 lastUserMsgAt (只 mini-sync, 不重传 contextSummary) =====
+  // 切 push 模式时启动, 切 app 模式时停止
+  let lastUserMsgAtSyncTimer = null;
+  let lastUserMsgAtSentCache = new Map();  // chatId -> last timestamp sent, 避免重复 POST
+  function startLastUserMsgAtSyncTimer() {
+    if (lastUserMsgAtSyncTimer) return;  // 已启动
+    lastUserMsgAtSyncTimer = setInterval(async () => {
+      const state = window.state;
+      if (!state) return;
+      const serverUrl = (state.globalSettings?.systemNotification?.pushServer?.serverUrl || '').replace(/\/$/, '');
+      if (!serverUrl) return;
+      const apiConfig = state.apiConfig || {};
+      const llmApiUrl = apiConfig.apiUrl || apiConfig.mainApiUrl || apiConfig.proxyUrl;
+      const llmApiKey = apiConfig.apiKey || apiConfig.mainApiKey;
+      const llmModel = apiConfig.model || apiConfig.mainModel;
+      const userId = getOrCreatePushUserId();
+
+      const enabledChats = Object.values(state.chats).filter(c => c && c.settings?.proactiveEnabled);
+      for (const chat of enabledChats) {
+        const lastUserMsgAt = getLastUserMsgAt(chat);
+        if (lastUserMsgAt == null) continue;
+        // 跟上次一样就不发 (避免无意义 POST)
+        if (lastUserMsgAtSentCache.get(chat.id) === lastUserMsgAt) continue;
+        lastUserMsgAtSentCache.set(chat.id, lastUserMsgAt);
+        await doSyncChat(chat, userId, serverUrl, llmApiUrl, llmApiKey, llmModel, lastUserMsgAt);
+      }
+    }, 60 * 1000);
+    console.log('[proactive-wake-ui] 1 分钟轮询 lastUserMsgAt 启动');
+  }
+  function stopLastUserMsgAtSyncTimer() {
+    if (lastUserMsgAtSyncTimer) {
+      clearInterval(lastUserMsgAtSyncTimer);
+      lastUserMsgAtSyncTimer = null;
+    }
+    lastUserMsgAtSentCache.clear();
+    console.log('[proactive-wake-ui] 1 分钟轮询 lastUserMsgAt 停止');
   }
 
   // ===== v0.2.20: 实际 sync 单个 chat 的 push config =====
   // 抽出来便于遍历调用, 之前都堆在 syncCurrentChatPushConfig 里
-  async function doSyncChat(chat, userId, serverUrl, llmApiUrl, llmApiKey, llmModel) {
+  async function doSyncChat(chat, userId, serverUrl, llmApiUrl, llmApiKey, llmModel, lastUserMsgAt) {
     const chatId = chat.id;
     const contactName = chat.name || chatId;
     const contactPersonality = chat.settings?.aiPersona || chat.settings?.characterPrompt || chat.settings?.characterPersonality || '';
@@ -564,6 +618,9 @@
       contactName, contactPersonality, contextSummary,
       llmApiUrl, llmApiKey, llmModel
     };
+    if (lastUserMsgAt != null) {
+      body.lastUserMsgAt = new Date(lastUserMsgAt).toISOString();
+    }
 
     try {
       const res = await fetch(`${serverUrl}/api/push-config`, {
@@ -575,7 +632,7 @@
         const errText = await res.text().catch(() => '');
         console.warn(`[proactive-wake-ui] sync push config 失败: chatId=${chatId} ${res.status} ${errText.substring(0, 200)}`);
       } else {
-        console.log(`[proactive-wake-ui] ✅ sync push config 成功: chatId=${chatId} model=${llmModel || '?'}`);
+        console.log(`[proactive-wake-ui] ✅ sync push config 成功: chatId=${chatId} model=${llmModel || '?'}${lastUserMsgAt ? ` lastUserMsgAt=${body.lastUserMsgAt}` : ''}`);
       }
     } catch (e) {
       console.warn(`[proactive-wake-ui] sync push config 网络错误 chatId=${chatId}:`, e.message);
@@ -588,6 +645,9 @@
   async function unsyncCurrentChatPushConfig() {
     const state = window.state;
     if (!state) return;
+
+    // v0.2.20+: 切 app 模式时停止 lastUserMsgAt 轮询
+    stopLastUserMsgAtSyncTimer();
 
     const serverUrl = (state.globalSettings?.systemNotification?.pushServer?.serverUrl || '').replace(/\/$/, '');
     if (!serverUrl) return;
