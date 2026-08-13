@@ -595,6 +595,9 @@
 
   // ===== v0.2.20: 实际 sync 单个 chat 的 push config =====
   // 抽出来便于遍历调用, 之前都堆在 syncCurrentChatPushConfig 里
+  // v0.2.20+: 复用 buildProactiveContext(chat) 算完整 system prompt (含世界书/日记/向量记忆/双源记忆/aiPersona)
+  //   之前 LLM 只收到 contactPersonality + contextSummary 末 20 条, 缺长期记忆导致"对不上话"
+  //   push-server handleProactivePatrol 读 push_user_config.context_full 字段当 system prompt 主体
   async function doSyncChat(chat, userId, serverUrl, llmApiUrl, llmApiKey, llmModel, lastUserMsgAt) {
     const chatId = chat.id;
     const contactName = chat.name || chatId;
@@ -613,6 +616,20 @@
       }).filter(Boolean).join('\n');
     }
 
+    // v0.2.20+: 复用 buildProactiveContext 算完整 system prompt (含长期记忆/世界书/变量记忆/双源记忆/aiPersona)
+    // try/catch: 内部调 filterHistoryWithDoNotSendRules 等可能依赖其他模块, 出错就回退 (不传 contextFull)
+    let contextFull = null;
+    if (typeof window.buildProactiveContext === 'function') {
+      try {
+        const ctx = await window.buildProactiveContext(chat, { queryText: '' });
+        if (ctx && typeof ctx.systemPrompt === 'string' && ctx.systemPrompt.length > 0) {
+          contextFull = ctx.systemPrompt;
+        }
+      } catch (e) {
+        console.warn(`[proactive-wake-ui] buildProactiveContext 失败, 回退 contextSummary: chatId=${chatId}`, e.message);
+      }
+    }
+
     const body = {
       userId, chatId, enabled: true,
       contactName, contactPersonality, contextSummary,
@@ -620,6 +637,9 @@
     };
     if (lastUserMsgAt != null) {
       body.lastUserMsgAt = new Date(lastUserMsgAt).toISOString();
+    }
+    if (contextFull) {
+      body.contextFull = contextFull;
     }
 
     try {
@@ -632,7 +652,8 @@
         const errText = await res.text().catch(() => '');
         console.warn(`[proactive-wake-ui] sync push config 失败: chatId=${chatId} ${res.status} ${errText.substring(0, 200)}`);
       } else {
-        console.log(`[proactive-wake-ui] ✅ sync push config 成功: chatId=${chatId} model=${llmModel || '?'}${lastUserMsgAt ? ` lastUserMsgAt=${body.lastUserMsgAt}` : ''}`);
+        const ctxMark = contextFull ? ` contextFull=${contextFull.length}B` : '';
+        console.log(`[proactive-wake-ui] ✅ sync push config 成功: chatId=${chatId} model=${llmModel || '?'}${lastUserMsgAt ? ` lastUserMsgAt=${body.lastUserMsgAt}` : ''}${ctxMark}`);
       }
     } catch (e) {
       console.warn(`[proactive-wake-ui] sync push config 网络错误 chatId=${chatId}:`, e.message);
