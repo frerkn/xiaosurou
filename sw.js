@@ -418,8 +418,9 @@
 //   之前 v0.2.15 改 proactive-wake.js / background-activity.js + v0.2.15.1 改 notification-battery.js / proactive-wake.js 都忘了 bump SW cache, iPhone PWA SW 仍认 v0.2.14, 划掉重开也没用, SW 强制缓存旧 modules/*.js (v0.2.13) → 仍抛 ByteString (subscription.toJSON() 旧代码)。
 //   修法: bump CACHE_VERSION v0.2.14 → v0.2.15.1, SW activate event 会删 ephone-cache-v0.2.14 旧 cache, 装新 cache。
 //   同时加 3 个 modules 进 URLS_TO_CACHE (之前漏了, 现在白名单让 SW 主动管理这 3 个文件, 未来改这 3 个文件再 bump 就行)。
-const CACHE_VERSION = 'v0.2.22';
-// (v0.2.22 修 PWA 端 raw bytes 协议漏传 userId bug, 跟 push-server 端 v0.2.21 解析逻辑对齐, 强制清缓存保证用户重新订阅)
+const CACHE_VERSION = 'v0.2.23';
+// (v0.2.23 修 PWA 端 tryCreatePushSubscription + ProactiveWake.subscribe 函数 VAPID 0 字节 ArrayBuffer → "valid P-256 public key" 错诊,
+//   删 fallback 字段 + 严格 byteLength === 65 检查, 强制清缓存保证 PWA 端加载新代码)
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [

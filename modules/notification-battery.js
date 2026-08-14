@@ -583,9 +583,9 @@ async function unsubscribeFromPushServer() {
       };
     }
 
-    // ★ v0.1.93 改: 跟新流程 subscribe() 一样, 优先 fetch /api/vapid-public-key 拿公钥
-    // 老流程读 pushServer.applicationServerKey 字段 (UI 没让 user 填) → 字段空 → P-256 错
-    // 修法: 跟新流程对齐, fetch VAPID 公钥, 拿不到才 fallback 字段
+    // v0.2.23 改: 删 fallback 字段, applicationServerKey 长度检查 (0 字节 ArrayBuffer 也算空)
+    //   之前 !applicationServerKey 检查走漏 urlBase64ToUint8Array(空字符串)=0 字节 ArrayBuffer (不 null) → push.subscribe 报 P-256 错
+    //   改用 applicationServerKey?.byteLength === 65 (P-256 uncompressed) 严格检查
     let applicationServerKey = null;
     try {
       const pushServerUrl = (ensureSystemNotificationConfig().pushServer?.serverUrl || '').replace(/\/$/, '');
@@ -594,19 +594,26 @@ async function unsubscribeFromPushServer() {
         if (keyResponse.ok) {
           const { publicKey } = await keyResponse.json();
           applicationServerKey = urlBase64ToUint8Array(publicKey);
-          console.log('[tryCreatePushSubscription] ✅ fetch VAPID 公钥成功');
+          console.log('[tryCreatePushSubscription] ✅ fetch VAPID 公钥成功, 长度:', applicationServerKey?.byteLength, '字节');
+        } else {
+          throw new Error(`获取公钥失败: HTTP ${keyResponse.status}`);
         }
+      } else {
+        throw new Error('推送服务器地址未配置');
       }
     } catch (e) {
-      console.warn('[tryCreatePushSubscription] fetch VAPID 公钥失败, fallback 字段:', e.message);
-    }
-    if (!applicationServerKey) {
-      applicationServerKey = getConfiguredPushApplicationServerKey();
-    }
-    if (!applicationServerKey) {
+      // v0.2.23 改: fetch 拿 VAPID 失败时直接抛错 (不调 fallback 字段, 避免空字符串 → 0 字节 ArrayBuffer → P-256 错误诊)
+      console.error('[tryCreatePushSubscription] fetch VAPID 公钥失败:', e.message);
       return {
         ok: false,
-        message: '本地订阅不存在，服务器推送未配置公钥'
+        message: '服务器推送未配置公钥: ' + e.message
+      };
+    }
+    if (!applicationServerKey || applicationServerKey.byteLength !== 65) {
+      // 严格检查 byteLength === 65 (P-256 uncompressed 长度), 0 字节或非 65 字节都视为无效
+      return {
+        ok: false,
+        message: `服务器推送公钥无效: byteLength=${applicationServerKey?.byteLength || 0} (预期 65)`
       };
     }
 

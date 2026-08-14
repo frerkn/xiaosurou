@@ -510,11 +510,18 @@
     }
 
     const vapidRes = await fetch(`${serverUrl}/api/vapid-public-key`);
-    if (!vapidRes.ok) throw new Error('拿 VAPID 公钥失败');
+    if (!vapidRes.ok) throw new Error(`拿 VAPID 公钥失败: HTTP ${vapidRes.status}`);
     const { publicKey } = await vapidRes.json();
+    if (!publicKey || typeof publicKey !== 'string') throw new Error('VAPID 公钥为空或格式错');
+
+    // v0.2.23 改: 严格检查 abKey 长度 = 65 字节 (P-256 uncompressed), 0 字节/其他长度直接抛错不调 push.subscribe
+    //   之前 urlBase64ToUint8Array(空字符串) = 0 字节 ArrayBuffer (不 null) → push.subscribe 报 "valid P-256 public key" 错
+    const abKey = urlBase64ToUint8Array(publicKey);
+    if (abKey.byteLength !== 65) {
+      throw new Error(`VAPID 公钥长度异常: ${abKey.byteLength} 字节 (预期 65 P-256 uncompressed)`);
+    }
 
     // iOS 18.x PWA 双 fallback (ArrayBuffer 优先, Uint8Array 兜底)
-    const abKey = urlBase64ToUint8Array(publicKey);
     let subscription;
     try {
       subscription = await registration.pushManager.subscribe({
