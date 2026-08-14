@@ -2268,6 +2268,12 @@ window.initEventBindingsA = async function(state, db) {
       
       await db.apiConfig.put(state.apiConfig);
 
+      // v0.2.25: 主 API 变化时, 立即 sync 给 push-server, 下次巡视就能用新 LLM (跟 330 平时聊天一样)
+      //   复用 ProactiveWakeUI.syncPushConfig — 走 /api/push-config 存 push_user_config.llm_api_url/api_key/model
+      //   push-server 改 resolveLlmConfig body 优先, 自然读到用户当前主 API (per-user, 不再依赖 .env)
+      if (window.ProactiveWakeUI && typeof window.ProactiveWakeUI.syncPushConfig === 'function') {
+          window.ProactiveWakeUI.syncPushConfig().catch(e => console.warn('[push-config] 主 API 变化 sync 失败:', e.message));
+      }
 
       const backgroundSwitch = document.getElementById('background-activity-switch');
       const intervalInput = document.getElementById('background-interval-input');

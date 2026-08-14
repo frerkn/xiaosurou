@@ -1008,6 +1008,8 @@
   window.ProactiveWakeUI = {
     openManager,
     closeManager,
-    updateBanner
+    updateBanner,
+    // v0.2.25: 暴露 syncCurrentChatPushConfig 给外部触发 — 主 API 保存后 push-server 也能拿到最新 LLM
+    syncPushConfig: syncCurrentChatPushConfig
   };
 })();
