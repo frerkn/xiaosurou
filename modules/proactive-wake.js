@@ -290,14 +290,122 @@
       const data = event.data;
       if (!data) return;
 
+      // v0.2.26 加: PROACTIVE_WAKE_PUSHED — push-server 已生成好 AI 内容, SW 落 IndexedDB 后 postMessage 过来
+      //   不调 LLM, 直接用 message 写 messages 表 + 切屏 + reload chat window
+      if (data.type === 'PROACTIVE_WAKE_PUSHED') {
+        handleProactiveWakePushed(data).catch(err => {
+          console.error('[proactive-wake] 处理推送消息失败:', err);
+        });
+        return;
+      }
+
       if (data.type === 'PROACTIVE_WAKE') {
         // 异步处理, 不阻塞 SW message handler
         handleProactiveWake(data).catch(err => {
           console.error('[proactive-wake] 处理失败:', err);
         });
+      } else if (data.type === 'OPEN_CHAT') {
+        // v0.2.26 加: sw.js notificationclick 发过来的切 chat 消息, 之前主页面没接
+        //   真凶: 点通知能 focus 页面但不会切到对应 chat
+        openChatFromNotification(data).catch(err => {
+          console.error('[proactive-wake] OPEN_CHAT 处理失败:', err);
+        });
       }
     });
-    console.log('[proactive-wake] ✅ 已注册 PROACTIVE_WAKE listener');
+    console.log('[proactive-wake] ✅ 已注册 PROACTIVE_WAKE + PROACTIVE_WAKE_PUSHED listener');
+  }
+
+  // ===== v0.2.26 加: 处理 push-server 已生成好内容的推送 =====
+  //   跟老 handleProactiveWake 区别: 不用调 LLM (push-server 端 v0.2.25.14 已经生成), 
+  //   不用睡眠时间检查 (push-server 端已经查过), 直接用 message 字段写 chat + 渲染
+  async function handleProactiveWakePushed(payload) {
+    const { chatId, taskId, charId, charName, message, sentAt } = payload;
+    console.log('[proactive-wake] 收到推送消息 (服务端已生成, v0.2.26 路径):', { chatId, taskId, charName });
+
+    if (!chatId || !message) {
+      console.warn('[proactive-wake] PROACTIVE_WAKE_PUSHED 缺 chatId/message, 跳过:', payload);
+      return;
+    }
+
+    const state = window.state;
+    const db = window.db;
+    if (!state || !db) {
+      console.warn('[proactive-wake] window.state/db 不可用, 跳过');
+      return;
+    }
+
+    const chat = state.chats?.[chatId];
+    if (!chat) {
+      console.warn('[proactive-wake] 找不到 chat:', chatId, '可能已被删除');
+      return;
+    }
+
+    chat._proactiveTaskId = taskId;
+
+    // 写消息 (优先 messageStore 新表, fallback 老 history 模式)
+    const msg = {
+      id: `${chatId}::${Date.now()}::assistant::text::0`,
+      chatId,
+      role: 'assistant',
+      content: message,
+      timestamp: Date.now(),
+      type: 'text',
+      proactive: true,
+      taskId
+    };
+
+    try {
+      if (window.messageStore?.addMessageToChat) {
+        await window.messageStore.addMessageToChat(chat, msg);
+      } else {
+        if (!Array.isArray(chat.history)) chat.history = [];
+        chat.history.push(msg);
+        const { history, ...cleanChat } = chat;  // v0.2.60+ 已经拆表, 写 chats 时不带 history
+        await db.chats.put(cleanChat);
+      }
+      console.log(`[proactive-wake] ✅ PROACTIVE_WAKE_PUSHED 消息已落: chatId=${chatId} content="${String(message).substring(0, 30)}..."`);
+    } catch (e) {
+      console.warn('[proactive-wake] 写消息失败:', e.message);
+      return;
+    }
+
+    // 切屏 + 强制 reload chat
+    try {
+      const wasActive = state.activeChatId === chatId;
+      state.activeChatId = chatId;
+      if (!wasActive) {
+        if (typeof window.showScreen === 'function') window.showScreen('chat-interface-screen');
+        if (typeof window.renderChatInterface === 'function') window.renderChatInterface(chatId);
+        else if (typeof window.renderChatMessages === 'function') window.renderChatMessages();
+      } else {
+        if (typeof window.renderChatMessages === 'function') window.renderChatMessages();
+      }
+    } catch (e) {
+      console.warn('[proactive-wake] 渲染 UI 失败:', e.message);
+    }
+
+    // 刷新 chat list (更新 last message preview)
+    try {
+      if (typeof window.renderChatList === 'function') window.renderChatList();
+    } catch (e) {}
+  }
+
+  // ===== v0.2.26 加: 点通知触发切 chat (sw.js notificationclick → postMessage OPEN_CHAT) =====
+  async function openChatFromNotification(payload) {
+    const { chatId } = payload;
+    if (!chatId) return;
+    const state = window.state;
+    if (!state?.chats?.[chatId]) {
+      console.warn('[proactive-wake] OPEN_CHAT 找不到 chat:', chatId);
+      return;
+    }
+    state.activeChatId = chatId;
+    try {
+      if (typeof window.showScreen === 'function') window.showScreen('chat-interface-screen');
+      if (typeof window.renderChatInterface === 'function') window.renderChatInterface(chatId);
+    } catch (e) {
+      console.warn('[proactive-wake] 切 chat 失败:', e.message);
+    }
   }
 
   // ===== 冷却时间检查 (v0.1.87+) =====

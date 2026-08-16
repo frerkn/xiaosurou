@@ -418,8 +418,15 @@
 //   之前 v0.2.15 改 proactive-wake.js / background-activity.js + v0.2.15.1 改 notification-battery.js / proactive-wake.js 都忘了 bump SW cache, iPhone PWA SW 仍认 v0.2.14, 划掉重开也没用, SW 强制缓存旧 modules/*.js (v0.2.13) → 仍抛 ByteString (subscription.toJSON() 旧代码)。
 //   修法: bump CACHE_VERSION v0.2.14 → v0.2.15.1, SW activate event 会删 ephone-cache-v0.2.14 旧 cache, 装新 cache。
 //   同时加 3 个 modules 进 URLS_TO_CACHE (之前漏了, 现在白名单让 SW 主动管理这 3 个文件, 未来改这 3 个文件再 bump 就行)。
-const CACHE_VERSION = 'v0.2.25';
-// (v0.2.25: 主 API 变化时, PWA 立即 sync 给 push-server — 复用 ProactiveWakeUI.syncPushConfig, 走 /api/push-config 存
+const CACHE_VERSION = 'v0.2.26';
+// (v0.2.26: 推送落进聊天框 — SW push handler 优先用 data.fixedMessage (不管 messageType) 直接显示真内容 + 写 IndexedDB
+//   + postMessage 主页面 PROACTIVE_WAKE_PUSHED. 真凶: 之前 messageType==='patrol' 时 SW 走 guided/auto 占位分支,
+//   fixedMessage 字段被忽略, 主页面 handleProactiveWake 又调一遍 LLM (浪费 + 通知保持占位).
+//   修法: 1) SW 拿 fixedMessage 就直接显示 + 落 IndexedDB (native indexedDB API) + postMessage
+//         2) 主页面 PROACTIVE_WAKE_PUSHED handler 收到直接用, 不调 LLM, 写 messages 表 + 切屏 + reload chat
+//   2026-08-16: push-server 端 v0.2.25.14 已能让 push-server 端 LLM 生成, 但 SW 没接住 fixedMessage
+//   iOS notification body 限制 178 字符, 通知显示前 30 字符 + "...", 完整内容放 data.message 字段
+//   v0.2.25: 主 API 变化时, PWA 立即 sync 给 push-server — 复用 ProactiveWakeUI.syncPushConfig, 走 /api/push-config 存
 //   push_user_config.llm_api_url/api_key/model (per-user). push-server 端 resolveLlmConfig 改 body 优先, 巡视自然用用户当前主 API)
 // (v0.2.24 修 v0.2.23 PWA 端 SW 没真激活 bug — iOS PWA 模式旧 SW 永不关闭, 新 SW 卡 waiting. 加 self.skipWaiting() 强制 activate)
 // (v0.2.23 修 PWA 端 tryCreatePushSubscription + ProactiveWake.subscribe 函数 VAPID 0 字节 ArrayBuffer → "valid P-256 public key" 错诊,
@@ -591,8 +598,8 @@ self.addEventListener('fetch', event => {
 
 // 330 v0.1.83 wake-up 模式 push handler
 // 收到 push-server 发来的 {type: 'proactive-wake', chatId, charId, charName, taskId, fixedMessage, aiPrompt} payload
-//   fixedMessage 有值: 直接显示 (fixed 模式, 不调 LLM, 节省)
-//   fixedMessage 是 null: 弹占位通知 + postMessage 主页面 (guided/auto 模式, 主页面调 LLM 后会发 UPDATE_NOTIFICATION 更新)
+//   v0.2.26 改: 有 fixedMessage (不管 messageType, 包括 patrol/fixed/guided/auto) → 直接显示真内容 + 落 IndexedDB
+//     + postMessage 主页面 PROACTIVE_WAKE_PUSHED. fixedMessage 为 null 时才走老 guided/auto 占位 + postMessage PROACTIVE_WAKE
 self.addEventListener('push', event => {
   console.log('[SW] Push received:', event);
 
@@ -605,7 +612,7 @@ self.addEventListener('push', event => {
     }
   }
 
-  // ===== wake-up 模式 (v0.1.83+) =====
+  // ===== wake-up 模式 (v0.1.83+, v0.2.26 改) =====
   if (data.type === 'proactive-wake') {
     const charName = data.charName || data.charId || 'AI 角色';
     const chatId = data.chatId;
@@ -613,24 +620,66 @@ self.addEventListener('push', event => {
     const messageType = data.messageType || 'fixed';
     const fixedMessage = data.fixedMessage;
 
-    // fixed 模式: 直接显示 user_message
-    if (messageType === 'fixed' && fixedMessage) {
-      const title = `💬 ${charName}`;
-      const options = {
-        body: fixedMessage,
-        icon: data.icon || 'https://img.baidu.re/i/2026/07/w6p47e.png',
-        badge: data.badge || 'https://img.baidu.re/i/2026/07/w6p47e.png',
-        tag: `task-${taskId}`,
-        data: { chatId, taskId, type: 'proactive-wake', messageType },
-        requireInteraction: true,
-        vibrate: [200, 100, 200],
-        timestamp: Date.now()
-      };
-      event.waitUntil(self.registration.showNotification(title, options));
+    // ===== v0.2.26 优先路径: 有 fixedMessage (不管 messageType) 直接用真内容 =====
+    //   真凶: 老逻辑 messageType==='fixed' 才用 fixedMessage, push-server patrol 模式 messageType='patrol' 
+    //   → SW 走 guided/auto 占位分支 → 通知显示 "X 想跟你说点什么..." 占位, 完整内容在 fixedMessage 字段被忽略
+    //   → 主页面 handleProactiveWake 又调一遍 LLM (浪费 token) + UPDATE_NOTIFICATION 失败时占位保持
+    if (fixedMessage && String(fixedMessage).trim()) {
+      event.waitUntil((async () => {
+        // 1. 落 IndexedDB (native indexedDB API, PWA 完全关掉再开也能看到消息)
+        try {
+          await writeProactiveMessageToIDB({
+            chatId,
+            role: 'assistant',
+            content: fixedMessage,
+            timestamp: Date.now(),
+            taskId,
+            charId: data.charId,
+            charName
+          });
+          console.log(`[SW v0.2.26] ✅ 已落 IndexedDB: chatId=${chatId} content="${fixedMessage.substring(0, 30)}..."`);
+        } catch (e) {
+          console.warn('[SW v0.2.26] 写 IndexedDB 失败 (不阻塞通知):', e.message);
+        }
+
+        // 2. 弹真内容通知 (body 截前 30 字符避免 iOS 178 限制截成乱码省略号, 完整内容放 data.message)
+        const notifBody = fixedMessage.length > 30
+          ? fixedMessage.substring(0, 30) + '...'
+          : fixedMessage;
+        await self.registration.showNotification(`💬 ${charName}`, {
+          body: notifBody,
+          icon: data.icon || 'https://img.baidu.re/i/2026/07/w6p47e.png',
+          badge: data.badge || 'https://img.baidu.re/i/2026/07/w6p47e.png',
+          tag: `task-${taskId}`,
+          data: { chatId, taskId, type: 'proactive-wake', messageType, message: fixedMessage },
+          requireInteraction: true,
+          vibrate: [200, 100, 200],
+          timestamp: Date.now()
+        });
+
+        // 3. postMessage 主页面 (强制 reload chat window, PWA 在前台时立刻显示)
+        try {
+          const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+          for (const client of clientList) {
+            client.postMessage({
+              type: 'PROACTIVE_WAKE_PUSHED',
+              chatId,
+              taskId,
+              charId: data.charId,
+              charName,
+              message: fixedMessage,
+              sentAt: data.sentAt
+            });
+          }
+        } catch (e) {
+          console.warn('[SW v0.2.26] postMessage 失败 (不阻塞):', e.message);
+        }
+      })());
       return;
     }
 
-    // guided/auto 模式: 弹占位通知, 同时 postMessage 主页面让 AI 生成
+    // ===== 老 guided/auto 模式 (fixedMessage 为 null): 弹占位 + postMessage 主页面让 AI 生成 =====
+    //   保留兼容 push-config.js 老接口 (messageType=guided/auto + aiPrompt), 让主页面调 LLM
     const placeholderTitle = `💬 ${charName}`;
     const placeholderBody = `${charName} 想跟你说点什么...`;
     const placeholderOptions = {
@@ -683,6 +732,78 @@ self.addEventListener('push', event => {
     self.registration.showNotification(title, options)
   );
 });
+
+// v0.2.26 加: SW 用 native indexedDB API 写主动消息 (PWA 关掉再开也能看到)
+// 真凶: SW 是独立 worker context, 拿不到 window.db (Dexie) 也没 modules 脚本, 必须用 native indexedDB
+// 同步主线 (init-db-schema.js v60): messages 表 schema &id, chatId, timestamp, [chatId+timestamp], role, type
+//                                chats 表 schema &id, isGroup, ..., lastMessageTimestamp, messageSchemaVersion
+// 消息 id 格式: ${chatId}::${timestamp}::${role}::${type}::${index} (跟 init-db-schema.js / message-store.js 保持一致)
+function writeProactiveMessageToIDB(msg) {
+  return new Promise((resolve, reject) => {
+    let db;
+    try {
+      const openReq = indexedDB.open('GeminiChatDB');
+      openReq.onerror = () => reject(openReq.error || new Error('open GeminiChatDB 失败'));
+      openReq.onsuccess = () => {
+        db = openReq.result;
+        try {
+          if (!db.objectStoreNames.contains('messages')) {
+            db.close();
+            return reject(new Error('messages store 不存在 (PWA 数据库 schema 未升级到 v60)'));
+          }
+          if (!db.objectStoreNames.contains('chats')) {
+            db.close();
+            return reject(new Error('chats store 不存在'));
+          }
+          const tx = db.transaction(['messages', 'chats'], 'readwrite');
+          const messagesStore = tx.objectStore('messages');
+          const chatsStore = tx.objectStore('chats');
+
+          // 1. 写消息到 messages 表
+          const messageId = `${msg.chatId}::${msg.timestamp}::assistant::text::0`;
+          const messageRow = {
+            id: messageId,
+            chatId: msg.chatId,
+            role: 'assistant',
+            content: msg.content,
+            timestamp: msg.timestamp,
+            type: 'text',
+            proactive: true,
+            taskId: msg.taskId || null
+          };
+          messagesStore.put(messageRow);
+
+          // 2. 更新 chat 元数据 (lastMessageTimestamp + lastMessagePreview + messageCount)
+          const chatReq = chatsStore.get(msg.chatId);
+          chatReq.onsuccess = () => {
+            const chat = chatReq.result;
+            if (chat) {
+              chat.lastMessageTimestamp = msg.timestamp;
+              const previewText = String(msg.content || '').replace(/\s+/g, ' ').trim();
+              chat.lastMessagePreview = previewText.length > 80 ? previewText.slice(0, 80) + '...' : previewText;
+              chat.lastMessageRole = 'assistant';
+              chat.lastMessageType = 'text';
+              chat.messageCount = (Number(chat.messageCount) || 0) + 1;
+              // v0.2.60+ 已经拆表, chat 上不要 history 字段
+              delete chat.history;
+              chatsStore.put(chat);
+            }
+          };
+
+          tx.oncomplete = () => { db.close(); resolve(); };
+          tx.onerror = () => { const err = tx.error; db.close(); reject(err || new Error('transaction 失败')); };
+          tx.onabort = () => { const err = tx.error; db.close(); reject(err || new Error('transaction aborted')); };
+        } catch (innerErr) {
+          if (db) db.close();
+          reject(innerErr);
+        }
+      };
+    } catch (e) {
+      if (db) db.close();
+      reject(e);
+    }
+  });
+}
 
 // 330 v0.1.83: 主页面调 LLM 生成完消息后, 发 UPDATE_NOTIFICATION 替换占位通知
 self.addEventListener('message', event => {
