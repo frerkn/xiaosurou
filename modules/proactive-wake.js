@@ -765,18 +765,23 @@
     return await res.json();
   }
 
-  // ===== 创建 fixed 模式任务 (user 填消息内容) =====
+  // ===== 创建 fixed/ai-msg 模式任务 =====
+  // v0.2.28: 加 firstSendTime 必填 + messageType='ai-msg' 模式 (user 选时间 + 填 prompt, server LLM 写消息)
+  //   取代 v0.2.20 round 4 改 noop 的 /api/schedule-ai-task (那条路 user 没法定时间, 永远掉 noop)
   async function createFixedTask(options = {}) {
     const {
-      userMessage,
+      userMessage = null,
       userPrompt = null,
+      messageType = 'fixed',  // 'fixed' (user 填消息) 或 'ai-msg' (user 选时间 + 填 prompt, server LLM 写)
       contactName = null,
       chatId = null,
-      firstSendTime = null,  // ISO 字符串, null = 1 分钟后
+      firstSendTime,  // ISO 字符串, 必填 (UI 强制 user 选时间, 不再有 "null = 1 分钟后" 默认)
       recurrenceType = 'none'
     } = options;
 
-    if (!userMessage) throw new Error('userMessage 必填');
+    if (!firstSendTime) throw new Error('firstSendTime 必填 (请选择提醒时间)');
+    if (messageType === 'fixed' && !userMessage) throw new Error('fixed 模式 userMessage 必填');
+    if (messageType === 'ai-msg' && !userPrompt) throw new Error('ai-msg 模式 userPrompt 必填');
 
     const state = window.state;
     if (!state) throw new Error('window.state 不可用');
@@ -806,8 +811,9 @@
 
     const userId = getOrCreatePushUserId(); // v0.2.10+: 每 PWA 唯一 UUID, 防止串台
 
-    // 默认 1 分钟后发
-    const finalFirstSendTime = firstSendTime || new Date(Date.now() + 60 * 1000).toISOString();
+    // v0.2.28: firstSendTime 必填 (上面 throw error 校验), 不再有 "null = 1 分钟后" 默认逻辑
+    //   之前默认 1 分钟后是 "假装友好", 实际 user 90% 不知道自己设的是 1 分钟后, 任务跑了以为 work
+    //   现在 UI 强制 user 选时间, 行为透明
 
     const res = await fetch(`${serverUrl}/api/schedule-notifications`, {
       method: 'POST',
@@ -823,10 +829,10 @@
         pushSubscription: window.buildCleanPushSub(subscription),
         contactName: finalContactName,
         contactPersonality: chat?.settings?.characterPersonality || null,
-        messageType: 'fixed',
-        userMessage,
-        userPrompt,
-        firstSendTime: finalFirstSendTime,
+        messageType,  // v0.2.28: 'fixed' 或 'ai-msg' (之前固定 'fixed', 没 ai-msg 模式)
+        userMessage,  // fixed 模式用 (ai-msg 模式为 null)
+        userPrompt,   // ai-msg 模式用 (fixed 模式为 null)
+        firstSendTime, // v0.2.28: 必填 (UI 强制 user 选时间)
         recurrenceType
       })
     });

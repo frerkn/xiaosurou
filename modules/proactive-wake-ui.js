@@ -241,7 +241,7 @@
               <label>任务类型</label>
               <select id="pw-form-type">
                 <option value="fixed">固定消息（自己写内容）</option>
-                <option value="ai-decided">AI 自由发挥（LLM 决定话题）</option>
+                <option value="ai-msg">AI 写消息（你只写提示词，AI 决定具体说什么）</option>
               </select>
             </div>
             <div class="pw-form-row" id="pw-form-message-row">
@@ -249,17 +249,12 @@
               <textarea id="pw-form-message" placeholder="例：晚上好呀，今天忙不忙？"></textarea>
             </div>
             <div class="pw-form-row" id="pw-form-prompt-row" style="display:none;">
-              <label>给 AI 的提示词</label>
-              <textarea id="pw-form-prompt" placeholder="例：想问问用户今天吃了什么好吃的"></textarea>
+              <label>给 AI 的提示词（你想提醒什么）</label>
+              <textarea id="pw-form-prompt" placeholder="例：提醒我喝水 / 问问我今天吃了什么 / 让我记得起床"></textarea>
             </div>
             <div class="pw-form-row">
-              <label>发送时间</label>
-              <select id="pw-form-recurrence">
-                <option value="none">只发一次（1 分钟后）</option>
-                <option value="daily">每天一次</option>
-                <option value="weekly">每周一次</option>
-                <option value="ai-decided">AI 决定（最自然）</option>
-              </select>
+              <label>提醒时间</label>
+              <input type="datetime-local" id="pw-form-first-send-time" />
             </div>
           </div>
           <div class="pw-modal-footer">
@@ -285,7 +280,7 @@
     document.getElementById('pw-form-type').addEventListener('change', (e) => {
       const type = e.target.value;
       document.getElementById('pw-form-message-row').style.display = type === 'fixed' ? '' : 'none';
-      document.getElementById('pw-form-prompt-row').style.display = type === 'ai-decided' ? '' : 'none';
+      document.getElementById('pw-form-prompt-row').style.display = type === 'ai-msg' ? '' : 'none';
     });
 
     // 加载数据
@@ -926,12 +921,26 @@
   }
 
   // ===== 处理创建任务 =====
+  // v0.2.28: 重写 — UI 删频率 radio + 加 datetime-local, 改 type=fixed/ai-msg
+  //   之前有 4 种模式 (fixed / guided / auto / ai-decided), UI 混乱
+  //   现在简化: user 必选时间 + 选 fixed (自己写消息) 或 ai-msg (AI 写消息)
+  //   取代 v0.2.20 round 4 改 noop 的 /api/schedule-ai-task (那条路 user 没法定时间, 永远掉 noop)
   async function handleCreateTask() {
     const chatId = document.getElementById('pw-form-chat').value;
     const type = document.getElementById('pw-form-type').value;
     const message = document.getElementById('pw-form-message').value.trim();
     const prompt = document.getElementById('pw-form-prompt').value.trim();
-    const recurrence = document.getElementById('pw-form-recurrence').value;
+    const firstSendTimeLocal = document.getElementById('pw-form-first-send-time').value;
+
+    if (!firstSendTimeLocal) {
+      alert('请选择提醒时间');
+      return;
+    }
+    // datetime-local 是本地时间字符串 ("2026-08-17T09:00"), new Date() 按浏览器时区解析, toISOString 转 UTC
+    // server 端存这个 ISO 字符串, runScheduledTick 拿 NOW() (server 本地时区 Asia/Shanghai) 比较 next_send_at
+    // 简化处理: PWA 端把 datetime-local 当作"user 当地时区的时间", 转 ISO 后存 server, server 直接当 UTC 存
+    // (精度 1 分钟可接受, user 设"明早 8 点" 误差 1 分钟)
+    const firstSendTime = new Date(firstSendTimeLocal).toISOString();
 
     const submitBtn = document.getElementById('pw-modal-submit');
     submitBtn.disabled = true;
@@ -946,26 +955,27 @@
         await window.ProactiveWake.createFixedTask({
           userMessage: message,
           chatId: chatId || null,
-          recurrenceType: recurrence
+          firstSendTime,
+          recurrenceType: 'none'
+        });
+      } else if (type === 'ai-msg') {
+        if (!prompt) {
+          alert('请输入给 AI 的提示词');
+          return;
+        }
+        // v0.2.28: ai-msg 模式 — user 选时间 + 填 prompt, server 端 LLM 生成具体消息
+        //   取代 v0.2.20 round 4 改 noop 的 /api/schedule-ai-task (那条路 user 没法定时间, 永远掉 noop)
+        await window.ProactiveWake.createFixedTask({
+          userMessage: null,
+          userPrompt: prompt,
+          chatId: chatId || null,
+          firstSendTime,
+          recurrenceType: 'none',
+          messageType: 'ai-msg'
         });
       } else {
-        // ai-decided 模式: 如果是 ai-decided recurrence, 用 createTask (调 LLM 决定时间)
-        // 如果是 none/daily/weekly, 用 createFixedTask 但 userMessage=null (前端 LLM 生成内容)
-        if (recurrence === 'ai-decided') {
-          await window.ProactiveWake.createTask({
-            userPrompt: prompt || '跟用户聊聊天',
-            chatId: chatId || null,
-            recurrenceType: 'ai-decided'
-          });
-        } else {
-          // 循环 + AI 内容: 创建任务不带 userMessage, 让前端 LLM 生成
-          await window.ProactiveWake.createFixedTask({
-            userMessage: null,
-            userPrompt: prompt || '跟用户聊聊天',
-            chatId: chatId || null,
-            recurrenceType: recurrence
-          });
-        }
+        alert('未知任务类型: ' + type);
+        return;
       }
       closeCreateModal();
       await loadTaskList();
