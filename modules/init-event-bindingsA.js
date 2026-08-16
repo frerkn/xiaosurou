@@ -1781,6 +1781,15 @@ window.initEventBindingsA = async function(state, db) {
         await db.chats.put(chat);
         renderChatList();
 
+        // v0.2.27: user 发消息后立即 sync 给 push-server, push-server 端 context_full 立刻包含最新对话
+        //   真凶: 之前 PWA 端只在切 push 模式 + 启动 + 保存主 API 时 sync, user 日常聊天从来不 sync
+        //   push-server 巡视时 context 还是保存 API 那次的旧 context, LLM 看到旧话题, 生成"过时的"AI 回复
+        //   (user 2026-08-16 16:10: "16:07 那条推送明显是很早之前的话题, 上文已经过时")
+        //   修法: send-btn click handler 末尾调 syncCurrentChatPushConfig() (复用 ProactiveWakeUI.syncPushConfig)
+        if (window.ProactiveWakeUI && typeof window.ProactiveWakeUI.syncPushConfig === 'function') {
+          window.ProactiveWakeUI.syncPushConfig().catch(e => console.warn('[push-config v0.2.27] user 发消息后 sync 失败:', e.message));
+        }
+
       })();
 
 
