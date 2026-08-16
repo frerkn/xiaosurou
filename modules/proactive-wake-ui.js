@@ -630,10 +630,26 @@
       }
     }
 
+    // v0.2.28: 把 PWA 端应用内睡眠时间设置也传给 push-server (跟应用内模式共享同一组配置, 不用 PWA 端另外配置)
+    //   之前 push-server 端硬编码 00:00-06:00, 跟 PWA 端默认 23:00-08:00 不一致 (06-08 + 23-00 push-server 可能发但 PWA 不发)
+    //   修法: 读 state.globalSettings.inAppProactiveSleep* 3 个字段, 传给 push-server 存 push_user_config.inapp_sleep_*
+    //         push-server runServerPatrolTick 代码层做 sleep check (不调 LLM, 直接 skip)
+    const sleepSettings = window.state?.globalSettings || {};
+    const inAppSleepEnabled = sleepSettings.inAppProactiveSleepEnabled !== false;
+    const inAppSleepStartHour = (typeof sleepSettings.inAppProactiveSleepStartHour === 'number'
+      && sleepSettings.inAppProactiveSleepStartHour >= 0
+      && sleepSettings.inAppProactiveSleepStartHour <= 23)
+      ? sleepSettings.inAppProactiveSleepStartHour : 23;
+    const inAppSleepEndHour = (typeof sleepSettings.inAppProactiveSleepEndHour === 'number'
+      && sleepSettings.inAppProactiveSleepEndHour >= 0
+      && sleepSettings.inAppProactiveSleepEndHour <= 23)
+      ? sleepSettings.inAppProactiveSleepEndHour : 8;
+
     const body = {
       userId, chatId, enabled: true,
       contactName, contactPersonality, contextSummary,
-      llmApiUrl, llmApiKey, llmModel
+      llmApiUrl, llmApiKey, llmModel,
+      inAppSleepEnabled, inAppSleepStartHour, inAppSleepEndHour
     };
     if (lastUserMsgAt != null) {
       body.lastUserMsgAt = new Date(lastUserMsgAt).toISOString();
