@@ -833,7 +833,15 @@
         userMessage,  // fixed 模式用 (ai-msg 模式为 null)
         userPrompt,   // ai-msg 模式用 (fixed 模式为 null)
         firstSendTime, // v0.2.28: 必填 (UI 强制 user 选时间)
-        recurrenceType
+        recurrenceType,
+        // v0.2.30.2: 任务自带 LLM config (修 push_user_config 错配的脏数据问题)
+        //   真凶 (user 2026-08-17 15:20 反馈): "你没发现吗, 最近我们所有人推送失败的, 都是报没这模型, 其实明明有这模型"
+        //   根因: PWA 切预设时 model 字段没回滚, push_user_config 留下 URL/model 错配 (e.g. URL=x666 但 model=gemini-3.1-pro-preview)
+        //   修法: 任务建时直接把当前 apiConfig.{apiUrl/apiKey/model} 一并传给 server, 任务自己带 config, 不依赖 push_user_config
+        //   加密 server 端做 (encrypt(task.api_key_encrypted)), PWA 传明文 apiKey
+        apiUrl: state.apiConfig?.apiUrl || state.apiConfig?.mainApiUrl || state.apiConfig?.proxyUrl || null,
+        apiKey: state.apiConfig?.apiKey || state.apiConfig?.mainApiKey || null,
+        primaryModel: state.apiConfig?.model || state.apiConfig?.mainModel || null
       })
     });
 

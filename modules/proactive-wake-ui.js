@@ -646,6 +646,18 @@
       llmApiUrl, llmApiKey, llmModel,
       inAppSleepEnabled, inAppSleepStartHour, inAppSleepEndHour
     };
+    // v0.2.30.2: 简单 URL/model 配对校验 — 切预设时如果 model 没回滚, 这里 warn 一行
+    //   真凶 (user 2026-08-17 15:20): push_user_config 留脏数据 (x666 URL + gemini model) 导致推送全 404
+    //   启发式判断: Google URL 配 gemini-* model; 其他 URL 配非 gemini model
+    if (llmApiUrl && llmModel) {
+        const isGoogle = llmApiUrl.includes('generativelanguage.googleapis.com');
+        const isGemini = /^gemini/i.test(llmModel);
+        if (isGoogle && !isGemini) {
+            console.warn(`[push-config v0.2.30.2] ⚠️ URL 是 Google Gemini (${llmApiUrl.substring(0, 40)}) 但 model="${llmModel}" 不是 gemini-* — 推送会 404 model_not_found, 请在 API 设置里改 model`);
+        } else if (!isGoogle && isGemini) {
+            console.warn(`[push-config v0.2.30.2] ⚠️ URL 是 OpenAI 兼容 (${llmApiUrl.substring(0, 40)}) 但 model="${llmModel}" 是 gemini-* — 这个 distributor 可能没这模型, 推送会 404`);
+        }
+    }
     if (lastUserMsgAt != null) {
       body.lastUserMsgAt = new Date(lastUserMsgAt).toISOString();
     }
