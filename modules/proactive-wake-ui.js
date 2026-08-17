@@ -519,10 +519,24 @@
     // v0.2.12 修: 优先用直连 URL (apiUrl/mainApiUrl), 不传 proxyUrl
     //   原因: push-server 在云端, 不需要 CORS 绕过. 传 proxyUrl (CF worker) 反而连不上
     //   PWA 自己用 proxyUrl 是因为用户电脑没梯, push-server 没这个问题
-    const apiConfig = state.apiConfig || {};
-    const llmApiUrl = apiConfig.apiUrl || apiConfig.mainApiUrl || apiConfig.proxyUrl;
-    const llmApiKey = apiConfig.apiKey || apiConfig.mainApiKey;
-    const llmModel = apiConfig.model || apiConfig.mainModel;
+    // v0.2.30.7 改: 跟 chat 一样走 resolveApiSlotConfig('main') 拿最新预设值
+    //   真凶: v0.2.27 send-btn sync 读 state.apiConfig, 但悬浮球切预设只改 mainEndpointPresetId + model
+    //         不改 state.apiConfig.proxyUrl/apiKey (保留老值), sync 发的就是老 url/key + 新 model = 错配
+    //   修法: 调 resolveApiSlotConfig('main') 实时读 db.apiPresets 拿最新 url/key/model, 跟 chat 调 LLM 行为一致
+    let apiConfig = state.apiConfig || {};
+    if (typeof window.resolveApiSlotConfig === 'function') {
+      try {
+        const resolved = await window.resolveApiSlotConfig('main');
+        if (resolved && resolved.proxyUrl && resolved.apiKey) {
+          apiConfig = resolved;
+        }
+      } catch (e) {
+        console.warn('[proactive-wake-ui] resolveApiSlotConfig 失败, fallback state.apiConfig:', e.message);
+      }
+    }
+    const llmApiUrl = apiConfig.proxyUrl || apiConfig.apiUrl;
+    const llmApiKey = apiConfig.apiKey;
+    const llmModel = apiConfig.model;
 
     // v0.2.20 改: 遍历所有 proactiveEnabled chat (不再依赖 activeChatId)
     const enabledChats = Object.values(state.chats).filter(c => c && c.settings?.proactiveEnabled);
