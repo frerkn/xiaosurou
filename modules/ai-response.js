@@ -4515,7 +4515,7 @@ ${getActiveThoughtsPrompt()}
             'aiPersona': chat.settings.aiPersona,
             'latestThoughtContext': latestThoughtContext,
             'worldBookContent': worldBookContent || '(当前无特殊世界观设定，以现实逻辑为准)',
-            'memoryContextForPrompt': resolvedMemoryContextForPrompt,
+            'memoryContextForPrompt': '', // 变量记忆不再塞老位置,改塞到 system 最开头 (v0.2.30.5+)
             'multiLayeredSummaryContext': multiLayeredSummaryContext,
             'todoListContext': todoListContext,
             'periodSummaryContext': periodSummaryContext,
@@ -4555,6 +4555,13 @@ ${getActiveThoughtsPrompt()}
           };
 
           systemPrompt = replaceTemplateVars(systemPromptTemplate, contextMapSingle);
+
+          // 变量记忆移到 system 最前面 (v0.2.30.5+)
+          // 原因:之前塞在 "## 3. 你的长期记忆" 下面,被两个"长期记忆"标题夹住,LLM 注意力掉到中后段
+          // 改后:独立一级标题放 system 开头,LLM 必读
+          if (resolvedMemoryContextForPrompt && resolvedMemoryContextForPrompt.trim()) {
+            systemPrompt = '# ⚠️ 你的近期真实记忆 (最高优先级,必须视为亲身经历)\n' + resolvedMemoryContextForPrompt + '\n\n---\n\n' + systemPrompt;
+          }
 
           systemPrompt = processPromptWithSettings(systemPrompt, 'single');
 

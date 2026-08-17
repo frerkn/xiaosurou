@@ -1,5 +1,6 @@
 // Service Worker file (sw.js)
 // Whitelist cache strategy: cache only known static assets; API requests pass through.
+// 2026-08-17 v0.2.30.5: bump CACHE_VERSION 强制清缓存（变量记忆塞 system 开头 —
 // 2026-08-13 v0.2.20: bump CACHE_VERSION 强制清缓存（修 syncCurrentChatPushConfig activeChatId 设计 bug —
 //   切 push 模式时 user 经常不在 chat 里, activeChatId 是 null 直接 return, push_user_config 一直 0 行
 //   → push-server 10 分钟 scheduler 没事干, 主动消息一周 0 推送
@@ -418,7 +419,10 @@
 //   之前 v0.2.15 改 proactive-wake.js / background-activity.js + v0.2.15.1 改 notification-battery.js / proactive-wake.js 都忘了 bump SW cache, iPhone PWA SW 仍认 v0.2.14, 划掉重开也没用, SW 强制缓存旧 modules/*.js (v0.2.13) → 仍抛 ByteString (subscription.toJSON() 旧代码)。
 //   修法: bump CACHE_VERSION v0.2.14 → v0.2.15.1, SW activate event 会删 ephone-cache-v0.2.14 旧 cache, 装新 cache。
 //   同时加 3 个 modules 进 URLS_TO_CACHE (之前漏了, 现在白名单让 SW 主动管理这 3 个文件, 未来改这 3 个文件再 bump 就行)。
-const CACHE_VERSION = 'v0.2.28';
+// 2026-08-17 v0.2.30.5: bump CACHE_VERSION 强制清缓存（修变量记忆塞 system 中后段 LLM 注意力不到 —
+//   modules/ai-response.js 单聊路径把 resolvedMemoryContextForPrompt 从 "## 3. 你的长期记忆" 下面抽出来
+//   改塞到 system 最开头,独立一级标题 "# ⚠️ 你的近期真实记忆 (最高优先级,必须视为亲身经历)"）
+const CACHE_VERSION = 'v0.2.30.5';
 // (v0.2.26: 推送落进聊天框 — SW push handler 优先用 data.fixedMessage (不管 messageType) 直接显示真内容 + 写 IndexedDB
 //   + postMessage 主页面 PROACTIVE_WAKE_PUSHED. 真凶: 之前 messageType==='patrol' 时 SW 走 guided/auto 占位分支,
 //   fixedMessage 字段被忽略, 主页面 handleProactiveWake 又调一遍 LLM (浪费 + 通知保持占位).
