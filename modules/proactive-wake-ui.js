@@ -469,16 +469,17 @@
         } catch (e) {
           console.warn('[proactive-wake-ui] 重启 v0.2.17 失败:', e.message);
         }
-        // v0.2.12+: 切 push 模式时, sync config 到 push-server (server 端 10 分钟巡视用)
-        //          切 app 模式时, unsync (避免 push-server 重复跑)
+        // v0.2.30.6: 切 app 模式不再 unsync (PWA 期望"选 app 模式两边都收", 不能因为切 mode radio 就删 push 行)
+        //   真凶: v0.2.20 设计的 unsync 切 app 模式时调, 调试时切来切去就丢 push_user_config 行
+        //   修法: 切 app 模式什么都不做, push 行永远在, server 巡视永远 work
+        //   sync 仍调 (切 push 模式时 sync 重建 / 更新 push_user_config 行)
         try {
           if (mode === 'push') {
             await syncCurrentChatPushConfig();
-          } else {
-            await unsyncCurrentChatPushConfig();
           }
+          // v0.2.30.6: 删 unsyncCurrentChatPushConfig 调用 — 切 app 模式不再调 server
         } catch (e) {
-          console.warn('[proactive-wake-ui] sync/unsync push config 失败:', e.message);
+          console.warn('[proactive-wake-ui] sync push config 失败:', e.message);
         }
         // 同步 chat 设置页的角色级开关 + hint
         syncOldProactiveSwitch(mode);
@@ -683,40 +684,9 @@
     }
   }
 
-  // ===== v0.2.20: unsync 所有 chat 的 push config =====
-  // 切到 app 模式时调, 告诉 push-server 别再巡视这些 chat
-  // v0.2.20 改: 跟 sync 对称, 遍历所有 chat (不再限制 activeChatId)
-  async function unsyncCurrentChatPushConfig() {
-    const state = window.state;
-    if (!state) return;
-
-    // v0.2.20+: 切 app 模式时停止 lastUserMsgAt 轮询
-    stopLastUserMsgAtSyncTimer();
-
-    const serverUrl = (state.globalSettings?.systemNotification?.pushServer?.serverUrl || '').replace(/\/$/, '');
-    if (!serverUrl) return;
-
-    const userId = getOrCreatePushUserId();
-    // 遍历所有 chat (不只是 proactiveEnabled, 因为 server 端可能存了过期的 enabled=true)
-    const allChats = Object.values(state.chats).filter(c => c);
-    for (const chat of allChats) {
-      const chatId = chat.id;
-      try {
-        const res = await fetch(`${serverUrl}/api/push-config`, {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, chatId })
-        });
-        if (!res.ok) {
-          console.warn(`[proactive-wake-ui] unsync push config 失败: chatId=${chatId} ${res.status}`);
-        } else {
-          console.log(`[proactive-wake-ui] ✅ unsync push config 成功: chatId=${chatId}`);
-        }
-      } catch (e) {
-        console.warn(`[proactive-wake-ui] unsync push config 网络错误 chatId=${chatId}:`, e.message);
-      }
-    }
-  }
+  // v0.2.30.6: 删 unsyncCurrentChatPushConfig 函数 (切 app 模式不再调 server)
+  //   旧函数删掉避免成为死代码 — 切 app 模式时 sync 也不调 (sync 只在切 push 模式时调)
+  //   老的 unsync 设计真凶: 调试时切来切去就丢 push_user_config 行, 跟"选 app 模式两边都收"期望冲突
 
   // ===== v0.2.07+: 根据投递方式显示不同 UI =====
   // app 模式: 隐藏 [任务列表] + [+ 创建任务] 按钮
