@@ -235,8 +235,22 @@
     // 把 lineEl 插到 bubble 后面 (group 复用逻辑)
     function insertLogAfterBubble(bubble, lineEl) {
         if (!bubble) {
+            // 2026-08-18 v0.2.30.6: 找不到 anchor bubble 时也要包 group
+            // 修复前: 直接 container.appendChild(lineEl), lineEl 散在 chat-messages 里,
+            //         跟 message-wrapper 平级, 破坏 flex column 布局, 撑高容器底部,
+            //         让后续 appendMessage 的新消息视觉位置被顶到中间 (user 描述"出现在顶部")
+            // 修复后: 包成 .mcp-tool-log-group div 再插入, 跟正常路径行为一致
             const container = getChatContainer();
-            if (container) container.appendChild(lineEl);
+            if (!container) return;
+            const group = document.createElement('div');
+            group.className = 'mcp-tool-log-group';
+            group.appendChild(lineEl);
+            const typingIndicator = container.querySelector('#typing-indicator');
+            if (typingIndicator) {
+                container.insertBefore(group, typingIndicator);
+            } else {
+                container.appendChild(group);
+            }
             return;
         }
         // 优先找已有的 .mcp-tool-log-group 紧跟在 bubble 之后, 有就追加
@@ -269,12 +283,17 @@
         const bubbles = container.querySelectorAll('.message-bubble[data-timestamp]');
         const lastBubble = bubbles[bubbles.length - 1];
         if (!lastBubble) {
-            // 找不到 lastBubble (新聊天没消息), 加到 container 末尾 (typingIndicator 之前如果有)
+            // 2026-08-18 v0.2.30.6: 找不到 lastBubble 时也要包 group
+            // 修复前: 直接 insertBefore/appendChild lineEl, lineEl 散在 chat-messages 里
+            // 修复后: 包成 .mcp-tool-log-group div 再插入
             const typingIndicator = container.querySelector('#typing-indicator');
+            const group = document.createElement('div');
+            group.className = 'mcp-tool-log-group';
+            group.appendChild(lineEl);
             if (typingIndicator) {
-                container.insertBefore(lineEl, typingIndicator);
+                container.insertBefore(group, typingIndicator);
             } else {
-                container.appendChild(lineEl);
+                container.appendChild(group);
             }
             return;
         }
@@ -470,15 +489,41 @@
         return removed;
     }
 
+    // ========== 启动时清理孤儿 lineEl (v0.2.30.6 加) ==========
+    // 之前 v0.1.70 ~ v0.2.30.5 的 bug: insertLogAfterBubble / appendAfterLastMessage 在
+    // 找不到 anchor (bubble/lastBubble) 时直接 container.appendChild(lineEl), lineEl 没包
+    // 成 .mcp-tool-log-group, 跟 message-wrapper 平级散在 chat-messages 里, 撑高容器底部
+    // 几百 px, 让后续 appendMessage 新消息视觉位置被顶到中间 (user 描述"新消息出现在顶部")
+    // 修法 1: 已修 insertLogAfterBubble/appendAfterLastMessage 的 fallback 分支
+    // 修法 2 (本函数): 启动时把已存在的孤儿 lineEl (chat-messages 直接子元素里的
+    //         .mcp-tool-log-line) 全 remove, 清掉老错位残留
+    function cleanupOrphanLineEls() {
+        const container = getChatContainer();
+        if (!container) return 0;
+        // :scope > 直接子元素选择器, 只查 chat-messages 直接子元素里的 .mcp-tool-log-line
+        // (在 .mcp-tool-log-group 内的 lineEl 不会被命中, 因为 group 不是 chat-messages 直接子元素? 不, group 也可能是,
+        //  所以更严格: 找"父节点是 chat-messages"的 lineEl)
+        const orphans = container.querySelectorAll(':scope > .mcp-tool-log-line');
+        if (orphans.length === 0) return 0;
+        console.warn('[McpToolLog] 清理 ' + orphans.length + ' 个孤儿 lineEl (没包 group, 父节点是 chat-messages)');
+        orphans.forEach(function (el) { el.remove(); });
+        return orphans.length;
+    }
+
     // ========== 初始化 ==========
     if (global.McpBridge && typeof global.McpBridge.onCard === 'function') {
         global.McpBridge.onCard(onCard);
         console.log('[McpToolLog] 已注册 card listener, 监听所有 MCP 工具调用 (覆盖 mcd/luckin/amap/任意通用 MCP)');
         // 2026-08-09 v0.2.04: 启动时清理老错位 group, 等容器准备好
+        // 2026-08-18 v0.2.30.6: 顺便清理孤儿 lineEl (没包 group 的, 之前 bug 残留)
         setTimeout(function () {
             cleanupMisplacedGroups();
+            cleanupOrphanLineEls();
             // 1s 后再清一次 (容器可能还在渲染中)
-            setTimeout(cleanupMisplacedGroups, 1000);
+            setTimeout(function () {
+                cleanupMisplacedGroups();
+                cleanupOrphanLineEls();
+            }, 1000);
         }, 100);
         // 启动 DOM 观察, 切聊天/loadMore 时恢复历史 log
         installHistoryObserver();

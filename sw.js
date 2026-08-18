@@ -1,5 +1,23 @@
 // Service Worker file (sw.js)
 // Whitelist cache strategy: cache only known static assets; API requests pass through.
+// 2026-08-18 v0.2.30.6: bump CACHE_VERSION 强制清缓存（修 MCP 工具调用日志孤儿 lineEl 撑高 chat-messages —
+//
+//   js/mcp-tool-call-log.js 4 处修复:
+//     1) insertLogAfterBubble 找不到 anchor bubble 的 fallback: 之前直接 container.appendChild(lineEl),
+//        lineEl 散在 chat-messages 里, 跟 message-wrapper 平级, 没包成 .mcp-tool-log-group
+//        → 修: 包成 group div, 跟正常路径行为一致
+//     2) appendAfterLastMessage 找不到 lastBubble 的 fallback: 同样问题
+//        → 修: 包成 group div
+//     3) 新加 cleanupOrphanLineEls(): 启动时把 chat-messages 直接子元素里"没包 group"的
+//        .mcp-tool-log-line 全 remove (清掉之前 bug 残留的孤儿, 修复硬刷不能自动清的问题)
+//     4) init 调度: 启动 100ms 后 + 1s 后各跑一次 cleanupMisplacedGroups + cleanupOrphanLineEls
+//
+//   根因: user 反馈"调过 MCP 后, 后续消息一发送就出现在聊天框顶部, 越多越高"
+//        — 17 个孤儿 lineEl 累积在 chat-messages 末尾 (typingIndicator 之后), 撑高容器底部
+//        几百 px, appendMessage 的新消息插到 typingIndicator 紧前面, 视觉位置被孤儿
+//        顶到中间偏上, 看着像"出现在顶部" + 累积越多新消息越靠上
+//        实际 user 截图诊断: directLineElsCount=17 (chat-messages 直接子元素里有 17 个
+//        .mcp-tool-log-line 没被 group 包), totalGroups=1, misplacedCount=0
 // 2026-08-17 v0.2.30.5: bump CACHE_VERSION 强制清缓存（变量记忆塞 system 开头 —
 // 2026-08-13 v0.2.20: bump CACHE_VERSION 强制清缓存（修 syncCurrentChatPushConfig activeChatId 设计 bug —
 //   切 push 模式时 user 经常不在 chat 里, activeChatId 是 null 直接 return, push_user_config 一直 0 行
@@ -422,7 +440,7 @@
 // 2026-08-17 v0.2.30.5: bump CACHE_VERSION 强制清缓存（修变量记忆塞 system 中后段 LLM 注意力不到 —
 //   modules/ai-response.js 单聊路径把 resolvedMemoryContextForPrompt 从 "## 3. 你的长期记忆" 下面抽出来
 //   改塞到 system 最开头,独立一级标题 "# ⚠️ 你的近期真实记忆 (最高优先级,必须视为亲身经历)"）
-const CACHE_VERSION = 'v0.2.30.5';
+const CACHE_VERSION = 'v0.2.30.6';
 // (v0.2.26: 推送落进聊天框 — SW push handler 优先用 data.fixedMessage (不管 messageType) 直接显示真内容 + 写 IndexedDB
 //   + postMessage 主页面 PROACTIVE_WAKE_PUSHED. 真凶: 之前 messageType==='patrol' 时 SW 走 guided/auto 占位分支,
 //   fixedMessage 字段被忽略, 主页面 handleProactiveWake 又调一遍 LLM (浪费 + 通知保持占位).
