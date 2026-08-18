@@ -1,5 +1,20 @@
 // Service Worker file (sw.js)
 // Whitelist cache strategy: cache only known static assets; API requests pass through.
+// 2026-08-18 v0.2.30.7: bump CACHE_VERSION 强制清缓存（修 mcpToolLogs 清空路径漏清 —
+//
+//   modules/floating-ball.js handleQuickClearChatHistory (悬浮球 → 清空聊天记录):
+//     之前只清 chat.history, 不清 chat.mcpToolLogs
+//     跟 data-management.js:903-915 (数据管理 → 清空聊天记录) 不一致, 那个路径有清
+//     修: 同步加 chat.mcpToolLogs = []
+//
+//   js/mcp-tool-call-log.js renderHistoricalLogs:
+//     加 chat.history 为空时清 mcpToolLogs 兑底
+//     防御其他清空路径 (多选删除/单条删除/数据导入等) 可能也漏清
+//
+//   根因: user 反馈"清空聊天记录也救不了, 好像这些没清理掉"
+//        — chat.mcpToolLogs 数据跟 chat.history 分离, 悬浮球清空路径漏清 mcpToolLogs
+//          → observer 触发 renderHistoricalLogs 把老 log 重新插入 chat-messages
+//          → 17 条老 log 视觉残留, 修 1+2+3 也只能修 lineEl 散落撑底部, log 本身还在
 // 2026-08-18 v0.2.30.6: bump CACHE_VERSION 强制清缓存（修 MCP 工具调用日志孤儿 lineEl 撑高 chat-messages —
 //
 //   js/mcp-tool-call-log.js 4 处修复:
@@ -440,7 +455,7 @@
 // 2026-08-17 v0.2.30.5: bump CACHE_VERSION 强制清缓存（修变量记忆塞 system 中后段 LLM 注意力不到 —
 //   modules/ai-response.js 单聊路径把 resolvedMemoryContextForPrompt 从 "## 3. 你的长期记忆" 下面抽出来
 //   改塞到 system 最开头,独立一级标题 "# ⚠️ 你的近期真实记忆 (最高优先级,必须视为亲身经历)"）
-const CACHE_VERSION = 'v0.2.30.6';
+const CACHE_VERSION = 'v0.2.30.7';
 // (v0.2.26: 推送落进聊天框 — SW push handler 优先用 data.fixedMessage (不管 messageType) 直接显示真内容 + 写 IndexedDB
 //   + postMessage 主页面 PROACTIVE_WAKE_PUSHED. 真凶: 之前 messageType==='patrol' 时 SW 走 guided/auto 占位分支,
 //   fixedMessage 字段被忽略, 主页面 handleProactiveWake 又调一遍 LLM (浪费 + 通知保持占位).

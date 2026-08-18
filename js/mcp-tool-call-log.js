@@ -330,6 +330,21 @@
         if (!st || !chatId) return 0;
         const chat = st.chats && st.chats[chatId];
         if (!chat || !Array.isArray(chat.mcpToolLogs) || !chat.mcpToolLogs.length) return 0;
+        // 2026-08-18 v0.2.30.7 兑底: chat.history 为空时 (用户清空了聊天记录) 也清掉 mcpToolLogs
+        // 原因: 之前 floating-ball.js handleQuickClearChatHistory 清空路径漏了 mcpToolLogs
+        // (data-management.js 那个路径有清), 修 5a 修了这个路径
+        // 但还有其他清空路径 (多选删除 / 单条删除 / 数据导入 等) 可能也漏, 防御性处理
+        if (!Array.isArray(chat.history) || chat.history.length === 0) {
+            console.log('[McpToolLog] chat.history 为空, 清掉残留的 ' + chat.mcpToolLogs.length + ' 条 mcpToolLogs');
+            chat.mcpToolLogs = [];
+            // 持久化到 IndexedDB (跟 persistLog 行为一致)
+            if (typeof window !== 'undefined' && window.db && window.db.chats) {
+                window.db.chats.put(chat).catch(function (err) {
+                    console.warn('[McpToolLog] persist failed:', err);
+                });
+            }
+            return 0;
+        }
         const container = getChatContainer();
         if (!container) return 0;
 

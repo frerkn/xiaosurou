@@ -1542,6 +1542,13 @@
         chat.lastMessageType = '';
         chat.messageCount = 0;
         chat.updatedAt = Date.now();
+        // 2026-08-18 v0.2.30.7: 同步清 mcpToolLogs
+        // 跟 data-management.js:903-915 的清空路径保持一致, 否则 mcpToolLogs 残留
+        // observer 触发时 renderHistoricalLogs 重新插入 17 条 log (虽然修 1+2+3 修好了
+        // lineEl 散落的 bug, 但 log 还是会重新出现在 chat-messages 里, 视觉残留)
+        if (Array.isArray(chat.mcpToolLogs) && chat.mcpToolLogs.length > 0) {
+          chat.mcpToolLogs = [];
+        }
       }
 
       if (typeof renderChatInterface === 'function') {
