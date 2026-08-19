@@ -1,5 +1,20 @@
 // Service Worker file (sw.js)
 // Whitelist cache strategy: cache only known static assets; API requests pass through.
+// 2026-08-20 v0.2.30.9: bump CACHE_VERSION 强制清缓存（renderHistoricalLogs 自动清孤儿 log 数据 —
+//
+//   js/mcp-tool-call-log.js renderHistoricalLogs 加兜底:
+//     收集"遍历了但 lineEl 没进 DOM"的孤儿 log (修 6 找不到 anchor 直接 return 的 case)
+//     跑完一次, 从 chat.mcpToolLogs 数组里 filter 掉 + 同步删 IndexedDB
+//
+//   根因: user 反馈"现在孤儿不显示了会不会像以前一样其实还在占位置"
+//        — 修 6 让 lineEl 不进 DOM (lineEl 函数返回后被 GC, 不占位置)
+//          但 mcpToolLogs 数据还在 IndexedDB 里, 每次 observer 触发都遍历这条孤儿
+//          浪费 CPU + 脏数据永远不清
+//        — 修 8 跑完一次清掉, 彻底干净
+//
+//   跟修 5b 的区别: 修 5b 是 chat.history 完全空时清 mcpToolLogs 整体
+//                 修 8 是 chat.history 非空但单条 log 找不到 anchor 时清单条
+//                 两者互补
 // 2026-08-20 v0.2.30.8: bump CACHE_VERSION 强制清缓存（修 log 找不到 anchor 堆底部 + 加单条删除 —
 //
 //   js/mcp-tool-call-log.js 3 处修复:
@@ -479,7 +494,7 @@
 // 2026-08-17 v0.2.30.5: bump CACHE_VERSION 强制清缓存（修变量记忆塞 system 中后段 LLM 注意力不到 —
 //   modules/ai-response.js 单聊路径把 resolvedMemoryContextForPrompt 从 "## 3. 你的长期记忆" 下面抽出来
 //   改塞到 system 最开头,独立一级标题 "# ⚠️ 你的近期真实记忆 (最高优先级,必须视为亲身经历)"）
-const CACHE_VERSION = 'v0.2.30.8';
+const CACHE_VERSION = 'v0.2.30.9';
 // (v0.2.26: 推送落进聊天框 — SW push handler 优先用 data.fixedMessage (不管 messageType) 直接显示真内容 + 写 IndexedDB
 //   + postMessage 主页面 PROACTIVE_WAKE_PUSHED. 真凶: 之前 messageType==='patrol' 时 SW 走 guided/auto 占位分支,
 //   fixedMessage 字段被忽略, 主页面 handleProactiveWake 又调一遍 LLM (浪费 + 通知保持占位).

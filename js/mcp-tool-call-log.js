@@ -404,6 +404,7 @@
         });
 
         let rendered = 0;
+        const orphanedLogs = [];  // 2026-08-20 v0.2.30.9: 收集找不到 anchor 的孤儿 log, 跑完一次清掉
         for (let i = 0; i < sorted.length; i++) {
             const log = sorted[i];
             const ts = String(log.ts || '');
@@ -415,8 +416,32 @@
             }
             const line = renderLogLineFromData(log);
             insertLogAfterBubble(bubble, line);
-            existingTs.add(ts);
-            rendered++;
+            // 2026-08-20 v0.2.30.9: 验证 lineEl 是否真的进了 DOM
+            // 修 6 改了 insertLogAfterBubble, 找不到 anchor 时直接 return, lineEl 不进 DOM
+            // 但 mcpToolLogs 数据还在 — 每次 observer 触发都遍历这条孤儿, 浪费 CPU
+            // 而且数据永远不清, 是脏数据
+            // 修法: 跑完一次, 把 lineEl 没进 DOM 的孤儿 log 数据从 mcpToolLogs 里清掉
+            if (!document.querySelector('.mcp-tool-log-line[data-ts="' + ts + '"]')) {
+                orphanedLogs.push(log);
+            } else {
+                existingTs.add(ts);
+                rendered++;
+            }
+        }
+        // 2026-08-20 v0.2.30.9: 清掉孤儿 log 数据 + 同步到 IndexedDB
+        if (orphanedLogs.length > 0) {
+            const orphanedTsSet = new Set(orphanedLogs.map(function (l) { return l && l.ts; }).filter(Boolean));
+            const before = chat.mcpToolLogs.length;
+            chat.mcpToolLogs = chat.mcpToolLogs.filter(function (l) { return l && !orphanedTsSet.has(l.ts); });
+            const removed = before - chat.mcpToolLogs.length;
+            if (removed > 0) {
+                if (typeof window !== 'undefined' && window.db && window.db.chats) {
+                    window.db.chats.put(chat).catch(function (err) {
+                        console.warn('[McpToolLog] persist failed:', err);
+                    });
+                }
+                console.log('[McpToolLog] 清理了 ' + removed + ' 条找不到 anchor 的孤儿 log 数据 (从 mcpToolLogs + IndexedDB 同步删)');
+            }
         }
         return rendered;
     }
