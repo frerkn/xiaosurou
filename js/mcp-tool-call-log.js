@@ -235,22 +235,12 @@
     // 把 lineEl 插到 bubble 后面 (group 复用逻辑)
     function insertLogAfterBubble(bubble, lineEl) {
         if (!bubble) {
-            // 2026-08-18 v0.2.30.6: 找不到 anchor bubble 时也要包 group
-            // 修复前: 直接 container.appendChild(lineEl), lineEl 散在 chat-messages 里,
-            //         跟 message-wrapper 平级, 破坏 flex column 布局, 撑高容器底部,
-            //         让后续 appendMessage 的新消息视觉位置被顶到中间 (user 描述"出现在顶部")
-            // 修复后: 包成 .mcp-tool-log-group div 再插入, 跟正常路径行为一致
-            const container = getChatContainer();
-            if (!container) return;
-            const group = document.createElement('div');
-            group.className = 'mcp-tool-log-group';
-            group.appendChild(lineEl);
-            const typingIndicator = container.querySelector('#typing-indicator');
-            if (typingIndicator) {
-                container.insertBefore(group, typingIndicator);
-            } else {
-                container.appendChild(group);
-            }
+            // 2026-08-20 v0.2.30.8: 找不到 anchor 时不渲染
+            // 修前 (v0.2.30.6/7): 包 group 插到 typingIndicator 之前 → log 全部堆在 chat-messages 底部
+            //                     user 反馈"密密麻麻堆在底部, 不能跟随气泡, 切 chat 回来又堆"
+            // 修后: 找不到 anchor = 这条 log 失去"主" = 不显示
+            //       跟"调了工具自然跟随"的用户期望一致 (找不到主就别显示, 别乱堆)
+            //       用户可以单独删除遗留的 log (见 attachLogGroupDeleteHandler)
             return;
         }
         // 优先找已有的 .mcp-tool-log-group 紧跟在 bubble 之后, 有就追加
@@ -269,9 +259,59 @@
             const newGroup = document.createElement('div');
             newGroup.className = 'mcp-tool-log-group';
             newGroup.appendChild(lineEl);
+            attachLogGroupDeleteHandler(newGroup, lineEl);  // v0.2.30.8: 绑删除
             wrapper.parentNode.insertBefore(newGroup, wrapper.nextSibling);
         } else {
             bubble.parentNode.insertBefore(lineEl, bubble.nextSibling);
+        }
+    }
+
+    // ========== 单条 log 删除 (v0.2.30.8 加) ==========
+    // user 反馈"必须清空聊天记录才能删 log 太麻烦, 想要单独删除"
+    // 修法: group 加 data-ts + click handler, 弹 confirm 后删 DOM + 删 chat.mcpToolLogs 同步到 IndexedDB
+    function attachLogGroupDeleteHandler(group, lineEl) {
+        const ts = lineEl.getAttribute('data-ts');
+        if (ts) group.setAttribute('data-ts', ts);
+        group.addEventListener('click', function (e) {
+            // 不阻断冒泡 (group 是 message-bubble 的兄弟节点, 点击 group 不应触发 chat-area 的其他逻辑)
+            if (typeof showCustomConfirm === 'function') {
+                showCustomConfirm('删除工具调用记录', '确定要删除这条「' + (lineEl.getAttribute('data-tool') || '工具') + '」调用记录吗？', {
+                    confirmButtonClass: 'btn-danger',
+                    confirmText: '删除'
+                }).then(function (confirmed) {
+                    if (!confirmed) return;
+                    deleteLogGroupByTs(Number(group.getAttribute('data-ts')));
+                });
+            } else if (window.confirm('确定要删除这条工具调用记录吗？')) {
+                deleteLogGroupByTs(Number(group.getAttribute('data-ts')));
+            }
+        });
+    }
+
+    function deleteLogGroupByTs(ts) {
+        if (!ts) return;
+        // 1. 删 DOM (删 group 即可, lineEl 跟着被删)
+        const lineEl = document.querySelector('.mcp-tool-log-line[data-ts="' + ts + '"]');
+        if (lineEl) {
+            const group = lineEl.closest('.mcp-tool-log-group');
+            if (group) group.remove();
+        }
+        // 2. 删 chat.mcpToolLogs 里对应记录 + 同步到 IndexedDB
+        const st = (typeof window !== 'undefined' ? window : global).state;
+        if (!st || !st.activeChatId || !st.chats) return;
+        const chat = st.chats[st.activeChatId];
+        if (!chat || !Array.isArray(chat.mcpToolLogs)) return;
+        const idx = chat.mcpToolLogs.findIndex(function (l) { return l && l.ts === ts; });
+        if (idx >= 0) {
+            chat.mcpToolLogs.splice(idx, 1);
+            if (typeof window !== 'undefined' && window.db && window.db.chats) {
+                window.db.chats.put(chat).catch(function (err) {
+                    console.warn('[McpToolLog] persist failed:', err);
+                });
+            }
+            console.log('[McpToolLog] 已删除 ts=' + ts + ' 的 log, 剩余 ' + chat.mcpToolLogs.length + ' 条');
+        } else {
+            console.log('[McpToolLog] ts=' + ts + ' 不在 mcpToolLogs 里 (可能已被其他路径清掉), 只删 DOM');
         }
     }
 
@@ -290,6 +330,7 @@
             const group = document.createElement('div');
             group.className = 'mcp-tool-log-group';
             group.appendChild(lineEl);
+            attachLogGroupDeleteHandler(group, lineEl);  // v0.2.30.8: 绑删除
             if (typingIndicator) {
                 container.insertBefore(group, typingIndicator);
             } else {
@@ -312,6 +353,7 @@
             const group = document.createElement('div');
             group.className = 'mcp-tool-log-group';
             group.appendChild(lineEl);
+            attachLogGroupDeleteHandler(group, lineEl);  // v0.2.30.8: 绑删除
             wrapper.parentNode.insertBefore(group, wrapper.nextSibling);
         } else {
             lastBubble.parentNode.insertBefore(lineEl, lastBubble.nextSibling);

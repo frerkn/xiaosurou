@@ -1,5 +1,29 @@
 // Service Worker file (sw.js)
 // Whitelist cache strategy: cache only known static assets; API requests pass through.
+// 2026-08-20 v0.2.30.8: bump CACHE_VERSION 强制清缓存（修 log 找不到 anchor 堆底部 + 加单条删除 —
+//
+//   js/mcp-tool-call-log.js 3 处修复:
+//     1) insertLogAfterBubble 找不到 anchor 时不渲染 (修前 v0.2.30.6/7 是包 group 插到
+//        typingIndicator 之前, 全部堆在 chat-messages 底部, 密密麻麻不能跟随气泡)
+//        修后: 找不到 anchor = 这条 log 失去"主" = 不显示 (别乱堆)
+//     2) 新加 attachLogGroupDeleteHandler + deleteLogGroupByTs:
+//        group 加 data-ts + click handler, 弹 confirm 后删 DOM + 删 chat.mcpToolLogs 同步到 IndexedDB
+//        3 处 group 创建位置都加了 attach (insertLogAfterBubble 正常路径 +
+//        appendAfterLastMessage !lastBubble 分支 + appendAfterLastMessage 正常路径)
+//     3) deleteLogGroupByTs 兜底: 找不到 ts 对应 log 时也删 DOM, 不报错
+//
+//   css/mcp-miniapp-pink.css:
+//     - .mcp-tool-log-group 加 cursor:pointer + hover 浅红背景, 提示"可点删"
+//
+//   根因: user 反馈"log 密密麻麻堆在底部, 不能跟随气泡, 切 chat 回来又堆, 还不能单独删"
+//        — 之前 v0.2.30.6/7 的"找不到 anchor 时包 group 插 typingIndicator 之前" 是兜底过度:
+//          log 失去了"主"就该不显示, 而不是堆底部让用户误以为 AI 调了很多工具
+//        — user 想要"调了工具, log 紧跟 AI 消息气泡, 按时间顺序跟随"
+//        — 找不到 anchor 的 log (chat 长度 > 60 老消息被 MAX_DOM_NODES 清掉等) 不显示 OK
+//          因为没"主"可跟随, 强行堆底部没意义
+//        — 单条 log 删不了很烦, 加 click 弹 confirm 单独删 (不动 chat.history)
+//
+//   回归: 没跑 test-tool-call-log.mjs (mjs 用 mock DOM, 这次改的 real DOM click 行为 mock 不了)
 // 2026-08-18 v0.2.30.7: bump CACHE_VERSION 强制清缓存（修 mcpToolLogs 清空路径漏清 —
 //
 //   modules/floating-ball.js handleQuickClearChatHistory (悬浮球 → 清空聊天记录):
@@ -455,7 +479,7 @@
 // 2026-08-17 v0.2.30.5: bump CACHE_VERSION 强制清缓存（修变量记忆塞 system 中后段 LLM 注意力不到 —
 //   modules/ai-response.js 单聊路径把 resolvedMemoryContextForPrompt 从 "## 3. 你的长期记忆" 下面抽出来
 //   改塞到 system 最开头,独立一级标题 "# ⚠️ 你的近期真实记忆 (最高优先级,必须视为亲身经历)"）
-const CACHE_VERSION = 'v0.2.30.7';
+const CACHE_VERSION = 'v0.2.30.8';
 // (v0.2.26: 推送落进聊天框 — SW push handler 优先用 data.fixedMessage (不管 messageType) 直接显示真内容 + 写 IndexedDB
 //   + postMessage 主页面 PROACTIVE_WAKE_PUSHED. 真凶: 之前 messageType==='patrol' 时 SW 走 guided/auto 占位分支,
 //   fixedMessage 字段被忽略, 主页面 handleProactiveWake 又调一遍 LLM (浪费 + 通知保持占位).
