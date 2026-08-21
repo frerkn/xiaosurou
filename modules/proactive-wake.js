@@ -342,32 +342,113 @@
 
     chat._proactiveTaskId = taskId;
 
-    // 写消息 (优先 messageStore 新表, fallback 老 history 模式)
-    const msg = {
-      id: `${chatId}::${Date.now()}::assistant::text::0`,
-      chatId,
-      role: 'assistant',
-      content: message,
-      timestamp: Date.now(),
-      type: 'text',
-      proactive: true,
-      taskId
+    // v0.2.30.16 改: 按正常信息一样解析 message 字段 (跟主屏 ai-response.js:1323 parseAiResponse 4 段解析策略一致)
+    //   真凶 (user 2026-08-22 00:19): Gemini native 主动信息推送过来是 markdown "```json" 代码块或 raw JSON 格式
+    //     - 旧代码: 直接用 message 字段 → 显示 "```json" 整段
+    //     - 修法: 解析 message 字段 (剥 markdown code fence + 解析 JSON 数组/对象) + 取 type==='text' 的 content
+    //     - 多段 text → 多个气泡 (跟 chat 一致), 单段 text → 1 个气泡
+    //   复制而非 import parseAiResponse: 主屏 ai-response.js 是 IIFE, parseAiResponse 不暴露给 window
+    //   跨项目通用 SOP: 任何 push 路径接 server 端 message 字段, 都应该过一道 4 段解析, 跟主屏 chat 消息处理对齐
+    const parsePushedMessage = (raw) => {
+      if (!raw) return [];
+      let trimmed = String(raw).trim();
+
+      // 1. Markdown code fence 提取 ```json ... ```
+      const mdMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+      if (mdMatch && mdMatch[1]) {
+        trimmed = mdMatch[1].trim();
+      }
+
+      // 2. 标准 JSON 数组解析 [{type:"text",content:"..."}]
+      if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (Array.isArray(parsed)) {
+            const segs = parsed
+              .filter(it => it && (it.type === 'text' || it.type === 'proactive' || (typeof it.content === 'string' && it.content)))
+              .map(it => String(it.content || '').trim())
+              .filter(Boolean);
+            if (segs.length > 0) return segs;
+          }
+        } catch (e) {}
+      }
+
+      // 3. 强力提取 [ ... } ... ] (处理 AI 在 JSON 前后说废话)
+      const sIdx = trimmed.indexOf('[');
+      const lIdx = trimmed.lastIndexOf('}');
+      if (sIdx !== -1 && lIdx !== -1 && lIdx > sIdx) {
+        const eIdx = trimmed.indexOf(']', lIdx);
+        if (eIdx !== -1) {
+          try {
+            const parsed = JSON.parse(trimmed.substring(sIdx, eIdx + 1));
+            if (Array.isArray(parsed)) {
+              const segs = parsed
+                .filter(it => it && (it.type === 'text' || it.type === 'proactive' || (typeof it.content === 'string' && it.content)))
+                .map(it => String(it.content || '').trim())
+                .filter(Boolean);
+              if (segs.length > 0) return segs;
+            }
+          } catch (e) {}
+        }
+      }
+
+      // 4. 强力提取 {...} (处理单个 JSON 对象散落在文本里)
+      const jMatches = trimmed.match(/{[^{}]*}/g);
+      if (jMatches) {
+        const results = [];
+        for (const m of jMatches) {
+          try {
+            const obj = JSON.parse(m);
+            if (obj && typeof obj.content === 'string') {
+              results.push(String(obj.content).trim());
+            }
+          } catch (e) {}
+        }
+        if (results.length > 0) return results.filter(Boolean);
+      }
+
+      // 5. fallback: 原 raw (剥 markdown 后) 作为单段
+      return [trimmed];
     };
 
-    try {
-      if (window.messageStore?.addMessageToChat) {
-        await window.messageStore.addMessageToChat(chat, msg);
-      } else {
-        if (!Array.isArray(chat.history)) chat.history = [];
-        chat.history.push(msg);
-        const { history, ...cleanChat } = chat;  // v0.2.60+ 已经拆表, 写 chats 时不带 history
-        await db.chats.put(cleanChat);
-      }
-      console.log(`[proactive-wake] ✅ PROACTIVE_WAKE_PUSHED 消息已落: chatId=${chatId} content="${String(message).substring(0, 30)}..."`);
-    } catch (e) {
-      console.warn('[proactive-wake] 写消息失败:', e.message);
+    const segments = parsePushedMessage(message);
+    if (segments.length === 0) {
+      console.warn('[proactive-wake] 解析后无 text 段, 跳过:', chatId, taskId);
       return;
     }
+
+    // 写消息 (优先 messageStore 新表, fallback 老 history 模式) — 多段 → 多个气泡
+    const baseTs = Date.now();
+    let lastMsg = null;
+    for (let i = 0; i < segments.length; i++) {
+      const seg = segments[i];
+      const msg = {
+        id: `${chatId}::${baseTs}::assistant::text::${i}`,
+        chatId,
+        role: 'assistant',
+        content: seg,
+        timestamp: baseTs + i,
+        type: 'text',
+        proactive: true,
+        taskId
+      };
+      lastMsg = msg;
+
+      try {
+        if (window.messageStore?.addMessageToChat) {
+          await window.messageStore.addMessageToChat(chat, msg);
+        } else {
+          if (!Array.isArray(chat.history)) chat.history = [];
+          chat.history.push(msg);
+          const { history, ...cleanChat } = chat;  // v0.2.60+ 已经拆表, 写 chats 时不带 history
+          await db.chats.put(cleanChat);
+        }
+      } catch (e) {
+        console.warn('[proactive-wake] 写消息失败:', e.message);
+        return;
+      }
+    }
+    console.log(`[proactive-wake] ✅ PROACTIVE_WAKE_PUSHED 消息已落: chatId=${chatId} 段数=${segments.length} content="${String(segments[0]).substring(0, 30)}..."`);
 
     // 切屏 + 强制 reload chat
     try {
