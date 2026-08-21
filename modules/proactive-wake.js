@@ -353,9 +353,11 @@
       if (!raw) return [];
       let trimmed = String(raw).trim();
 
-      // 1. Markdown code fence 提取 ```json ... ```
-      const mdMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-      if (mdMatch && mdMatch[1]) {
+      // 1. Markdown code fence 提取 ```json ... ``` (v0.2.30.17 改: 允许不闭合, LLM 经常 ```json 开头后写自然语言 + max_tokens 切了, 没结尾 ```)
+      //   真凶 (user 2026-08-22 00:53 截图): LLM 输出 ```json\n{...}\n自然语言... 形态, v0.2.30.16 严格要求闭合 → 漏检 → 聊天框显示 ```json 字面
+      //   修法: regex 末尾 `(?:\`\`\`|$)` 不强求闭合, 提取到下一个 ``` 或字符串末尾
+      const mdMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)(?:```|$)/);
+      if (mdMatch && mdMatch[1] && mdMatch[1].trim()) {
         trimmed = mdMatch[1].trim();
       }
 
