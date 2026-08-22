@@ -397,19 +397,17 @@
         }
       }
 
-      // 4. 强力提取 {...} (处理单个 JSON 对象散落在文本里)
-      const jMatches = trimmed.match(/{[^{}]*}/g);
-      if (jMatches) {
-        const results = [];
-        for (const m of jMatches) {
-          try {
-            const obj = JSON.parse(m);
-            if (obj && typeof obj.content === 'string') {
-              results.push(String(obj.content).trim());
-            }
-          } catch (e) {}
-        }
-        if (results.length > 0) return results.filter(Boolean);
+      // 4. 强力提取 {...} (v0.2.30.20 改: 限制 trimmed 整体是 {content: "..."} 单 JSON 对象才解析, 避免从 LLM 真消息里偶然提取 {xxx} 块)
+      //   真凶: 之前 /{[^{}]*}/g 全局匹配从自然语言里偶然提取 {xxx} 块, JSON.parse 成功时 (LLM 写 {"content":"..."} 形态) 错误把部分内容当 JSON content
+      //   修法: 限定 trimmed 整体以 { 开头 } 结尾 (整体是 {...} 单对象), 才走 JSON.parse + 提取 content/text/message 字段
+      //   例外: trimmed 整体是 { 但不是 } 结尾 (LLM 写了 {...} 后面还有自然语言), fallback 返原 trimmed (含自然语言)
+      if (/^\{[\s\S]*\}$/.test(trimmed)) {
+        try {
+          const obj = JSON.parse(trimmed);
+          if (obj && typeof obj.content === 'string') return [String(obj.content).trim()];
+          if (obj && typeof obj.text === 'string') return [String(obj.text).trim()];
+          if (obj && typeof obj.message === 'string') return [String(obj.message).trim()];
+        } catch (e) {}
       }
 
       // 5. fallback: 原 raw (剥 markdown 后) 作为单段
