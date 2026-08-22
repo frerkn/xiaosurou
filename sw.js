@@ -1,5 +1,18 @@
 // Service Worker file (sw.js)
 // Whitelist cache strategy: cache only known static assets; API requests pass through.
+// 2026-08-22 v0.2.30.21: bump CACHE_VERSION 强制清缓存（真人联机闪退修复 —
+//
+//   online-chat-manager.js 改 4 处:
+//     1) _pruneHistories 默认 200 → 100 (单群 history 上限砍一半)
+//     2) onmessage 限流入口: JSON.parse try-catch + 高频群消息 (receive_group_*
+//        / group_history / my_groups) 走 _msgQueue 限流, 每帧 setTimeout(0)
+//        消化 10 条, 防止切后台 buffer 一次性倾泻导致 iOS 看门狗杀进程
+//     3) 禁掉 _needsResync 增量补差: connect() 不再设 true, onRegisterSuccess
+//        整段 requestCurrentGroupHistory 块删除, 切后台/掉线恢复不拉历史
+//        (漏消息靠未读红点 + 未来"加载更多"按钮)
+//     4) onReceiveMyGroups 不再灌 server history: 已有 chat 跳过 _mergeHistory,
+//        新 chat 裁 server history 到 100 条 (首次连接不能完全空白)
+//
 // 2026-08-20 v0.2.30.9: bump CACHE_VERSION 强制清缓存（renderHistoricalLogs 自动清孤儿 log 数据 —
 //
 //   js/mcp-tool-call-log.js renderHistoricalLogs 加兜底:
@@ -504,7 +517,7 @@
 //   真凶 (user 2026-08-22 00:19): Gemini native 主动信息推送过来是 markdown "```json" 代码块, 旧代码直接用 message 字段显示整段
 //   修法: 解析 message 字段剥 markdown + JSON, 多段 text → 多个气泡 (跟主屏 chat 一致)
 //   跨项目通用 SOP: 任何 push 路径接 server 端 message 字段都应该过 4 段解析, 跟主屏对齐
-const CACHE_VERSION = 'v0.2.30.20';
+const CACHE_VERSION = 'v0.2.30.21';
 // (v0.2.26: 推送落进聊天框 — SW push handler 优先用 data.fixedMessage (不管 messageType) 直接显示真内容 + 写 IndexedDB
 //   + postMessage 主页面 PROACTIVE_WAKE_PUSHED. 真凶: 之前 messageType==='patrol' 时 SW 走 guided/auto 占位分支,
 //   fixedMessage 字段被忽略, 主页面 handleProactiveWake 又调一遍 LLM (浪费 + 通知保持占位).

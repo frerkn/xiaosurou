@@ -48,6 +48,16 @@ class OnlineChatManager {
         // 【精确引用】当前选中的引用消息（长按消息 → 选"引用"后填这个，发送时塞进 quoted 字段）
         // 结构: { sender: '昵称', content: '被引用内容' } 或 null
         this._currentQuote = null;
+
+        // 【真人联机闪退修复 - v0.0.94+】onmessage 限流队列
+        // 切后台/锁屏时 WebSocket 消息堆积在 ws buffer, 切回前台时 onmessage 一次倾泻
+        // 几十/几百条 addOnlineGroupMessage + renderMessages + renderChatList → 主线程卡死
+        // → iOS Safari 看门狗杀进程 (PWA 闪退)。
+        // 修法: 高频群消息 (receive_group_message / receive_group_created / group_history / my_groups)
+        // 走限流队列, 每帧 (≈16ms) 最多消化 10 条, 剩下的下一帧再处理。
+        // 控制类 (register / search / friend_request / ai_character_join 等) 立即处理, 不入队。
+        this._msgQueue = [];
+        this._msgQueueDraining = false;
         // 长按弹菜单的 press timer（移动端 long-press 用）
         this._longPressTimer = null;
     }
@@ -93,7 +103,10 @@ class OnlineChatManager {
             || e.code === 1014;
     }
 
-    _pruneHistories(keep = 200) {
+    // 【真人联机闪退修复 - v0.0.94+】从 200 砍到 100
+    // 配合: onReceiveMyGroups 新群裁到 100 + 已有群不再灌 server history + onmessage 限流
+    // 目标: 单群 history 100 条上限, 切后台/掉线不拉历史, 配合未读红点提示漏消息
+    _pruneHistories(keep = 100) {
         const container = document.getElementById('online-app-messages');
         for (const chatId in this.chats) {
             const chat = this.chats[chatId];
@@ -686,10 +699,14 @@ class OnlineChatManager {
         this.loadOnlineFriends();
         this._mergeChatsFromStorage();
 
-        // 【群聊补差】连接（无论是首次还是重连）都视为一次可能漏消息的机会，
-        // 在 onRegisterSuccess 完成后走增量补差。openChat / visibilitychange
-        // 不会再无条件拉历史。
-        this._needsResync = true;
+        // 【真人联机闪退修复 - v0.0.94+】禁掉增量补差
+        // 之前 connect() 总是设 _needsResync=true, onRegisterSuccess 会调
+        // requestCurrentGroupHistory 拉 server 端增量历史。切后台/掉线恢复时
+        // server buffer 累积的消息会被一次性拉下来, 加上 onmessage 也在处理实时
+        // 消息, 双倍主线程压力 → 闪退。
+        // 新策略: 重连不补差, 只看 server 端新 push 过来的 + 已有 history。
+        // 漏的消息靠未读红点提示, 用户主动点"加载更多"才拉 (见 requestGroupHistory)。
+        this._needsResync = false;
 
         if (this.ws) {
             try { if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) this.ws.close(); } catch (e) {}
@@ -708,7 +725,32 @@ class OnlineChatManager {
             };
 
             this.ws.onmessage = (event) => {
-                this.handleMessage(JSON.parse(event.data));
+                // 【真人联机闪退修复 - v0.0.94+】限流入口
+                // JSON.parse 单独 try-catch 兜底, server 端任何非 JSON 消息 (比如错误帧) 不会冒泡
+                // 到 onerror 触发 scheduleReconnect 循环。
+                let data;
+                try {
+                    data = JSON.parse(event.data);
+                } catch (e) {
+                    console.error('[WS] JSON 解析失败:', e.message, '(原始数据前 200 字符)', String(event.data || '').slice(0, 200));
+                    return;
+                }
+                // 高频群消息走限流队列, 控制类立即处理
+                const HIGH_FREQ_TYPES = new Set([
+                    'receive_group_message',
+                    'receive_group_created',
+                    'group_history',
+                    'my_groups'
+                ]);
+                if (data && HIGH_FREQ_TYPES.has(data.type)) {
+                    this._enqueueMessage(data);
+                } else {
+                    try {
+                        this.handleMessage(data);
+                    } catch (e) {
+                        console.error('[WS] handleMessage 失败 (控制类):', e, data);
+                    }
+                }
             };
 
             this.ws.onerror = (error) => {
@@ -900,6 +942,46 @@ class OnlineChatManager {
         return { added: true, chat, message: normalizedMessage };
     }
 
+    /**
+     * 【真人联机闪退修复 - v0.0.94+】把高频群消息塞进限流队列
+     * onmessage 入口判断 type 是 receive_group_message / receive_group_created /
+     * group_history / my_groups 之一时调用本方法。
+     */
+    _enqueueMessage(data) {
+        if (!this._msgQueue) this._msgQueue = [];
+        this._msgQueue.push(data);
+        this._scheduleDrain();
+    }
+
+    _scheduleDrain() {
+        if (this._msgQueueDraining) return;
+        this._msgQueueDraining = true;
+        // 用 setTimeout(0) 跨帧, 16ms 一帧消化 10 条
+        // 不用 requestIdleCallback: 手机 WebView 支持度不一致, setTimeout(0) 兜底更稳
+        const drain = () => {
+            if (!this._msgQueue || this._msgQueue.length === 0) {
+                this._msgQueueDraining = false;
+                return;
+            }
+            const BATCH_PER_FRAME = 10;
+            const batch = this._msgQueue.splice(0, BATCH_PER_FRAME);
+            for (const data of batch) {
+                try {
+                    this.handleMessage(data);
+                } catch (e) {
+                    console.error('[WS] handleMessage 失败 (限流队列):', e, data);
+                }
+            }
+            if (this._msgQueue.length > 0) {
+                // 还有剩余, 下一帧继续 (0ms 即可, 不需要 sleep, 让浏览器自己调度)
+                setTimeout(drain, 0);
+            } else {
+                this._msgQueueDraining = false;
+            }
+        };
+        setTimeout(drain, 0);
+    }
+
     handleMessage(data) {
         switch (data.type) {
             case 'register_success': this.onRegisterSuccess(); break;
@@ -939,20 +1021,20 @@ class OnlineChatManager {
         this.startHeartbeat();
         this.saveSettings();
 
-        // 重连成功后立即拉取群聊列表；增量历史补差走 requestCurrentGroupHistory
-        // （它会带 sinceMessageId，让服务端只返回本地缺的部分）。
+        // 【真人联机闪退修复 - v0.0.94+】只拉群列表, 不再拉增量历史
+        // get_my_groups 仍然要发, 否则首次连接拿不到群列表 (name / members / owner 等)。
+        // 但 server 端返回的 group.history 不再灌进 PWA — 见 onReceiveMyGroups 的改动。
+        // requestCurrentGroupHistory / requestGroupHistory 还在, 作为手动"加载更多"入口
+        // 留给将来 UI 触发用。
         this.send({ type: 'get_my_groups' });
 
-        // 【群聊补差】只有 _needsResync=true 才走补差；正常情况下本地的就是最新的，
-        // 不要无脑拉。补差完成后清掉标记，避免后续 register_success 重复触发。
-        if (this._needsResync) {
-            this.requestCurrentGroupHistory('register_resync');
-            this._needsResync = false;
-        }
+        // 【真人联机闪退修复 - v0.0.94+】_needsResync 增量补差禁掉
+        // 之前 if (this._needsResync) 块的逻辑整个删除 — connect() 也已经不再设 true。
+        this._needsResync = false;
 
         this.renderChatList();
 
-        console.log('[连接APP] 注册成功', this._needsResync === false ? '（本地已有最新，跳过历史补差）' : '（增量补差历史）');
+        console.log('[连接APP] 注册成功（已禁用增量历史补差，靠未读红点提示漏消息）');
     }
 
     onRegisterError(error) {
@@ -1843,8 +1925,10 @@ renderMessages(chat, force = false) {
             // 这里只检查 ws.readyState：不是 OPEN 就 reconnect；OPEN 就啥也不动（信任下层）。
             const ws = this.ws;
             if (!ws || ws.readyState !== WebSocket.OPEN) {
-                // ws 已断或未连接——强制重连；connect() 会设 _needsResync=true，
-                // onRegisterSuccess 会自动增量补差。
+                // ws 已断或未连接——强制重连。
+                // 【真人联机闪退修复 - v0.0.94+】connect() 不再设 _needsResync=true,
+                // onRegisterSuccess 也不会再走增量补差。切后台/掉线恢复后只靠
+                // 实时 onmessage 收新消息, 漏掉的靠未读红点提示。
                 if (this.shouldAutoReconnect) {
                     const enableSwitch = document.getElementById('online-app-enable-switch');
                     if (enableSwitch && enableSwitch.checked) {
@@ -2360,8 +2444,19 @@ renderMessages(chat, force = false) {
         data.groups.forEach(group => {
             const chatId = group.id;
             serverGroupIds.add(chatId);
+            // 【真人联机闪退修复 - v0.0.94+】server 端 group.history 不再灌进 PWA 本地
+            // server 端最多保留 300 条 (server.js MAX_GROUP_HISTORY_MESSAGES), 每次 register
+            // 都拿回来灌 PWA → 本地 history 一直被 server 覆盖, 累积 / 重复。
+            // 新策略:
+            //   - 新群 (this.chats 没这个 chatId): 拿 server history 但裁到 100 条, 避免
+            //     首次进入空白
+            //   - 已有群: 完全跳过 server history, PWA 端只保留自己累计的 (onReceiveGroupMessage
+            //     进来的 + 自己 sendCurrentMessage 进来的)
+            //   - 漏掉的消息靠未读红点 + 未来"加载更多"按钮 (requestGroupHistory 保留)
             const restoredHistory = Array.isArray(group.history) ? group.history : [];
             if (!this.chats[chatId]) {
+                // 新建 chat: 只取 server history 最后 100 条
+                const trimmedHistory = restoredHistory.length > 100 ? restoredHistory.slice(-100) : restoredHistory;
                 this.chats[chatId] = {
                     id: chatId,
                     name: group.name,
@@ -2372,15 +2467,14 @@ renderMessages(chat, force = false) {
                     isGroup: true,
                     members: group.members || [],
                     owner: group.owner || '',
-                    history: restoredHistory.length > 0 ? restoredHistory : [{ role: 'system', content: `群聊「${group.name}」已恢复`, timestamp: Date.now() }]
+                    history: trimmedHistory.length > 0 ? trimmedHistory : [{ role: 'system', content: `群聊「${group.name}」已恢复`, timestamp: Date.now() }]
                 };
             } else {
                 this.chats[chatId].members = group.members || [];
                 this.chats[chatId].owner = group.owner || '';
                 this.chats[chatId].name = group.name || this.chats[chatId].name;
-                if (restoredHistory.length > 0) {
-                    this._mergeHistory(this.chats[chatId], { history: restoredHistory });
-                }
+                // 【真人联机闪退修复 - v0.0.94+】跳过 _mergeHistory(restoredHistory) 这一行
+                // 之前会调 _mergeHistory 把 server history merge 进 PWA, 现在不做
                 // 服务端有这个群，说明之前恢复成功了，清掉自愈标记
                 delete this.chats[chatId]._serverResyncing;
                 delete this.chats[chatId]._serverLostWarned;
