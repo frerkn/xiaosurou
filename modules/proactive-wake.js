@@ -353,11 +353,14 @@
       if (!raw) return [];
       let trimmed = String(raw).trim();
 
-      // 1. Markdown code fence 提取 ```json ... ``` (v0.2.30.17 改: 允许不闭合, LLM 经常 ```json 开头后写自然语言 + max_tokens 切了, 没结尾 ```)
-      //   真凶 (user 2026-08-22 00:53 截图): LLM 输出 ```json\n{...}\n自然语言... 形态, v0.2.30.16 严格要求闭合 → 漏检 → 聊天框显示 ```json 字面
-      //   修法: regex 末尾 `(?:\`\`\`|$)` 不强求闭合, 提取到下一个 ``` 或字符串末尾
+      // 1. Markdown code fence 提取 ```json ... ``` (v0.2.30.18 改: 强制剥, 允许空内容, 解决 LLM max_tokens 切狠了只输出 ```json 头)
+      //   真凶 (user 2026-08-22 12:18 截图): LLM max_tokens 切到只剩 "```json" 7 字符, v0.2.30.17 mdMatch[1] 是空字符串 falsy,
+      //     if 没进, trimmed 不变, 后续 2/3/4 段全跳过, fallback 把 ```json 字面写进 chat history
+      //   修法: 1) 去掉 `mdMatch[1].trim()` falsy 判断, 只要 match 成功就强制剥头部 ```json
+      //         2) 末尾 fallback 判断, 剥完所有形态还为空 → 返空数组, 让外层走占位消息逻辑
+      //   跟后端 extractAiContent 思路一致, 但前端只做"剥", 不做"加占位"
       const mdMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)(?:```|$)/);
-      if (mdMatch && mdMatch[1] && mdMatch[1].trim()) {
+      if (mdMatch && mdMatch[1] !== undefined) {
         trimmed = mdMatch[1].trim();
       }
 
@@ -410,13 +413,20 @@
       }
 
       // 5. fallback: 原 raw (剥 markdown 后) 作为单段
-      return [trimmed];
+      //   v0.2.30.18 改: 剥完所有形态还为空 (LLM 只输 ```json 头被切), 返空数组, 让外层落占位消息
+      const finalSeg = trimmed.trim();
+      if (!finalSeg) return [];
+      return [finalSeg];
     };
 
-    const segments = parsePushedMessage(message);
+    let segments = parsePushedMessage(message);
     if (segments.length === 0) {
-      console.warn('[proactive-wake] 解析后无 text 段, 跳过:', chatId, taskId);
-      return;
+      // v0.2.30.18 改: 落占位消息, 不静默 skip (LLM max_tokens 切狠了, fixedMessage 只有 ```json 头被剥空)
+      //   真凶 (user 2026-08-22 12:18 截图): LLM 输出 "```json" 7 字符被切, v0.2.30.17 fallback 把字面字符串写进 chat history
+      //   修法: parsePushedMessage 返空数组 → 落占位消息, user 朋友看到 "[AI 消息内容被截断]" 知道推送是收到了但内容不完整
+      //   (iOS 通知 body 截前 30 字符 + ..., 完整 content 可能在通知 data.message 里看不到, 占位提示更友好)
+      console.warn('[proactive-wake v0.2.30.18] 解析后无 text 段, 落占位消息:', chatId, taskId, 'raw message len:', String(message).length);
+      segments = ['[AI 消息内容被截断, 完整内容已通过通知发送, 请查看通知详情]'];
     }
 
     // 写消息 (优先 messageStore 新表, fallback 老 history 模式) — 多段 → 多个气泡
