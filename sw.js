@@ -1,5 +1,15 @@
 // Service Worker file (sw.js)
 // Whitelist cache strategy: cache only known static assets; API requests pass through.
+// 2026-08-22 v0.2.30.22: bump CACHE_VERSION 强制清缓存（真人联机 P1-2 死连接修复 —
+//
+//   online-chat-manager.js doSearch() 入口加 ws.readyState === WebSocket.OPEN 守卫:
+//     isConnected=true 不等于 ws.readyState===OPEN (server 重启/网络切换后老 ws
+//     被 terminate, client isConnected 仍 true 错乱状态)。状态错乱时 alert "连接已
+//     断开, 正在重新连接" + 主动 scheduleReconnect, 避免误以为"搜索超时"。
+//
+//   server.js 加 30s 死连接扫描 + 60s 无活动踢掉 (本次 PWA 推不覆盖, 等 server
+//   部署方案确认后再走)。
+//
 // 2026-08-22 v0.2.30.21: bump CACHE_VERSION 强制清缓存（真人联机闪退修复 —
 //
 //   online-chat-manager.js 改 4 处:
@@ -517,7 +527,7 @@
 //   真凶 (user 2026-08-22 00:19): Gemini native 主动信息推送过来是 markdown "```json" 代码块, 旧代码直接用 message 字段显示整段
 //   修法: 解析 message 字段剥 markdown + JSON, 多段 text → 多个气泡 (跟主屏 chat 一致)
 //   跨项目通用 SOP: 任何 push 路径接 server 端 message 字段都应该过 4 段解析, 跟主屏对齐
-const CACHE_VERSION = 'v0.2.30.21';
+const CACHE_VERSION = 'v0.2.30.22';
 // (v0.2.26: 推送落进聊天框 — SW push handler 优先用 data.fixedMessage (不管 messageType) 直接显示真内容 + 写 IndexedDB
 //   + postMessage 主页面 PROACTIVE_WAKE_PUSHED. 真凶: 之前 messageType==='patrol' 时 SW 走 guided/auto 占位分支,
 //   fixedMessage 字段被忽略, 主页面 handleProactiveWake 又调一遍 LLM (浪费 + 通知保持占位).

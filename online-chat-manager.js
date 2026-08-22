@@ -1058,6 +1058,19 @@ class OnlineChatManager {
         const searchId = input?.value.trim();
         if (!searchId) { alert('请输入要搜索的好友ID'); return; }
         if (!this.isConnected) { alert('请先连接服务器'); return; }
+        // 【P1-2 死连接修复 - 2026-08-22】isConnected=true 不等于 ws.readyState===OPEN
+        // 之前 server 重启/网络切换后老 ws 实例被 terminate, client 端 isConnected 还停在
+        // true 错乱状态, search_user 调 send 静默 return, 5 秒后客户端误以为"搜索超时"
+        // (其实是连接死了, 包到不了 server)
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+            alert('连接已断开, 正在重新连接, 请稍后重试');
+            this.isConnected = false;
+            this.updateConnectionUI(false);
+            if (this.shouldAutoReconnect && !this.reconnectTimer) {
+                this.scheduleReconnect();
+            }
+            return;
+        }
         const resultDiv = document.getElementById('online-app-search-result');
         if (resultDiv) resultDiv.innerHTML = '<div style="text-align:center;color:#999;padding:30px 20px;">搜索中...</div>';
         console.log('[搜索好友] 发送搜索请求, searchId:', JSON.stringify(searchId), ', 我的ID:', JSON.stringify(this.userId));
