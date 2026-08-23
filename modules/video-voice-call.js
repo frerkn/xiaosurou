@@ -218,6 +218,44 @@
     }
   }
 
+  // v0.2.30.37: 语音通话光晕 — thinking/speaking 分开挂不同元素
+  // 根因: wrapper 包含 img + name 文字, 是 70x90 矩形, box-shadow 渲染成椭圆 + 名字区暗色
+  // 修法:
+  //   - thinking: class 给 wrapper (::before/::after 伪元素做光环, img 不支持伪元素)
+  //   - speaking: class 给 img (box-shadow 在 70x70 正方形上渲染成完美正圆柔光)
+  // state 取值:
+  //   'idle'      — 默认, 无光晕
+  //   'listening' — 用户说话, 挂断键外发光
+  //   'thinking'  — AI 思考, wrapper 上 ::before/::after 旋转光环
+  //   'speaking'  — AI 说话, img 上 box-shadow 大柔光闪烁
+  function setVoiceCallGlowState(state) {
+    const screen = document.getElementById('voice-call-screen');
+    const hangupBtn = document.getElementById('voice-hang-up-btn');
+    const avatarWrapper = document.querySelector('#voice-participant-avatars-grid .participant-avatar-wrapper');
+    const avatarImg = document.querySelector('#voice-participant-avatars-grid .participant-avatar');
+
+    // AI 状态时 (thinking / speaking / transitioning), 头像位置下移到屏幕中央
+    if (screen) {
+      screen.classList.toggle('voice-call-ai-active', state === 'thinking' || state === 'speaking' || state === 'transitioning');
+    }
+
+    // 挂断键 glow (listening) — 过渡时移除
+    if (hangupBtn) {
+      hangupBtn.classList.remove('glow-listening', 'glow-thinking', 'glow-speaking');
+      if (state === 'listening') hangupBtn.classList.add('glow-listening');
+    }
+
+    // thinking 状态: class 给 wrapper (伪元素风车光环)
+    // speaking 状态: class 也给 wrapper (::before 圆环 box-shadow, img 上 box-shadow iOS Safari 不可靠)
+    // transitioning 状态: 过渡光斑 (聚光灯从挂断键位置飞到 AI 头像) — 跟 thinking/speaking 互斥
+    if (avatarWrapper) {
+      avatarWrapper.classList.remove('glow-thinking', 'glow-speaking', 'glow-transitioning');
+      if (state === 'thinking') avatarWrapper.classList.add('glow-thinking');
+      if (state === 'speaking') avatarWrapper.classList.add('glow-speaking');
+      if (state === 'transitioning') avatarWrapper.classList.add('glow-transitioning');
+    }
+  }
+
   function markVideoCallAiResponseRendered(turnId) {
     if (!videoCallState.isActive) return;
     if (turnId && videoCallState.currentAiTurnId && videoCallState.currentAiTurnId !== turnId) return;
@@ -1612,7 +1650,8 @@ ${linkedContents}
 
     try {
       voiceCallIsRecognizing = true;
-      setVoiceCallStatusText('正在识别…');
+      // v0.2.30.25: 不切到"正在识别…", 保持"倾听中"直到 ASR 完成
+      // (用户原话: 提示文字应该只有"倾听中/思考中/点击打断")
 
       if (typeof window.transcribeAudioBlob !== 'function') {
         throw new Error('ASR 转写函数不可用');
@@ -1700,6 +1739,10 @@ ${linkedContents}
     isVoiceCallRecording = true;
     voiceCallIsRecording = true;
     setVoiceCallRecordingButtonState(true);
+
+    // v0.2.30.24: 用户开始说话 → 切换光晕到 listening (挂断键位置, 大光晕闪烁)
+    setVoiceCallGlowState('listening');
+    setVoiceCallStatusText('倾听中');
   }
 
   async function handleVoiceCallUserSpeak() {
@@ -1708,6 +1751,20 @@ ${linkedContents}
     if (isVoiceCallRecording) {
       stopVoiceCallRecording(true);
       return;
+    }
+
+    // v0.2.30.24: "点击打断" 逻辑 — AI 正在说话时, 先停 TTS 再录音
+    if (voiceCallState.isTtsPlaying || voiceCallState.isAiSpeaking) {
+      try {
+        stopTtsQueue();
+      } catch (e) {
+        console.warn('[语音通话] stopTtsQueue 失败:', e);
+      }
+      // 状态清零, 让 startVoiceCallRecording 不会因为 isAiSpeaking/isTtsPlaying return
+      voiceCallState.isAiResponding = false;
+      voiceCallState.isAiSpeaking = false;
+      voiceCallState.isTtsPlaying = false;
+      voiceCallState.canUserSpeak = true;
     }
 
     try {
@@ -1765,7 +1822,7 @@ ${linkedContents}
       if (!voiceCallHasDetectedSpeech) {
         voiceCallHasDetectedSpeech = true;
         voiceCallUserSpeechStartedAt = now;
-        setVoiceCallStatusText('检测到你在说话…');
+        // v0.2.30.25: 不切到"检测到你在说话…", 保持"倾听中"
       }
     }
 
@@ -1792,7 +1849,7 @@ ${linkedContents}
     if (voiceCallState.isAiResponding || voiceCallState.isAiSpeaking || voiceCallState.isTtsPlaying || voiceCallIsListening || voiceCallIsRecognizing || isVoiceCallRecording) return;
 
     try {
-      setVoiceCallStatusText('我在听…');
+      // v0.2.30.25: 不切到"我在听…", startVoiceCallRecording 内部会立刻 setVoiceCallStatusText('倾听中')
       await startVoiceCallRecording();
 
       if (!voiceCallState.isActive || !voiceCallAutoListenEnabled || voiceCallState.isAiResponding || voiceCallState.isAiSpeaking || voiceCallState.isTtsPlaying) {
@@ -1889,7 +1946,9 @@ ${linkedContents}
       voiceCallState.isAiSpeaking = true;
       voiceCallState.isTtsPlaying = true;
       voiceCallState.canUserSpeak = false;
-      setVoiceCallStatusText('AI正在说话…');
+      setVoiceCallStatusText('点击打断');
+      // v0.2.30.24: AI 开始说话 → 光晕迁移到 AI 头像 (大, 闪烁)
+      setVoiceCallGlowState('speaking');
       return true;
     }
 
@@ -1909,7 +1968,10 @@ ${linkedContents}
     voiceCallState.isAiSpeaking = false;
     voiceCallState.isTtsPlaying = false;
     voiceCallState.canUserSpeak = true;
-    setVoiceCallStatusText(reason ? '语音播放失败，已跳过本句，可以说话' : 'AI已说完，可以说话');
+    // v0.2.30.24: AI 说完 → 状态清空, 不显示"可以说话了"中间态
+    // 下一轮是倾听中, autoListen 启动后监测到声音才切 'listening' + "倾听中"
+    setVoiceCallStatusText('');
+    setVoiceCallGlowState('idle');
     logCallTtsRecoveryDiag('voice', reason);
     logVoiceCallDiag('VOICE_CALL_TTS_RECOVERED', {
       textLength: 0,
@@ -1952,6 +2014,13 @@ ${linkedContents}
     hideVoiceCallManualMicButton();
     document.getElementById('voice-join-call-btn').style.display = voiceCallState.isUserParticipating ? 'none' : 'block';
 
+    // 通话开始: 显示并重置"启用音频"按钮
+    // 防御: 极端路径下(如挂断状态错乱)按钮可能停在 connected
+    setVoiceCallAudioUnlockBtnVisibility(true);
+    // v0.2.30.24: 通话开始 → 光晕回到 idle (隐藏), 状态文字清零
+    setVoiceCallGlowState('idle');
+    setVoiceCallStatusText('');
+
     if (voiceCallTimerInterval) clearInterval(voiceCallTimerInterval);
     voiceCallTimerInterval = setInterval(updateVoiceCallTimer, 1000);
     updateVoiceCallTimer();
@@ -1982,6 +2051,11 @@ ${linkedContents}
       window.voiceCallBgAudio = null;
     }
     // === 挂断停止背景音乐 END ===
+
+    // 挂断: 重置"启用音频"按钮到 unlock-inactive 并显示
+    // 下次再打时按钮要重新出现
+    setVoiceCallAudioUnlockBtnVisibility(true);
+
     if (!voiceCallState.isActive) return;
     stopTtsQueue();
     document.getElementById('voice-call-restore-btn').style.display = 'none';
@@ -2139,9 +2213,15 @@ ${linkedContents}
     document.getElementById('voice-call-timer').textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   }
 
-  // 立即停止语音通话等待背景音乐（“启用音频”按钮播放的 call-waiting.mp3）
+  // 立即停止语音通话等待背景音乐（"启用音频"按钮播放的 call-waiting.mp3）
   // 在 AI 文字出现的第一时间硬停止，避免淡出造成的延迟
+  // v0.2.30.52: 修 "通话接通后彩铃按钮没消失" — 之前 if (!window.voiceCallBgAudio) return 早返回, 没用过"启用音频"按钮 (没创建 bgAudio) 时根本走不到隐藏按钮那行
+  // 改成"先隐藏按钮, 再停止音频"解耦 — 通话接通按钮就该消失, 跟彩铃有没有在播无关
   function stopVoiceCallWaitingMusic(reason = '') {
+    // 1. 先隐藏彩铃按钮 — 不管彩铃有没有在播, AI 文字出现 = 通话已开始, 按钮历史使命完成
+    setVoiceCallAudioUnlockBtnVisibility(false);
+
+    // 2. 再尝试停止彩铃音频 (没创建过 bgAudio 就跳过)
     if (!window.voiceCallBgAudio) return;
     try {
       window.voiceCallBgAudio.pause();
@@ -2161,7 +2241,13 @@ ${linkedContents}
     voiceCallState.isAiSpeaking = false;
     voiceCallState.isTtsPlaying = false;
     voiceCallState.canUserSpeak = false;
-    setVoiceCallStatusText('AI正在思考…');
+    setVoiceCallStatusText('思考中');
+    // v0.2.30.56: 过渡动画 — listening → 光斑从挂断键飞 0.5s → thinking
+    // 光斑到 AI 头像后无缝切 thinking 旋转光晕 (CSS ::before 同位置同尺寸 130x130)
+    setVoiceCallGlowState('transitioning');
+    setTimeout(() => {
+      setVoiceCallGlowState('thinking');
+    }, 500);
 
     const chat = state.chats[voiceCallState.activeChatId];
     // 与主聊天保持一致：实时通过 resolveApiSlotConfig 解析主 API 配置，
@@ -2518,7 +2604,13 @@ ${worldBookContent}
       callFeed.scrollTop = callFeed.scrollHeight;
 
       if (!hasVoiceCallTtsPlayback) {
-        onVoiceCallTtsQueueFinished();
+        // v0.2.30.25: AI 没 TTS 输出 (无语音) → 保持"思考中" 1.5 秒让用户感知 AI 处理过了
+        // 1.5 秒后再切 idle + 启动 autoListen, 不让用户感觉"AI 没说话就直接让说"
+        setVoiceCallGlowState('thinking');
+        setVoiceCallStatusText('思考中');
+        setTimeout(() => {
+          onVoiceCallTtsQueueFinished();
+        }, 1500);
       }
 
     } catch (error) {
@@ -2820,6 +2912,23 @@ ${worldBookContent}
   window.selectedFrames = selectedFrames;
 
   // --- 启用音频按钮功能 ---
+  // 辅助: 控制"启用音频"按钮的显示/重置状态
+  // - 彩铃停止(AI 文字出现)后隐藏 — 任务完成, 按钮完成使命
+  // - 挂断/下次通话开始时显示并重置回 unlock-inactive
+  function setVoiceCallAudioUnlockBtnVisibility(visible) {
+    const btn = document.querySelector('#voice-regenerate-call-btn');
+    if (!btn) return;
+    if (visible) {
+      btn.style.display = '';
+      // 重置回 unlock-inactive (防御: 挂断后按钮可能停在 connected)
+      btn.classList.remove('unlock-loading', 'unlock-connected');
+      btn.classList.add('unlock-inactive');
+      btn.textContent = '启用音频';
+    } else {
+      btn.style.display = 'none';
+    }
+  }
+
   function setupVoiceCallAudioUnlock() {
     const unlockBtn = document.querySelector('#voice-regenerate-call-btn');
 

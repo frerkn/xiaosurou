@@ -4508,25 +4508,29 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
     
     <!-- 语音通话界面 -->
     <div id="voice-call-screen" class="screen">
+      <!-- v0.2.30.28: 不再用独立光晕 div (会跑偏) — 改为 box-shadow 直接挂在按钮/头像上, 永远跟元素对齐 -->
+
       <div class="voice-call-top-bar">
         <button id="minimize-voice-call-btn" title="最小化">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
             <line x1="5" y1="12" x2="19" y2="12"></line>
           </svg>
         </button>
-        <span id="voice-call-timer">00:00</span> 
+        <span id="voice-call-timer">00:00</span>
       </div>
 
       <div class="voice-call-avatar-area">
         <div id="voice-participant-avatars-grid"> </div>
       </div>
       <div id="voice-call-status-text" class="voice-call-status-text" aria-live="polite"></div>
-      <div id="voice-call-main" class="voice-call-main"> </div>
-      <div class="voice-call-controls"> 
-        <button id="voice-user-speak-btn" class="control-btn speak-btn"></button> 
-        <button id="voice-hang-up-btn" class="control-btn hangup-btn"></button> 
-        <button id="voice-regenerate-call-btn" class="unlock-inactive">启用音频</button> 
-        <button id="voice-join-call-btn" class="control-btn join-btn" style="display: none;"></button> 
+      <!-- v0.2.30.24: 隐藏通话中的聊天记录显示框 — 通话期间不再显示 callHistory 气泡 -->
+      <div id="voice-call-main" class="voice-call-main" style="display: none;"> </div>
+      <div class="voice-call-controls">
+        <!-- v0.2.30.24: 通话期间 speak-btn / unlock 按钮相对挂断键的位置由 voice-call-glow 联动控制 -->
+        <button id="voice-user-speak-btn" class="control-btn speak-btn"></button>
+        <button id="voice-hang-up-btn" class="control-btn hangup-btn"></button>
+        <button id="voice-regenerate-call-btn" class="unlock-inactive">启用音频</button>
+        <button id="voice-join-call-btn" class="control-btn join-btn" style="display: none;"></button>
       </div>
     </div>
     <div id="outgoing-call-screen" class="screen">

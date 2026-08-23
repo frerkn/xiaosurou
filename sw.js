@@ -1,5 +1,198 @@
 // Service Worker file (sw.js)
 // Whitelist cache strategy: cache only known static assets; API requests pass through.
+// 2026-08-23 v0.2.30.59: bump CACHE_VERSION 强制清缓存（thinking 回退 v0.2.30.57 三层 conic-gradient + blur + 大 box-shadow + 旋转 4s — v0.2.30.58 单层 18 条细线 user 反馈"不如上一个版本" + 过渡光斑 ::before 130→200, scale 0.3→0.4 起点, scale 1→0.65 终点 (200*0.65=130 跟 thinking 同尺寸无缝衔接) — user 反馈"光圈大一点"
+//
+//   user 反馈 v0.2.30.39: "AI思考时候的黄色光晕不是要两个圆圈打转, 是要那些光晕像风车叶子那样旋转"
+//   修法: 改用 conic-gradient 渲染 4 片软叶片 (每片 0-60° 暖黄渐变, 间隔 30° 透明) + 反向旋转
+//   - ::before 102px 4 叶片 (0/90/180/270° 起始) 顺时针 3.5s
+//   - ::after  88px 4 叶片 (22.5° 错位) 逆时针 2.8s — 跟外圈反方向
+//   - 删 border 圆环 (太规整, 不像风车), 保留 box-shadow 柔散外发光
+// 2026-08-23 v0.2.30.39: bump CACHE_VERSION 强制清缓存（回退 v0.2.30.31 listening + speaking 抄 listening
+//
+//   user 反馈 v0.2.30.38: "越改越转去了, 用户说话时候的黄色光晕都没有了"
+//   "之前用户说话时候的光晕已经很满意了, 你为什么要动啊"
+//   "AI说话的效果抄之前用户说话的效果不就好了"
+//
+//   根因: v0.2.30.36 改 spread 30→0 弱化了光晕 (实心环变纯柔散)
+//   v0.2.30.37 改 spread 0 同样弱化 speaking
+//   修法:
+//   - listening 回退 v0.2.30.31 版本: blur 100-150px + spread 30-45px (实心环+柔散)
+//   - speaking 抄 listening: blur 100-150px + spread 30-45px, 位置在 img 上
+// 2026-08-23 v0.2.30.38: bump CACHE_VERSION 强制清缓存（thinking 状态也修"黑圈" — 删 wrapper box-shadow
+//
+//   user 反馈 v0.2.30.37 截图: AI 思考时图腾旋转看着有"正方形+圆形黑圈"
+//   根因: .participant-avatar-wrapper 包含 <img> (70x70) + .participant-name (~20px) = 70x90 矩形
+//         wrapper 上的 box-shadow 在矩形上渲染成椭圆 (user 觉得是黑圈)
+//   v0.2.30.37 已修 speaking 状态 (box-shadow 改回 <img> 上, 70x70 正方形 → 正圆)
+//   v0.2.30.38: 同步修 thinking 状态
+//     - 删 .participant-avatar-wrapper.glow-thinking 的 box-shadow (避免椭圆黑圈)
+//     - thinking 状态只靠 ::before/::after 伪元素做光环 (img 不支持伪元素, 所以光环必须在 wrapper 上)
+//     - 但 ::before/::after box-shadow 已经 spread=0, 渲染成正圆外发光
+//     - 结果: 头像 (70x70 正圆白边) + 2 圈反向旋转的圆环 (无矩形阴影)
+// 2026-08-23 v0.2.30.37: bump CACHE_VERSION 强制清缓存（speaking box-shadow 改回 <img> — 修"椭圆+黑圈"bug
+//
+//   user 反馈 v0.2.30.35 截图: AI 说话时还是没光晕
+//   v0.2.30.35 已经把 .glow-speaking 从 <img> 改到外层 .participant-avatar-wrapper (div)
+//   box-shadow 100-150px blur 在 70x70 wrapper 上应该明显可见
+//   但 user 反馈没看到 — 可能是 sw.js 缓存没刷, 也可能是 box-shadow 渲染在 wrapper 上没触发
+//   v0.2.30.36: 加 will-change: box-shadow 提示浏览器走 GPU 合成层 + 注释更新
+// 2026-08-23 v0.2.30.35: bump CACHE_VERSION 强制清缓存（光晕/光环移到外层 div + 挂断键再旋转 45°
+//
+//   user 反馈 v0.2.30.33 截图: AI 思考时没图腾, AI 说话时没光晕
+//   根因 1: .participant-avatar 是 <img> 元素, <img> 不支持 ::before/::after 伪元素
+//            → 金沙图腾光环 (::before/::after) 全部不渲染
+//   根因 2: box-shadow 在 <img> 上可能被 border-color 干扰, 效果不可靠
+//   修法: 把 thinking/speaking 的光晕/光环全部挂到外层 .participant-avatar-wrapper (div) 上
+//         - div 完全支持 ::before/::after 伪元素
+//         - div 上的 box-shadow 也更稳定
+//   配套:
+//     - JS setVoiceCallGlowState 选 .participant-avatar-wrapper 替代 .participant-avatar
+//     - CSS 选择器从 .participant-avatar.glow-* 改 .participant-avatar-wrapper.glow-*
+//
+//   挂断键图标旋转 180° → 135° (逆时针再转 45°)
+// 2026-08-23 v0.2.30.33: bump CACHE_VERSION 强制清缓存（挂断键图标 — 老式电话听筒朝下
+//
+//   user 反馈 v0.2.30.32 截图: 挂断键白色电话"斜着立着", 不对
+//   根因: 之前 v0.2.30.26 用的 Heroicons phone-down path 不对称 (左半比右半突出), 看起来斜
+//         v0.2.30.32 改用 Material phone + rotate(-45 12 12) 让 U 形斜着放, 用户也认为不对
+//   user 真正要的: 老式电话听筒朝下挂 (完美对称的 U 形朝下)
+//
+//   修法: 换 Material phone path (U 形朝上, 完美对称) + rotate(180 12 12) → U 形朝下
+//   路径: <path transform="rotate(180 12 12)" d="M20 15.5c-1.25 0-2.45-.2-3.57-.57..." />
+//   只改 #voice-call-screen .control-btn.hangup-btn (语音通话), 视频通话保持原样 (Live2D 时再改)
+// 2026-08-23 v0.2.30.31: bump CACHE_VERSION 强制清缓存（语音通话光晕 v5 —
+//
+//   user 反馈 v0.2.30.30 截图:
+//   1. 用户说话时光晕范围能再大一点
+//      → 加大 listening box-shadow blur 50-80px → 100-150px
+//   2. AI 思考时看不到光环旋转
+//      → 头像从 130px 改回默认 70px, 光环对应缩到 90-100px
+//      → 之前 158px 光环相对 130px 头像只有 28px 间距, 缩头像后更紧凑可见
+//      → 同时把光环 border 颜色提亮 (top 0.9→1.0) 让黑底上更明显
+//   3. AI 说话时大光晕闪烁也看不见
+//      → 同样问题: box-shadow blur 太小 (45-75px) 紧贴 70px 头像, 看起来不"大"
+//      → 加大 blur 到 100-150px 跟 listening 一致 (user 明确要求 "效果一样")
+//   4. AI 说话时头像变大了, 全程不需要
+//      → 删 .voice-call-ai-active 下 .participant-avatar 的 width/height: 130px
+//      → 保留 padding-top: 18vh (AI 状态时位置下移到屏幕中央)
+//      → 头像保持默认 70px, border 4px 改 2.5px 适配小尺寸
+// 2026-08-23 v0.2.30.30: bump CACHE_VERSION 强制清缓存（撤回视频通话改动 —
+//
+//   user 反馈: 视频通话以后要做 Live2D, 界面要大改, 不在此预先改动
+//   撤回 v0.2.30.26 (视频通话挂断键图标) + v0.2.30.28/29 (视频通话光晕/光环)
+//   撤回方式: CSS 里把 #video-call-screen 相关的块注释掉, 不删除 (留作 Live2D 时的参考)
+//   语音通话 #voice-call-screen 的所有改动保留
+// 2026-08-23 v0.2.30.29: bump CACHE_VERSION 强制清缓存（语音通话 thinking 状态 — 金沙遗址图腾风
+//
+//   user 反馈 v0.2.30.28: thinking 状态光影太小, 不是想要的图腾
+//   user 原意: 像金沙遗址太阳神鸟图腾, 2 圈紧贴头像的暖黄光环反向旋转
+//   v0.2.30.28 错用 box-shadow 大柔光 + 脉动, 不符合图腾造型
+//
+//   修法:
+//   - thinking 状态改用 ::before / ::after 伪元素做光环
+//   - 外圈 158px (顺时针 3.5s) + 内圈 145px (逆时针 2.8s), 都紧贴 130px 头像
+//   - border 不对称色 (top 暖黄 0.9, right 暖黄 0.55, bottom 0.25) 形成金沙图腾效果
+//   - 小 box-shadow (12px blur + 1px spread) 给光环微弱外发光
+//   - 基础 box-shadow 18px blur + 4px spread 暖黄 0.35 给头像轻微外发光
+//   - @keyframes voice-ring-spin-cw / -ccw 反向旋转
+//   - 视频通话同步支持
+// 2026-08-23 v0.2.30.28: bump CACHE_VERSION 强制清缓存（语音通话光晕 v4 —
+//
+//   user 反馈 v0.2.30.27 截图:
+//   1. AI 说话时光晕跑中间去了 (不在 AI 头像上)
+//      根因: 独立光晕 div 用 top: 35% 定位, 但 AI 状态时头像在 24% 位置
+//            flex + padding-top: 18vh 让头像位置上移, 但光晕位置没跟着变
+//   2. 光晕外边界太明确, 不像参考图2那种外边界模糊发散
+//      根因: radial-gradient 100% 处 transparent 形成硬边
+//   3. AI 思考时不是大光圈, 是小光环在头像圈上旋转
+//      根因: 之前实现是大光晕 + 缩放脉动, 不符合"小光环"需求
+//
+//   修法 — 彻底换思路:
+//   - 删独立光晕 div (.voice-call-glow), 删对应 CSS + keyframes
+//   - 改用 box-shadow 直接挂在按钮/头像上 (长在元素上, 不会跑偏)
+//   - 单层 box-shadow (大 blur + 中 alpha + 小 spread) 形成柔散外发光
+//   - listening: #voice-hang-up-btn.glow-listening (红色按钮 + 暖黄外发光)
+//   - thinking: .participant-avatar.glow-thinking (白边 + 暖黄柔光, 缩放脉动)
+//   - speaking: .participant-avatar.glow-speaking (白边 + 大暖黄柔光, 闪烁)
+//   - 视频通话同步支持 (#video-call-screen)
+//   v0.2.30.30: 撤回视频通话同步支持 (用户要做 Live2D, 视频通话界面大改, 不在此预先改动)
+//   v0.2.30.26 也撤回: 视频通话挂断键图标改回原样 (iOS 风山形 + 横向)
+// 2026-08-22 v0.2.30.27: bump CACHE_VERSION 强制清缓存（语音通话光晕 v3 —
+//
+//   user 反馈 v0.2.30.26 截图: 思考中状态有"大的圆", AI 说话时也有
+//   根因: box-shadow 多层叠加 (0 0 50px + 0 0 100px 两层) 形成同心圆环
+//   → 删 box-shadow (idle/listening/thinking/speaking 全部 box-shadow: none)
+//   → 只用 radial-gradient 单层 + 中心透明度提高 (0.55-0.6) + 边缘 95% 处透明 (柔化边缘)
+//   → thinking 缩放脉动 0.88 ↔ 1.08 (之前 0.92 ↔ 1.08)
+//   → voice-glow-pulse 改成缩放脉动 (0.95 ↔ 1.05) 而非 box-shadow 闪烁
+// 2026-08-22 v0.2.30.26: bump CACHE_VERSION 强制清缓存（语音通话挂断键 —
+//
+//   user 反馈 v0.2.30.25 截图:
+//   1. 挂断键和光晕之间有"黑色圆圈" — 是 .voice-call-controls 底部黑色渐变背景
+//      (linear-gradient(to top, rgba(0, 0, 0, 0.5), transparent))
+//      把按钮周围 130px 染成黑色, 覆盖在光晕外显得很突兀
+//      → 去掉背景 (background: transparent !important)
+//   2. 挂断键图标要"图2"那种 — 经典听筒朝下 (U 形, Heroicons phone-down)
+//      原图标是 iOS 风的"山形 + 横向", 跟参考图不一样
+//      → 改 SVG 为 phone-down (U 形朝下), 加红色 box-shadow 增强立体感
+//   3. 视频通话挂断键图标也一起改 (统一风格)
+//
+//   css/video-voice-call.css:
+//   - #voice-call-screen .voice-call-controls { background: transparent !important; }
+//   - #voice-call-screen .control-btn.hangup-btn 改 SVG + 加 box-shadow
+//   - #video-call-screen .control-btn.hangup-btn 同步改 (统一)
+// 2026-08-22 v0.2.30.25: bump CACHE_VERSION 强制清缓存（语音通话光晕 v2 —
+//
+//   user 反馈 v0.2.30.24 三个问题:
+//   1. 金沙遗址式 border ring 太明显 (像圆圈, 不像光晕) → 删掉
+//   2. 还有"我在听" / "正在识别" / "检测到你在说话" 等中间文字 → 删掉, 只保留 "倾听中/思考中/点击打断"
+//   3. AI 没 TTS 输出时立刻让用户说, 感觉少了一个流程 → 保持 "思考中" 1.5 秒再切 idle
+//
+//   index.html: 删 2 个 voice-call-glow-ring div, 只保留主光晕
+//
+//   css/video-voice-call.css:
+//   - 删所有 .voice-call-glow-ring 相关 CSS (border + spin-cw/ccw keyframes)
+//   - .voice-call-glow.thinking 改柔和: 缩小 180px + 高对比中心 + 2.4s 呼吸脉动
+//   - 新增 @keyframes voice-glow-think (scale 0.92 ↔ 1.08 + opacity 0.75 ↔ 1.0)
+//   - 移除旋转 keyframes (voice-glow-spin / voice-ring-spin-cw / -ccw)
+//
+//   modules/video-voice-call.js:
+//   - setVoiceCallGlowState 删 ringOuter / ringInner 操作
+//   - 删 3 处中间态文字: '我在听…' (line 1841) / '正在识别…' (line 1643) / '检测到你在说话…' (line 1814)
+//   - hasVoiceCallTtsPlayback=false 分支: 保持 thinking + "思考中" 1.5 秒后 onVoiceCallTtsQueueFinished
+// 2026-08-22 v0.2.30.24: bump CACHE_VERSION 强制清缓存（语音通话界面重排 —
+//
+//   index.html: #voice-call-screen 内新增 voice-call-glow + 2 个 voice-call-glow-ring
+//     光晕容器 (独立 DOM 元素, 用 transform 迁移位置)
+//
+//   css/video-voice-call.css: ~150 行新样式
+//     - .voice-call-glow + 4 个状态 class (idle / listening / thinking / speaking)
+//     - 暖黄 radial-gradient + 多层 box-shadow
+//     - 状态切换用 transition: 0.7s cubic-bezier(0.4, 0.0, 0.2, 1) 缓动 (手电挪位置感)
+//     - 思考状态: 2 圈反向旋转 (voice-ring-spin-cw/ccw, 金沙遗址图腾风)
+//     - .voice-call-ai-active class 触发: AI 状态时头像下移 + 加大
+//     - 状态文字位置抬到 top: 60% (图1 倾听中位置)
+//     - #voice-call-main 隐藏 (inline display: none + CSS 层冗余)
+//
+//   modules/video-voice-call.js: 6 处状态联动
+//     - 新增 setVoiceCallGlowState(state) — 控制光晕 class + 头像位置 class
+//     - startVoiceCallRecording: 录音开始 → 'listening' + status='倾听中'
+//     - triggerAiInVoiceCallAction: AI 思考 → 'thinking' + status='思考中'
+//     - enqueueVoiceCallDisplayTextTts: TTS 开始 → 'speaking' + status='点击打断'
+//     - onVoiceCallTtsQueueFinished: TTS 完 → 'idle' + status='可以说话了'
+//     - handleVoiceCallUserSpeak: AI 说话时点 speak → 先 stopTtsQueue + 再录音 (点击打断)
+//     - startVoiceCall: 防御性 reset → 'idle'
+// 2026-08-22 v0.2.30.23: bump CACHE_VERSION 强制清缓存（语音通话"启用音频"按钮接通后自动隐藏 + 删废弃的 regenerate 功能 —
+//
+//   modules/video-voice-call.js 4 处:
+//   1. 新增 setVoiceCallAudioUnlockBtnVisibility(visible) helper — 控制按钮显示/重置状态
+//   2. startVoiceCall 末尾调用 show — 防御, 通话开始时按钮一定可见
+//   3. stopVoiceCallWaitingMusic 末尾调用 hide — 彩铃停止 + 任务完成, 按钮自动隐藏
+//   4. endVoiceCall 挂断停止背景音乐后调用 show+reset — 挂断恢复 unlock-inactive 状态, 下次再出现
+//
+//   modules/init-event-bindingsB.js: 删 voice-regenerate-call-btn 的旧 regenerate click handler
+//   (callHistory.pop + 删最后一条 bubble + triggerAiInVoiceCallAction)
+//   按钮已复用为"启用音频", click handler 由 video-voice-call.js 的 setupVoiceCallAudioUnlock 接管
 // 2026-08-22 v0.2.30.22: bump CACHE_VERSION 强制清缓存（真人联机 P1-2 死连接修复 —
 //
 //   online-chat-manager.js doSearch() 入口加 ws.readyState === WebSocket.OPEN 守卫:
@@ -527,7 +720,7 @@
 //   真凶 (user 2026-08-22 00:19): Gemini native 主动信息推送过来是 markdown "```json" 代码块, 旧代码直接用 message 字段显示整段
 //   修法: 解析 message 字段剥 markdown + JSON, 多段 text → 多个气泡 (跟主屏 chat 一致)
 //   跨项目通用 SOP: 任何 push 路径接 server 端 message 字段都应该过 4 段解析, 跟主屏对齐
-const CACHE_VERSION = 'v0.2.30.22';
+const CACHE_VERSION = 'v0.2.30.59';
 // (v0.2.26: 推送落进聊天框 — SW push handler 优先用 data.fixedMessage (不管 messageType) 直接显示真内容 + 写 IndexedDB
 //   + postMessage 主页面 PROACTIVE_WAKE_PUSHED. 真凶: 之前 messageType==='patrol' 时 SW 走 guided/auto 占位分支,
 //   fixedMessage 字段被忽略, 主页面 handleProactiveWake 又调一遍 LLM (浪费 + 通知保持占位).

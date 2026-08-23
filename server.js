@@ -257,9 +257,13 @@ wss.on('connection', (ws) => {
     // 2. 切后台长时间（> 60s）：服务端主动 terminate → 客户端解冻后立刻感知重连
     // 3. 真断网：服务端 60s 探测无响应 → 主动踢掉 → 客户端重连（用户感知一致）
     let lastPongTime = Date.now();
+    // 【P1-2 死连接清理 - 2026-08-22】初始化 ws._lastActivity 给 30 秒清理逻辑用
+    ws._lastActivity = Date.now();
     const pingInterval = setInterval(() => {
         if (ws.readyState === ws.OPEN) {
             try { ws.ping(); } catch (_) {}
+            // server 主动 ping 算活动, 客户端回 pong 也会更新
+            ws._lastActivity = Date.now();
         } else {
             clearInterval(pingInterval);
         }
@@ -277,10 +281,14 @@ wss.on('connection', (ws) => {
 
     ws.on('pong', () => {
         lastPongTime = Date.now();
+        // 【P1-2 死连接清理 - 2026-08-22】客户端回 pong 算活动
+        ws._lastActivity = Date.now();
     });
     // ============================================================
 
     ws.on('message', (raw) => {
+        // 【P1-2 死连接清理 - 2026-08-22】任何 message 进来都更新 lastActivity
+        ws._lastActivity = Date.now();
         try {
             const data = JSON.parse(raw);
 
@@ -552,7 +560,14 @@ wss.on('connection', (ws) => {
                 }
 
                 case 'send_group_message': {
-                    const groupMembers = data.members || [];
+                    // 【P1-3 群聊转发修复 - 2026-08-22】用 server 端 onlineGroups 权威数据转发,
+                    // 不再信任 client 端 data.members。之前 data.members 来自 client 端
+                    // chat.members, 在 register 时机错位 / 老 ws close 异步触发 / 各种路径下
+                    // 可能不完整, 导致 send_group_message 转发给空成员列表, sender 自己
+                    // (本地 addOnlineGroupMessage 看到自己消息) 看不到对方, 对方也看不到 sender
+                    // —— 完美匹配 "互相看不见" 症状。
+                    const group = onlineGroups.get(data.groupId);
+                    const groupMembers = (group && Array.isArray(group.members)) ? group.members : (data.members || []);
                     const messageId = data.messageId || data.clientMessageId || null;
 
                     // 【去重】客户端可能在网络不稳时重发同一条消息，按 messageId 兜底去重
@@ -589,7 +604,9 @@ wss.on('connection', (ws) => {
                         persistGroupMessages();
                     }
 
-                    groupMembers.forEach(memberId => {
+                    groupMembers.forEach(member => {
+                        // group.members 是 [{userId,...}] 对象数组, data.members 是 [userId,userId] 字符串数组
+                        const memberId = typeof member === 'string' ? member : member.userId;
                         if (memberId !== data.fromUserId) {
                             const memberUser = onlineUsers.get(memberId);
                             if (memberUser) {
@@ -766,19 +783,32 @@ setInterval(() => {
     console.log(`[${timestamp}] 当前在线用户: ${onlineUsers.size}`);
 }, 30000);
 
-// 每5分钟清理断开的连接
+// 【P1-2 死连接清理 - 2026-08-22】从 5 分钟 → 30 秒 + 加 60s 无活动超时
+// 之前 5 分钟清理只看 readyState, 不看"最后活动时间" — server 重启 / 网络切换后
+// 老 ws 实例被 terminate 但 close 事件延迟, onlineUsers 一直有 entry, 客户端 isConnected
+// 还停在 true 错乱状态, 后续 search_user 等消息发出去包到不了 server 5 秒超时。
+//
+// 新策略: 30 秒扫一次, readyState != OPEN OR > 60s 没活动 → 强制 terminate + 删 onlineUsers
+// 60s 跟 ws 端 ping/pong 超时 (30s ping + 60s 没 pong terminate) 配合, 双重保险
+const DEAD_CONNECTION_TIMEOUT_MS = 60 * 1000;
+const DEAD_CONNECTION_SCAN_INTERVAL_MS = 30 * 1000;
 setInterval(() => {
+    const now = Date.now();
     let cleaned = 0;
     onlineUsers.forEach((user, userId) => {
-        if (user.ws.readyState !== WebSocket.OPEN) {
+        const lastActivity = user.ws._lastActivity || 0;
+        const ageMs = now - lastActivity;
+        const isDead = user.ws.readyState !== WebSocket.OPEN || ageMs > DEAD_CONNECTION_TIMEOUT_MS;
+        if (isDead) {
+            try { user.ws.terminate(); } catch (_) {}
             onlineUsers.delete(userId);
             cleaned++;
         }
     });
     if (cleaned > 0) {
-        console.log(`[清理] 清理了 ${cleaned} 个断开的连接`);
+        console.log(`[清理] 清理了 ${cleaned} 个死连接（readyState 或 ${DEAD_CONNECTION_TIMEOUT_MS / 1000}s 无活动）`);
     }
-}, 5 * 60 * 1000);
+}, DEAD_CONNECTION_SCAN_INTERVAL_MS);
 
 // ==================== 优雅关闭 ====================
 

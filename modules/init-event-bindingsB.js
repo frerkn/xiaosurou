@@ -2590,16 +2590,9 @@ window.initEventBindingsB = function(state, db) {
     makeDraggable(document.getElementById('voice-call-restore-btn'), document.getElementById('voice-call-restore-btn'));
     document.getElementById('voice-join-call-btn').addEventListener('click', handleUserJoinVoiceCall);
     document.getElementById('voice-user-speak-btn').addEventListener('click', handleVoiceCallUserSpeak);
-    document.getElementById('voice-regenerate-call-btn').addEventListener('click', () => {
-      if (!voiceCallState.isActive) return;
-      if (voiceCallState.callHistory.length > 0) {
-        voiceCallState.callHistory.pop();
-        const callFeed = document.getElementById('voice-call-main');
-        const lastBubble = callFeed.querySelector('.call-message-bubble:last-child');
-        if (lastBubble) lastBubble.remove();
-      }
-      triggerAiInVoiceCallAction();
-    });
+    // voice-regenerate-call-btn 早期是"重新生成最后一条"按钮, 已废弃
+    // 按钮已复用为"启用音频", click handler 由 video-voice-call.js 的 setupVoiceCallAudioUnlock 接管
+    // 旧的 regenerate 逻辑(callHistory.pop + 删最后一条 bubble + triggerAiInVoiceCallAction)删除
 
     document.getElementById('cancel-call-btn').addEventListener('click', () => {
       videoCallState.isAwaitingResponse = false;

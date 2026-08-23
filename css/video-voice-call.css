@@ -1381,3 +1381,408 @@
     background-color: rgba(0, 0, 0, 0.35);
 }
 
+/* ============================================================
+   语音通话 v0.2.30.28: 暖黄色光晕 (v4 — box-shadow 挂在元素上)
+   - 用户说话时: 挂断键 box-shadow 外发光 (大, 闪烁)
+   - AI 思考时: AI 头像 box-shadow 外发光 (缩小, 柔和脉动)
+   - AI 说话时: AI 头像 box-shadow 外发光 (大, 闪烁)
+   - 提示文字位置抬到图1 "倾听中" 位置
+   v0.2.30.28: 彻底删独立光晕 div (会跑偏) — box-shadow 直接挂在元素上
+   ============================================================ */
+
+/* 语音通话主区域 z-index 重排 */
+#voice-call-screen .voice-call-avatar-area {
+    position: relative;
+    z-index: 5;
+}
+
+#voice-call-screen .voice-call-controls {
+    z-index: 60;
+}
+
+#voice-call-screen #voice-call-status-text {
+    z-index: 60;
+}
+
+/* v0.2.30.24: 语音通话 layout 重新排版
+   - 挂断键固定在屏幕底部居中
+   - speak-btn 在挂断键上方 110px (左侧偏移, 不遮挡光晕)
+   - 启用音频按钮隐藏 (跟之前改的"接通后自动隐藏"配合, 默认就不显示, 接通后才显示)
+   - 状态文字抬到图1 "倾听中" 位置 (屏幕 60% 位置) */
+#voice-call-screen .voice-call-controls {
+    justify-content: center;
+    align-items: center;
+    gap: 28px;
+}
+
+#voice-call-screen #voice-hang-up-btn {
+    /* v0.2.30.51: 改成 absolute 强制屏幕水平居中
+       之前 position: relative + flex space-around — voice-regenerate-call-btn 显示时挂断键被挤偏,
+       跟上方 AI 头像 (语音呼叫屏水平中心) 不在同一条垂直线上
+       改成 absolute + left:50% + transform translateX(-50%) — 不管其他按钮显示/隐藏, 挂断键永远在屏幕水平中心 */
+    position: absolute;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    /* v0.2.30.48: 缩到 56px 让 AI 头像 100px 明显大于挂断键 — user 反馈 "挂断键比 AI 头像还大" */
+    width: 56px;
+    height: 56px;
+    z-index: 70;
+}
+
+#voice-call-screen #voice-user-speak-btn {
+    /* 说话键位置: 挂断键左边 */
+    z-index: 70;
+}
+
+#voice-call-screen #voice-regenerate-call-btn {
+    /* v0.2.30.52: 改成 absolute 定位到屏幕右下 — 之前 voice-call-controls flex 居中布局跟挂断键重叠 */
+    position: absolute;
+    bottom: 43px;  /* 跟挂断键 (56x56 bottom:40px) 中心 y 对齐: 挂断键中心 y=68px, 彩铃 50x50 中心 y=43+25=68px */
+    right: 30px;   /* 屏幕右边 30px */
+    /* 启用音频按钮: 跟挂断键同一行, 缩成小圆 */
+    width: 50px;
+    height: 50px;
+    font-size: 10px;
+    z-index: 70;
+}
+
+#voice-call-screen #voice-user-speak-btn.speak-btn-active,
+#voice-call-screen #voice-user-speak-btn:active {
+    transform: scale(0.92);
+}
+
+/* v0.2.30.24: 状态文字位置 — 抬到图1 倾听中位置 (屏幕 60%) */
+#voice-call-screen .voice-call-status-text {
+    bottom: auto;
+    top: 60%;
+    font-size: 16px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.95);
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+    letter-spacing: 0.5px;
+    z-index: 60;
+    transition: top 0.5s ease, opacity 0.3s ease;
+}
+
+/* v0.2.30.24 → v0.2.30.31: AI 状态时只下移容器, 头像保持默认 70px 不放大
+   user 反馈: 头像全程不需要变大, 只要 AI 状态时位置下移到屏幕中央 */
+#voice-call-screen.voice-call-ai-active .voice-call-avatar-area {
+    padding-top: 18vh;
+}
+
+#voice-call-screen.voice-call-ai-active #voice-participant-avatars-grid .participant-avatar {
+    /* v0.2.30.48: 放大到 100px (比挂断键 56px 大 44px, 明显大于) */
+    width: 100px;
+    height: 100px;
+    /* 白边稍细 2.5px 适配大头像 */
+    border-width: 2.5px;
+    border-color: rgba(255, 255, 255, 0.85);
+}
+
+#voice-call-screen.voice-call-ai-active #voice-participant-avatars-grid .participant-name {
+    font-size: 13px;
+    margin-top: 12px;
+}
+
+/* ============================================================
+   v0.2.30.26: 修两个问题
+   1. 挂断键周围有"黑色圆圈" — 是 .voice-call-controls 的底部黑色渐变
+      background: linear-gradient(to top, rgba(0, 0, 0, 0.5), transparent)
+      把按钮周围 130px 都染成黑色, 覆盖在光晕之外显得很突兀
+      → 去掉黑色背景, 光晕本身就够亮, 不需要暗化背景
+   2. 挂断键图标改成"图2"风格 — 红色圆 + 白色听筒朝下 (经典电话挂断图标)
+      原图标是 iOS 风的"山形 + 横向", 跟参考图不一样
+   ============================================================ */
+
+/* 去掉 .voice-call-controls 的底部黑色渐变背景 — v0.2.30.26 */
+#voice-call-screen .voice-call-controls {
+    background: transparent !important;
+}
+
+/* 语音通话挂断键 — 老式电话听筒 (Material phone path 旋转 135° = 朝下挂+斜着放)
+   v0.2.30.35: rotate(180) → rotate(135) 逆时针 45° */
+#voice-call-screen .control-btn.hangup-btn {
+    background-color: #ff3b30;
+    background-size: 56%;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path transform="rotate(135 12 12)" d="M20 15.5c-1.25 0-2.45-.2-3.57-.57-.35-.12-.74-.03-1.01.24l-2.2 2.2a15.045 15.045 0 0 1-6.59-6.58l2.2-2.21a.96.96 0 0 0 .25-1A11.36 11.36 0 0 1 8.5 4c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1 0 9.39 7.61 17 17 17 .55 0 1-.45 1-1v-3.5c0-.55-.45-1-1-1z"/></svg>');
+    box-shadow: 0 4px 16px rgba(255, 59, 48, 0.35);
+}
+
+/* 视频通话挂断键图标 — v0.2.30.30 撤回
+   之前 v0.2.30.26 改成跟语音通话一样 (红色圆 + phone-down 图标)
+   但用户要做 Live2D, 视频通话界面会大改, 不在此预先改动
+   保留原始样式 (iOS 风山形 + 横向) — 跟原 .control-btn.hangup-btn 一致
+   */
+/* #video-call-screen .control-btn.hangup-btn {  // v0.2.30.30 撤回, Live2D 时再改
+    background-color: #ff3b30;
+    background-size: 56%;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path fill-rule="evenodd" d="M19.91 14.49a14.45 14.45 0 0 1-3.7-1.04 1 1 0 0 0-1.05.24l-2.4 2.4a15.4 15.4 0 0 1-6.86-6.86l2.4-2.4a1 1 0 0 0 .25-1.05A14.45 14.45 0 0 1 7.5 4.09a1 1 0 0 0-.83-1.04A47.69 47.69 0 0 0 3 3a1 1 0 0 0-1 1c0 9.39 7.61 17 17 17a1 1 0 0 0 1-1c0-1.21-.13-2.42-.36-3.6a1 1 0 0 0-1.05-.83z" clip-rule="evenodd"/></svg>');
+    box-shadow: 0 4px 16px rgba(255, 59, 48, 0.35);
+} */
+
+/* ============================================================
+   v0.2.30.28: box-shadow 光晕直接挂在按钮/头像上 (避免位置跑偏)
+   - 单层 box-shadow + 大 blur + 中 alpha + 小 spread (柔散过渡)
+   - listening: 挂断键外发光
+   - thinking/speaking: AI 头像外发光 (带白色描边)
+   ============================================================ */
+
+/* 用户说话 — 挂断键大光晕闪烁
+   v0.2.30.39: 回退到 v0.2.30.31 user 满意版本 (spread 30, blur 100-150px)
+   v0.2.30.36 改 spread 0 弱化过头, 这次回退
+   v0.2.30.53: user 反馈"用户说话光晕辐射范围比 AI 说话小" — 加大 spread/blur 让 listening > speaking
+     listening: 0 0 130-180 blur + 40-55 spread (峰值 0.7)
+     speaking:  0 0 100-150 blur + 30-45 spread (峰值 0.65) — 保持 */
+#voice-call-screen #voice-hang-up-btn.glow-listening {
+    animation: voice-hangup-glow 1.6s ease-in-out infinite;
+}
+
+@keyframes voice-hangup-glow {
+    0%, 100% {
+        box-shadow: 0 4px 16px rgba(255, 59, 48, 0.4), 0 0 130px 40px rgba(255, 180, 80, 0.5);
+    }
+    50% {
+        box-shadow: 0 4px 16px rgba(255, 59, 48, 0.45), 0 0 180px 55px rgba(255, 180, 80, 0.7);
+    }
+}
+
+/* AI 思考 — 头像外圈弧形光晕顺时针旋转
+   v0.2.30.43: user 请人翻译的最终 spec
+     1. 绝对不要画任何风扇/扇叶结构
+     2. 头像外围圆环光晕 (::before 伪元素)
+     3. conic-gradient 黄色到透明柔和光晕弧线 + filter: blur() 模糊发光
+     4. @keyframes rotate 顺时针平滑旋转
+   之前 4 段扇叶 (0/90/180/270° 4 片) 删了, 改单段 ~100° 宽弧线 */
+#voice-call-screen #voice-participant-avatars-grid .participant-avatar-wrapper.glow-thinking {
+    position: relative;
+}
+
+/* 头像浮在 ::before 上面, 永远不被遮挡 */
+#voice-call-screen #voice-participant-avatars-grid .participant-avatar {
+    position: relative;
+    z-index: 2;
+}
+
+/* 头像外圈放射状金黄光芒 (金沙遗址太阳神鸟图腾风格)
+   v0.2.30.46: user 请人翻译的最终 spec
+     1. 不要团状光晕, 不要实体风扇叶子
+     2. repeating-conic-gradient 画 6-12 条放射状细长弧度金黄光芒
+     3. 柔和渐变透明度 + filter: blur(2px) 模糊发光
+     4. @keyframes rotate 整圈平滑旋转
+   选 10 条光芒 (每 36° 周期, 每条 6° 宽), 看起来像太阳神鸟
+   v0.2.30.49: user 反馈 "共用同一个圆心坐标, 设定同样的半径" — ::before 改 100x100 跟 img 100x100 一样大
+     居中修法: top:50px + margin-top:-50px (不用 transform translate, 之前 transform 跟 top 冲突导致 box 中心 -5px 错位) */
+#voice-call-screen #voice-participant-avatars-grid .participant-avatar-wrapper.glow-thinking::before {
+    content: '';
+    position: absolute;
+    top: 50px;  /* img 中心 y=50px (img 100/2) */
+    left: 50%;
+    /* v0.2.30.55: user 反馈"半径比 AI 头像半径大" — ::before 100→130 (外径 130 vs 头像 100, 大 30px)
+       共用圆心 (居中位置不变), 半径不同, 圆环明显在头像外 */
+    width: 130px;
+    height: 130px;
+    margin-left: -65px;
+    margin-top: -65px;
+    border-radius: 50%;
+    /* v0.2.30.55: box-sizing: border-box 让 box 视觉外径 = 130px (跟 width 一致), border 在 box 内渲染, 不影响居中
+       修"些许错位" — 之前 content-box 让 border 渲染在 box 外, 视觉外径 130+border, 居中算到 box 边缘有偏差 */
+    box-sizing: border-box;
+    pointer-events: none;
+    z-index: 0;
+    /* 中心 50% 透明 (0-65px 半径透明, 头像 50px 半径完整可见), 100% black (圆环 65-130px 半径显示) */
+    -webkit-mask-image: radial-gradient(circle, transparent 0%, transparent 50%, black 100%);
+    mask-image: radial-gradient(circle, transparent 0%, transparent 50%, black 100%);
+    /* v0.2.30.59: 回退到 v0.2.30.57 三层 conic-gradient 方案 — v0.2.30.58 单层 18 条细线 user 反馈"不如上一个版本"
+       v0.2.30.57 三层: 前景 + 副光束偏移 18° + 柔光束偏移 9° = 30 条不同亮度光束 + filter blur 3px + box-shadow 0 0 180px 55px 0.8 + 旋转 4s */
+    background:
+        /* 前景主光束 */
+        repeating-conic-gradient(
+            from 0deg,
+            transparent 0deg,
+            transparent 23deg,
+            rgba(255, 215, 140, 0.85) 25deg,
+            rgba(255, 235, 175, 1.0) 30deg,
+            rgba(255, 215, 140, 0.85) 35deg,
+            transparent 37deg
+        ),
+        /* 副光束 — 偏移 18° (半个周期 36°/2) */
+        repeating-conic-gradient(
+            from 18deg,
+            transparent 0deg,
+            transparent 25deg,
+            rgba(255, 220, 150, 0.5) 27deg,
+            rgba(255, 235, 170, 0.65) 31deg,
+            rgba(255, 220, 150, 0.5) 34deg,
+            transparent 36deg
+        ),
+        /* 柔光束 — 偏移 9° (四分之一周期 36°/4) */
+        repeating-conic-gradient(
+            from 9deg,
+            transparent 0deg,
+            transparent 26deg,
+            rgba(255, 230, 170, 0.3) 29deg,
+            rgba(255, 240, 180, 0.4) 32deg,
+            rgba(255, 230, 170, 0.3) 34deg,
+            transparent 36deg
+        );
+    /* 高斯模糊 (CSS filter:blur 底层就是高斯模糊) — blur 3px 让三层光束融合成柔光带 */
+    filter: blur(3px);
+    /* box-shadow 外发光保持 v0.2.30.55 大范围柔光 — 圆盘外 0-235px 范围 */
+    box-shadow: 0 0 180px 55px rgba(255, 220, 150, 0.8);
+    /* v0.2.30.59: 旋转改回 4s (v0.2.30.58 是 2s, 跟 user 反馈"不如上一个版本" 一起回退) */
+    animation: voice-ring-spin-cw 4s linear infinite;
+}
+
+@keyframes voice-ring-spin-cw {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
+/* AI 说话 — 头像外圈暖黄光环
+   v0.2.30.45: user 反馈 "AI头像圆和光晕圆一样大, 光晕辐射范围跟用户说话一样大"
+   修法:
+     1. 头像放大到 90px (跟 ::before 圆盘直径一致) — 之前 70px 看着比光晕圆小一圈
+     2. 加大 box-shadow 到 0 0 100-150px + 30-45 spread (跟 listening 视觉参数一致)
+     3. 保留 border 圆环作为光晕边界标识 (3px solid 暖黄紧贴头像外缘 0-1.5px) */
+@keyframes voice-speaking-glow {
+    0%, 100% {
+        box-shadow: 0 0 100px 30px rgba(255, 180, 80, 0.45);
+    }
+    50% {
+        box-shadow: 0 0 150px 45px rgba(255, 180, 80, 0.65);
+    }
+}
+
+/* AI 说话 — 头像外圈暖黄光环
+   v0.2.30.48: 头像 100px (v0.2.30.45 是 90px), ::before 圆盘 100→110px 跟头像外径一致
+   v0.2.30.45: 之前 70px 头像看着比 88px 光晕圆环小一圈
+   v0.2.30.48 配合挂断键 78→56px, AI 头像明显大于挂断键
+   v0.2.30.49: user 反馈 "共用同一个圆心坐标, 设定同样的半径" — ::before 改 100x100 跟 img 100x100 一样大
+     居中修法: top:50px + margin-top:-50px (不用 transform translate, 之前 transform 跟 top 冲突导致 box 中心 -5px 错位) */
+/* AI 说话 — 头像外圈暖黄光环
+   v0.2.30.55: user 反馈"AI 说话头像圆和动画圆还有错位" + "半径比 AI 头像半径大"
+     修法: ::before 100→110 (外径 110 vs 头像 100, 大 10px), 共用圆心 (居中位置不变)
+     居中已 v0.2.30.49 用 top:50px + margin-top:-50px 精确对齐 img 中心 — 应该已对齐
+     如果 user 看到还错位, 可能是 box-shadow 散光渲染偏移, 不影响 ::before box 实际位置 */
+#voice-call-screen #voice-participant-avatars-grid .participant-avatar-wrapper.glow-speaking::before {
+    content: '';
+    position: absolute;
+    top: 50px;  /* img 中心 y=50px (img 100/2) */
+    left: 50%;
+    width: 110px;  /* 略大于 img 100x100 (大 10px), 圆环明显在头像外 */
+    height: 110px;
+    margin-left: -55px;
+    margin-top: -55px;
+    border-radius: 50%;
+    border: 3px solid rgba(255, 195, 110, 0.85);
+    /* v0.2.30.55: box-sizing: border-box 让 box 视觉外径 = 110px (跟 width 一致), border 在 box 内渲染 */
+    box-sizing: border-box;
+    pointer-events: none;
+    z-index: 0;
+    animation: voice-speaking-glow 1.6s ease-in-out infinite;
+}
+
+/* 过渡光斑 — 从挂断键位置飞到 AI 头像位置
+   v0.2.30.56: user spec 翻译
+     1. 用户说话时: 挂断键大光晕呼吸闪烁 (v0.2.30.53 已有)
+     2. 用户说完瞬间: 挂断键光晕停, 生成独立聚光灯/光斑, transform translate 平滑向上移动 + 放大到 AI 头像
+     3. 到达 AI 头像后: 光斑无缝隐藏, 立即触发太阳神鸟旋转思考动画
+   v0.2.30.59: user 反馈"光圈大一点" — ::before 130→200, scale 0.3→0.4 起点, scale 1→0.65 终点 (200*0.65=130 跟 thinking 同尺寸无缝衔接) */
+#voice-call-screen #voice-participant-avatars-grid .participant-avatar-wrapper.glow-transitioning::before {
+    content: '';
+    position: absolute;
+    top: 50px;  /* 终点: img 中心 y=50px */
+    left: 50%;
+    width: 200px;  /* 加大到 200px, 飞行中视觉更大 */
+    height: 200px;
+    margin-left: -100px;
+    margin-top: -100px;
+    border-radius: 50%;
+    box-sizing: border-box;
+    pointer-events: none;
+    z-index: 0;
+    /* 聚光灯效果: 中心亮 (0.95 alpha), 边缘暗 (透明) — 跟 thinking 的 conic-gradient 10 条光芒不同, 是手电筒光束 */
+    background: radial-gradient(circle, rgba(255, 235, 175, 0.95) 0%, rgba(255, 210, 130, 0.7) 30%, rgba(255, 190, 100, 0.35) 60%, transparent 90%);
+    filter: blur(6px);
+    animation: voice-call-spot-fly 0.5s ease-out forwards;
+}
+
+@keyframes voice-call-spot-fly {
+    /* 起点: 挂断键位置 (屏幕底部, 距 wrapper 中心 ~360px) + 小尺寸 — 手电筒光束从按钮位置发出 */
+    0% {
+        transform: translateY(360px) scale(0.4);
+        opacity: 0;
+    }
+    20% {
+        opacity: 1;  /* 快速出现, 不延迟 */
+    }
+    /* 终点: 0 偏移, scale 0.65 — 200*0.65=130 跟 thinking ::before 同尺寸, 无缝衔接 */
+    100% {
+        transform: translateY(0) scale(0.65);
+        opacity: 1;
+    }
+}
+
+/* 视频通话同步支持 — v0.2.30.30 撤回
+   之前 v0.2.30.28 / v0.2.30.29 在视频通话也加了 box-shadow 光晕 + 金沙图腾光环
+   但用户要做 Live2D, 视频通话界面会大改, 不在此预先改动
+   视频通话保留原始样式, Live2D 时再统一加
+   */
+/* #video-call-screen #voice-hang-up-btn.glow-listening,
+#video-call-screen #hang-up-btn.glow-listening {
+    animation: voice-hangup-glow 1.6s ease-in-out infinite;
+}
+
+#video-call-screen #video-participant-avatars-grid .participant-avatar.glow-thinking {
+    position: relative;
+    box-shadow: 0 0 18px 4px rgba(255, 180, 80, 0.35);
+}
+
+#video-call-screen #video-participant-avatars-grid .participant-avatar.glow-thinking::before,
+#video-call-screen #video-participant-avatars-grid .participant-avatar.glow-thinking::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 1;
+}
+
+#video-call-screen #video-participant-avatars-grid .participant-avatar.glow-thinking::before {
+    width: 158px;
+    height: 158px;
+    margin-left: -79px;
+    margin-top: -79px;
+    border: 1.5px solid transparent;
+    border-top-color: rgba(255, 200, 110, 0.9);
+    border-right-color: rgba(255, 180, 80, 0.55);
+    border-bottom-color: rgba(255, 160, 60, 0.25);
+    border-left-color: rgba(255, 180, 80, 0.15);
+    box-shadow: 0 0 14px 0px rgba(255, 180, 80, 0.5);
+    animation: voice-ring-spin-cw 3.5s linear infinite;
+}
+
+#video-call-screen #video-participant-avatars-grid .participant-avatar.glow-thinking::after {
+    width: 145px;
+    height: 145px;
+    margin-left: -72.5px;
+    margin-top: -72.5px;
+    border: 1px solid transparent;
+    border-top-color: rgba(255, 220, 140, 0.75);
+    border-right-color: rgba(255, 200, 110, 0.4);
+    border-bottom-color: rgba(255, 180, 80, 0.15);
+    border-left-color: rgba(255, 200, 110, 0.1);
+    box-shadow: 0 0 12px 0px rgba(255, 180, 80, 0.4);
+    animation: voice-ring-spin-ccw 2.8s linear infinite;
+}
+
+#video-call-screen #video-participant-avatars-grid .participant-avatar.glow-speaking {
+    animation: voice-avatar-glow-speak 1.6s ease-in-out infinite;
+} */
+
