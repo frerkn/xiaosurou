@@ -1,6 +1,28 @@
 // Service Worker file (sw.js)
 // Whitelist cache strategy: cache only known static assets; API requests pass through.
-// 2026-08-25 v0.2.30.71u (transitioning 光雾累计 +40% 提亮): bump CACHE_VERSION 强制清缓存
+// 2026-08-25 v0.2.30.71x (删 mask-type: alpha 修手机 SVG 旋转看不见): bump CACHE_VERSION 强制清缓存
+//   user 反馈: "单文件 HTML 完美旋转, voice-call 看不到旋转"
+//   真凶: video-voice-call.css:2020 mask-type: alpha + -webkit-mask-type: alpha (v0.2.30.70 加的桌面 Chrome 兼容性)
+//     跟 transform: rotate() 冲突, iOS Safari SVG 旋转被遮罩, 看不到 6 道流线
+//   单文件 HTML (user v0.2.30.60 模板原版) 没有 mask-type: alpha = 完美旋转
+//   修法: 删 mask-type: alpha + -webkit-mask-type: alpha — user "反正只在手机上用", 接受电脑 Chrome mask 失效
+//   -webkit-mask-image + mask-image 保留 (iOS Safari 需要, 关键遮罩原版参数不动)
+//   user 反馈: "通话时 AI 思考说话时 AI 头像在一个位置, AI 倾听的时候又在另一个位置, 一会儿上一会儿下"
+//   真凶: video-voice-call.css:1480 .voice-call-ai-active .voice-call-avatar-area { padding-top: 18vh }
+//     .voice-call-ai-active 类只在 thinking/speaking/transitioning 加 (video-voice-call.js:239)
+//     listening/idle 不加 → padding-top: 0 → 头像在屏幕顶部
+//     thinking/speaking/transitioning 加 → padding-top: 18vh → 头像下移 18vh (中央)
+//   修法: 删 .voice-call-ai-active 限定, voice-call 父级直接覆盖, 5 状态统一 padding-top: 18vh
+//   status text "倾听中" top: 60% 位置不变, 跟 18vh 头像位置不冲突 (60% 比 18vh 偏下)
+//   破 v0.2.30.24 "AI 状态时下移, listening 时顶部" 设计 — user 2026-08-25 反馈接受新设计
+//   user 反馈: "单文件 HTML 完美旋转, 加到 voice-call 看不到旋转, 只看到一坨光"
+//   真凶: v0.2.30.71r 改 vortex 100 + blur 95px 固定像素 + SVG viewBox 148 = 95/100=95% 散光覆盖, 流线几乎完全模糊
+//     单文件 HTML: vortex 148 + blur 95 = 95/148=64% 散光, 流线保留 36% 中心清晰 (完美旋转)
+//     voice-call 集成 71r 改后: vortex 100 + blur 95 = 95/100=95% 散光, 流线完全模糊 (一坨光)
+//   71r 是基于"误判头像变大"改的, 实际真凶是 listening 头像 70x70 (v0.2.30.71s 修了 70→100 统一 4 状态)
+//   71s 后 listening/transitioning/thinking/speaking 4 状态 avatar 都 100, 嵌套 15px 环宽 (vortex 130 vs avatar 100) = 71h 状态
+//   修法: 删除 71r 改的 .glow-thinking .ccw-vortex-wrap width: 100/height: 100/margin-left: -50/margin-top: -50, 让默认 vortex 130 生效
+//   blur 95 / mask-image / halo / streak / glow-base / inner-light / box-shadow 全部不动 (v0.2.30.60 模板原版 + v0.2.30.71h 锁死)
 //   user 反馈: "71t 看着还是不怎么亮"
 //   修法: 8 点 radial-gradient alpha 累计 +40% (相对 71n 基准 0.50)
 //     0%  0.50 → 0.70 (+20% 71t 基础上再加 10% = 累计 +40%)
@@ -791,7 +813,7 @@
 //   真凶 (user 2026-08-22 00:19): Gemini native 主动信息推送过来是 markdown "```json" 代码�? 旧代码直接用 message 字段显示整段
 //   修法: 解析 message 字段�?markdown + JSON, 多段 text �?多个气泡 (跟主�?chat 一�?
 //   跨项目通用 SOP: 任何 push 路径�?server �?message 字段都应该过 4 段解�? 跟主屏对�?
-const CACHE_VERSION = 'v0.2.30.71u';
+const CACHE_VERSION = 'v0.2.30.71x';
 // (v0.2.26: 推送落进聊天框 �?SW push handler 优先�?data.fixedMessage (不管 messageType) 直接显示真内�?+ �?IndexedDB
 //   + postMessage 主页�?PROACTIVE_WAKE_PUSHED. 真凶: 之前 messageType==='patrol' �?SW �?guided/auto 占位分支,
 //   fixedMessage 字段被忽�? 主页�?handleProactiveWake 又调一�?LLM (浪费 + 通知保持占位).

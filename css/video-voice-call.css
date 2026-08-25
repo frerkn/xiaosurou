@@ -1476,8 +1476,14 @@
 }
 
 /* v0.2.30.24 → v0.2.30.31: AI 状态时只下移容器, 头像保持默认 70px 不放大
-   user 反馈: 头像全程不需要变大, 只要 AI 状态时位置下移到屏幕中央 */
-#voice-call-screen.voice-call-ai-active .voice-call-avatar-area {
+   user 反馈: 头像全程不需要变大, 只要 AI 状态时位置下移到屏幕中央
+   v0.2.30.71v: 删 .voice-call-ai-active 限定, voice-call 父级直接覆盖
+     之前 listening 状态下 .voice-call-ai-active 不加, padding-top: 0 = 头像在屏幕顶部
+     thinking/speaking/transitioning 加 .voice-call-ai-active, padding-top: 18vh = 头像下移中央
+     user 反馈"通话时 AI 头像一会儿上一会儿下" — 5 状态位置不一致
+     修法: 5 状态统一 padding-top: 18vh (AI 状态位置, 屏幕中央)
+     status text "倾听中" top: 60% 位置不变, 跟 18vh 头像位置不冲突 (60% 比 18vh 偏下) */
+#voice-call-screen .voice-call-avatar-area {
     padding-top: 18vh;
 }
 
@@ -1880,17 +1886,13 @@
 #voice-call-screen #voice-participant-avatars-grid .participant-avatar-wrapper.glow-thinking .ccw-vortex-wrap {
     display: flex;
     z-index: 3;  /* thinking 状态 vortex 在最前 (覆盖 .participant-avatar z-index 2 之后) */
-    /* v0.2.30.71r: thinking 状态下 vortex wrap 130→100, 跟 .ccw-avatar 100x100 边缘重合
-       之前 vortex 130 嵌套让"AI 头像视觉圆"看着大 30px (vortex 130 vs avatar 100)
-       user 反馈"思考的时候头像本身圆变大" — vortex 130 圆周被 user 当成"AI 头像圆"
-       改 100 跟 avatar 100 边缘重合, 没有 vortex 圆周 30px 扩张
-       top: 50px 不变 (img 中心 y=50px, 跟 .glow-speaking::before 100x100 同居中)
-       box-shadow 9/24/42 + inset 9 保留 v0.2.30.60 模板原版 (avatar box-shadow, 不改)
-       music-player.css:1970 的 transform: scale(1.05) 同时删 (speaking 真凶) */
-    width: 100px;
-    height: 100px;
-    margin-left: -50px;
-    margin-top: -50px;
+    /* v0.2.30.71v: 回滚 v0.2.30.71r 改的 vortex 130→100 — 那次改是基于"误判头像变大"
+       真凶实际是 listening 头像退回 music-player 通用 70x70 (v0.2.30.71s 修了 70→100 统一 4 状态)
+       71r 改 vortex 100 + blur 95px (固定像素) + SVG viewBox 148 → 95/100=95% 散光覆盖, 6 道流线几乎完全模糊 = "一坨光"
+       回滚到 vortex 130 (v0.2.30.62 锁死) + SVG viewBox 148 → 95/130=73% 散光, 流线保留 27% 中心清晰可见
+       嵌套 15px 环宽 (avatar 100 vs vortex 130) = v0.2.30.71h user 之前接受过的"一点点"
+       top: 50px + margin -65 (130/2) 居中不变
+       music-player.css:1970 的 transform: scale(1.05) 删保留 (speaking 真凶, 71r 改) */
 }
 
 /* thinking 状态: 隐藏 wrapper 直接 img (避免双 img 重叠), 显示 vortex 内 .ccw-avatar img
@@ -2007,6 +2009,10 @@
 
 /* SVG 流光层 — user v0.2.30.60 原版 (mask-image 关键参数 + 2s 旋转)
    v0.2.30.70 加 mask-type: alpha 修桌面浏览器 (Chrome/Edge) SVG mask 兼容性
+   v0.2.30.71x: 删 mask-type: alpha + -webkit-mask-type: alpha
+     user 反馈"单文件 HTML 完美旋转, voice-call 看不到" — 排查后定位 mask-type 跟 transform: rotate() 冲突
+     单文件 HTML 没有 mask-type: alpha 完美旋转, voice-call 加上后 iOS Safari SVG 旋转被遮罩冲突
+     user 2026-08-25: "反正只在手机上用" — 直接删 mask-type, 接受电脑 Chrome mask 失效
    "内圈隐藏线条, 中段逐渐显现, 外圈与尾端才出现明显流线" — user 原注释
    ★★★ 关键遮罩 原封不动照抄 user v0.2.30.60 模板 ★★★ */
 #voice-call-screen .ccw-svg {
@@ -2015,8 +2021,7 @@
     height: 100%;
     z-index: 3;
     animation: vortex-spin 2s linear infinite;
-    mask-type: alpha;
-    -webkit-mask-type: alpha;
+    /* v0.2.30.71x: 删 mask-type: alpha + -webkit-mask-type: alpha (跟 transform: rotate 冲突, 修手机 SVG 旋转看不见) */
     -webkit-mask-image: radial-gradient(
         circle,
         rgba(0,0,0,0) 34%,
