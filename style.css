@@ -3934,9 +3934,14 @@
                transform: scale(0.9);
            }
 
+           /* v0.2.30.71: 同步 music-player.css .call-action-btn.decline 改 rotate(180 → 135)
+              v0.2.30.64 注释说要"跟语音/视频通话挂断键同款", 但实际 voice-call-screen hangup 是 rotate(135) (v0.2.30.35 锁死)
+              之前 v0.2.30.64 写成 rotate(180) 跟 voice hangup 不一致, 改成 rotate(135) 统一
+              真凶: index.html 用分块 CSS 不引 style.css, v0.2.30.64 改 style.css 完全没生效
+              user 截图看到的是 music-player.css 里的旧 iOS 风 X 交叉线 (信封), 修在 music-player.css */
            .call-action-btn.decline {
                background-color: #ff3b30;
-               background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 16.5L3 6m18 6l-5.6-5.6a1.2 1.2 0 0 0-1.7 0L3 18.2a1.2 1.2 0 0 0-.3 1.2l1.2 3.6a1.2 1.2 0 0 0 1.2.9h15.6a1.2 1.2 0 0 0 1.2-1.2V7.7a1.2 1.2 0 0 0-.3-1.1z"/></svg>');
+               background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path transform="rotate(135 12 12)" d="M20 15.5c-1.25 0-2.45-.2-3.57-.57-.35-.12-.74-.03-1.01.24l-2.2 2.2a15.045 15.045 0 0 1-6.59-6.58l2.2-2.21a.96.96 0 0 0 .25-1A11.36 11.36 0 0 1 8.5 4c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1 0 9.39 7.61 17 17 17 .55 0 1-.45 1-1v-3.5c0-.55-.45-1-1-1z"/></svg>');
            }
 
            .call-action-btn.accept {

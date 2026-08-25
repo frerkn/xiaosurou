@@ -1419,14 +1419,16 @@
     /* v0.2.30.51: 改成 absolute 强制屏幕水平居中
        之前 position: relative + flex space-around — voice-regenerate-call-btn 显示时挂断键被挤偏,
        跟上方 AI 头像 (语音呼叫屏水平中心) 不在同一条垂直线上
-       改成 absolute + left:50% + transform translateX(-50%) — 不管其他按钮显示/隐藏, 挂断键永远在屏幕水平中心 */
+       改成 absolute + left:50% + transform translateX(-50%) — 不管其他按钮显示/隐藏, 挂断键永远在屏幕水平中心
+       v0.2.30.66: 56→64px 按钮再大一点 + bottom 40→50px 往上挪一点 */
     position: absolute;
-    bottom: 40px;
+    bottom: 50px;
     left: 50%;
     transform: translateX(-50%);
-    /* v0.2.30.48: 缩到 56px 让 AI 头像 100px 明显大于挂断键 — user 反馈 "挂断键比 AI 头像还大" */
-    width: 56px;
-    height: 56px;
+    /* v0.2.30.48: 缩到 56px 让 AI 头像 100px 明显大于挂断键 — user 反馈 "挂断键比 AI 头像还大"
+       v0.2.30.66: 56→64px 再大一点点, AI 头像 vortex 130/avatar 100 仍然大于挂断键 */
+    width: 64px;
+    height: 64px;
     z-index: 70;
 }
 
@@ -1465,17 +1467,30 @@
     transition: top 0.5s ease, opacity 0.3s ease;
 }
 
+/* v0.2.30.71: 给 .participant-avatar-wrapper 加 position: relative
+   之前 v0.2.30.70 改 .ccw-vortex-wrap 用 absolute 居中, 但 wrapper 不是 positioned 父级
+   绝对定位参照跑到 .voice-call-avatar-area 去了, vortex 跟 img 错位 80px (用户截图反馈)
+   加 position: relative 后, absolute 参照 wrapper 自己, vortex 跟 img 同心 */
+#voice-call-screen #voice-participant-avatars-grid .participant-avatar-wrapper {
+    position: relative;
+}
+
 /* v0.2.30.24 → v0.2.30.31: AI 状态时只下移容器, 头像保持默认 70px 不放大
    user 反馈: 头像全程不需要变大, 只要 AI 状态时位置下移到屏幕中央 */
 #voice-call-screen.voice-call-ai-active .voice-call-avatar-area {
     padding-top: 18vh;
 }
 
-#voice-call-screen.voice-call-ai-active #voice-participant-avatars-grid .participant-avatar {
-    /* v0.2.30.48: 放大到 100px (比挂断键 56px 大 44px, 明显大于) */
+/* v0.2.30.71s: voice-call 内 .participant-avatar 统一 100x100 (5 状态一致)
+   之前 v0.2.30.48 用 .voice-call-ai-active 限定 (line 1484), 只有 thinking/speaking/transitioning 加 voice-call-ai-active 类
+   listening/idle 状态下 voice-call-ai-active 类没加, 这条规则不匹配, 退回 music-player.css 通用 70x70
+     视觉差异: listening 70+border 3=73 vs thinking 100+border 2.5=102.5 差 30px (看着小)
+   user 反馈: "倾听时头像变小, 思考和说话是正常的" — 4 状态头像应该统一
+   修法: 删 .voice-call-ai-active 限定, voice-call 父级直接覆盖 (listening/idle/thinking/speaking/transitioning 5 状态统一 100x100 + border 2.5px)
+   破 v0.2.30.48 "AI 状态时头像 100, listening 时 70" 锁死 — user 2026-08-25 反馈接受新设计 */
+#voice-call-screen #voice-participant-avatars-grid .participant-avatar {
     width: 100px;
     height: 100px;
-    /* 白边稍细 2.5px 适配大头像 */
     border-width: 2.5px;
     border-color: rgba(255, 255, 255, 0.85);
 }
@@ -1537,17 +1552,31 @@
    v0.2.30.36 改 spread 0 弱化过头, 这次回退
    v0.2.30.53: user 反馈"用户说话光晕辐射范围比 AI 说话小" — 加大 spread/blur 让 listening > speaking
      listening: 0 0 130-180 blur + 40-55 spread (峰值 0.7)
-     speaking:  0 0 100-150 blur + 30-45 spread (峰值 0.65) — 保持 */
+     speaking:  0 0 100-150 blur + 30-45 spread (峰值 0.65) — 保持
+   v0.2.30.67: user 反馈"挂断键光晕颜色不够亮, 范围不够大" — 颜色 255,180,80→255,210,130 更亮黄
+     blur 130-180→200-280, spread 40-55→60-85, alpha 0.5-0.7→0.65-0.85
+     加双层 box-shadow 叠加 (外层柔光 + 内层实光) 让光晕更明显 */
 #voice-call-screen #voice-hang-up-btn.glow-listening {
     animation: voice-hangup-glow 1.6s ease-in-out infinite;
 }
 
 @keyframes voice-hangup-glow {
+    /* v0.2.30.69: user 反馈"又亮过头了" — 折中回退
+       v0.2.30.53 (原锁死) → v0.2.30.67 (改亮加大) → v0.2.30.69 (折中)
+       颜色 255,210,130→255,195,105 (中亮黄)
+       blur 200-280→170-220, spread 60-85→50-70
+       alpha 0.65-0.85→0.55-0.7 (峰值) */
     0%, 100% {
-        box-shadow: 0 4px 16px rgba(255, 59, 48, 0.4), 0 0 130px 40px rgba(255, 180, 80, 0.5);
+        box-shadow:
+            0 4px 16px rgba(255, 59, 48, 0.4),
+            0 0 170px 50px rgba(255, 195, 105, 0.55),
+            0 0 70px 18px rgba(255, 210, 130, 0.42);
     }
     50% {
-        box-shadow: 0 4px 16px rgba(255, 59, 48, 0.45), 0 0 180px 55px rgba(255, 180, 80, 0.7);
+        box-shadow:
+            0 4px 16px rgba(255, 59, 48, 0.45),
+            0 0 220px 70px rgba(255, 195, 105, 0.7),
+            0 0 100px 25px rgba(255, 210, 130, 0.55);
     }
 }
 
@@ -1568,120 +1597,72 @@
     z-index: 2;
 }
 
-/* 头像外圈放射状金黄光芒 (金沙遗址太阳神鸟图腾风格)
-   v0.2.30.46: user 请人翻译的最终 spec
-     1. 不要团状光晕, 不要实体风扇叶子
-     2. repeating-conic-gradient 画 6-12 条放射状细长弧度金黄光芒
-     3. 柔和渐变透明度 + filter: blur(2px) 模糊发光
-     4. @keyframes rotate 整圈平滑旋转
-   选 10 条光芒 (每 36° 周期, 每条 6° 宽), 看起来像太阳神鸟
-   v0.2.30.49: user 反馈 "共用同一个圆心坐标, 设定同样的半径" — ::before 改 100x100 跟 img 100x100 一样大
-     居中修法: top:50px + margin-top:-50px (不用 transform translate, 之前 transform 跟 top 冲突导致 box 中心 -5px 错位) */
-#voice-call-screen #voice-participant-avatars-grid .participant-avatar-wrapper.glow-thinking::before {
-    content: '';
-    position: absolute;
-    top: 50px;  /* img 中心 y=50px (img 100/2) */
-    left: 50%;
-    /* v0.2.30.55: user 反馈"半径比 AI 头像半径大" — ::before 100→130 (外径 130 vs 头像 100, 大 30px)
-       共用圆心 (居中位置不变), 半径不同, 圆环明显在头像外 */
-    width: 130px;
-    height: 130px;
-    margin-left: -65px;
-    margin-top: -65px;
-    border-radius: 50%;
-    /* v0.2.30.55: box-sizing: border-box 让 box 视觉外径 = 130px (跟 width 一致), border 在 box 内渲染, 不影响居中
-       修"些许错位" — 之前 content-box 让 border 渲染在 box 外, 视觉外径 130+border, 居中算到 box 边缘有偏差 */
-    box-sizing: border-box;
-    pointer-events: none;
-    z-index: 0;
-    /* 中心 50% 透明 (0-65px 半径透明, 头像 50px 半径完整可见), 100% black (圆环 65-130px 半径显示) */
-    -webkit-mask-image: radial-gradient(circle, transparent 0%, transparent 50%, black 100%);
-    mask-image: radial-gradient(circle, transparent 0%, transparent 50%, black 100%);
-    /* v0.2.30.59: 回退到 v0.2.30.57 三层 conic-gradient 方案 — v0.2.30.58 单层 18 条细线 user 反馈"不如上一个版本"
-       v0.2.30.57 三层: 前景 + 副光束偏移 18° + 柔光束偏移 9° = 30 条不同亮度光束 + filter blur 3px + box-shadow 0 0 180px 55px 0.8 + 旋转 4s */
-    background:
-        /* 前景主光束 */
-        repeating-conic-gradient(
-            from 0deg,
-            transparent 0deg,
-            transparent 23deg,
-            rgba(255, 215, 140, 0.85) 25deg,
-            rgba(255, 235, 175, 1.0) 30deg,
-            rgba(255, 215, 140, 0.85) 35deg,
-            transparent 37deg
-        ),
-        /* 副光束 — 偏移 18° (半个周期 36°/2) */
-        repeating-conic-gradient(
-            from 18deg,
-            transparent 0deg,
-            transparent 25deg,
-            rgba(255, 220, 150, 0.5) 27deg,
-            rgba(255, 235, 170, 0.65) 31deg,
-            rgba(255, 220, 150, 0.5) 34deg,
-            transparent 36deg
-        ),
-        /* 柔光束 — 偏移 9° (四分之一周期 36°/4) */
-        repeating-conic-gradient(
-            from 9deg,
-            transparent 0deg,
-            transparent 26deg,
-            rgba(255, 230, 170, 0.3) 29deg,
-            rgba(255, 240, 180, 0.4) 32deg,
-            rgba(255, 230, 170, 0.3) 34deg,
-            transparent 36deg
-        );
-    /* 高斯模糊 (CSS filter:blur 底层就是高斯模糊) — blur 3px 让三层光束融合成柔光带 */
-    filter: blur(3px);
-    /* box-shadow 外发光保持 v0.2.30.55 大范围柔光 — 圆盘外 0-235px 范围 */
-    box-shadow: 0 0 180px 55px rgba(255, 220, 150, 0.8);
-    /* v0.2.30.59: 旋转改回 4s (v0.2.30.58 是 2s, 跟 user 反馈"不如上一个版本" 一起回退) */
-    animation: voice-ring-spin-cw 4s linear infinite;
+/* v0.2.30.60: thinking 状态改用 user 提供的 vortex 流光方案 (ccw-* 类) — 之前 v0.2.30.43-59 的 ::before + 三层 conic-gradient + blur + box-shadow 全部删掉
+   vortex 结构 (HTML 在 video-voice-call.js 模板里):
+     .ccw-vortex-wrap (148x148)
+       .ccw-layer (vortex-breathe 4.6s 呼吸)
+         .ccw-glow-base (中央暖金雾, blur 24px)
+         .ccw-inner-light (头像边缘高亮, blur 24px + drop-shadow)
+         svg.ccw-svg (vortex-spin 2s 旋转, mask 内圈隐藏外圈显现)
+           g.ccw-soft-halo (6 道外围扩散长尾, blur 250px)
+           g.ccw-soft-streak (6 道核心流线, blur 95px + drop-shadow)
+       .ccw-avatar (86x86, border 1px 白 + box-shadow 多层)
+         img.participant-avatar (100% 填充)
+   CSS 默认 vortex 隐藏, 只在 .glow-thinking 状态显示 */
+
+/* 头像浮在最前 (vortex 内 img + 默认 img 都需要) */
+#voice-call-screen #voice-participant-avatars-grid .participant-avatar {
+    position: relative;
+    z-index: 2;
 }
 
-@keyframes voice-ring-spin-cw {
-    from { transform: rotate(0deg); }
-    to   { transform: rotate(360deg); }
-}
-
-/* AI 说话 — 头像外圈暖黄光环
-   v0.2.30.45: user 反馈 "AI头像圆和光晕圆一样大, 光晕辐射范围跟用户说话一样大"
+/* v0.2.30.71: AI 说话大光晕呼吸 — 之前 v0.2.30.45+55+67 设计是 border 圆环 + 小 box-shadow 静态
+   user 反馈: "AI 说话的时候也要大光晕呼吸" — 跟 listening 一样的"大光晕呼吸"但作用在 AI 头像上
    修法:
-     1. 头像放大到 90px (跟 ::before 圆盘直径一致) — 之前 70px 看着比光晕圆小一圈
-     2. 加大 box-shadow 到 0 0 100-150px + 30-45 spread (跟 listening 视觉参数一致)
-     3. 保留 border 圆环作为光晕边界标识 (3px solid 暖黄紧贴头像外缘 0-1.5px) */
+     1. 删 voice-speaking-glow keyframes 里的单层小 box-shadow, 改成双层大 box-shadow (跟 listening 妥协方案 v0.2.30.69 锁死一致)
+     2. 删 .glow-speaking::before 110x110 border 圆环 (user v0.2.30.45 "边界标识" 不需要了, 大光晕本身就是标识)
+     3. ::before 110x110 保留 (v0.2.30.55 锁死 — AI 头像外 5px, 大于头像)
+     4. 1.6s ease-in-out infinite 呼吸动画 (跟 listening 同步)
+   v0.2.30.71l: 缩小 15% (跟 listening 解绑, speaking 单独调)
+     user 反馈: "speaking 阶段呼吸大光圈大了" — 缩小 15% 让 AI 头像周围光晕收紧
+     0%:  170/50 α0.55 + 70/18 α0.42  →  145/40 α0.50 + 60/15 α0.38
+     50%: 220/70 α0.7  + 100/25 α0.55 →  188/58 α0.62 + 85/20 α0.48
+     listening 锁死不动 (v0.2.30.69 折中, user 之前接受的状态)
+     ★ 双层 box-shadow 颜色保留 (255,195,105 外层 + 255,210,130 内层) — 暖金双层 */
 @keyframes voice-speaking-glow {
     0%, 100% {
-        box-shadow: 0 0 100px 30px rgba(255, 180, 80, 0.45);
+        box-shadow:
+            0 0 145px 40px rgba(255, 195, 105, 0.50),
+            0 0 60px 15px rgba(255, 210, 130, 0.38);
     }
     50% {
-        box-shadow: 0 0 150px 45px rgba(255, 180, 80, 0.65);
+        box-shadow:
+            0 0 188px 58px rgba(255, 195, 105, 0.62),
+            0 0 85px 20px rgba(255, 210, 130, 0.48);
     }
 }
 
-/* AI 说话 — 头像外圈暖黄光环
-   v0.2.30.48: 头像 100px (v0.2.30.45 是 90px), ::before 圆盘 100→110px 跟头像外径一致
-   v0.2.30.45: 之前 70px 头像看着比 88px 光晕圆环小一圈
-   v0.2.30.48 配合挂断键 78→56px, AI 头像明显大于挂断键
-   v0.2.30.49: user 反馈 "共用同一个圆心坐标, 设定同样的半径" — ::before 改 100x100 跟 img 100x100 一样大
-     居中修法: top:50px + margin-top:-50px (不用 transform translate, 之前 transform 跟 top 冲突导致 box 中心 -5px 错位) */
-/* AI 说话 — 头像外圈暖黄光环
-   v0.2.30.55: user 反馈"AI 说话头像圆和动画圆还有错位" + "半径比 AI 头像半径大"
-     修法: ::before 100→110 (外径 110 vs 头像 100, 大 10px), 共用圆心 (居中位置不变)
-     居中已 v0.2.30.49 用 top:50px + margin-top:-50px 精确对齐 img 中心 — 应该已对齐
-     如果 user 看到还错位, 可能是 box-shadow 散光渲染偏移, 不影响 ::before box 实际位置 */
+/* AI 说话 — AI 头像大光晕呼吸 (跟 listening 视觉一致, 作用在 AI 头像上)
+   v0.2.30.55: ::before 110x110 (外径 110 vs 头像 100, 大 10px) 锁死 — 跟 img 100x100 同心
+   v0.2.30.71: 删 border 圆环 (user 不再需要"边界标识", 大光晕本身就是标识)
+     居中: top:50px + margin-top:-50px (v0.2.30.49 锁死, 不用 transform translate)
+     1.6s 呼吸动画 (跟 listening 同步)
+   v0.2.30.71l: ::before 110→100 (跟 img 100x100 同尺寸)
+     之前 110 vs img 100 = 5px 环宽, ::before 内部透明, 露出 5px 暗影/缝隙
+     挂断键完美融合是因为单元素单圆心 (button 64 内部 svg), box-shadow 跟着 button 边缘散
+     speaking 是两个不同心圆 (img 100 + ::before 110), 5px 环 = 暗环
+     改成 ::before 100 = 跟 img 同尺寸, box-shadow 从 img 边缘外直接散光, 跟挂断键结构一致
+     破 v0.2.30.55 "外径 110 大 10px" 锁死 — user 接受"大光晕本身就是标识", 110 外径不需要 */
 #voice-call-screen #voice-participant-avatars-grid .participant-avatar-wrapper.glow-speaking::before {
     content: '';
     position: absolute;
     top: 50px;  /* img 中心 y=50px (img 100/2) */
     left: 50%;
-    width: 110px;  /* 略大于 img 100x100 (大 10px), 圆环明显在头像外 */
-    height: 110px;
-    margin-left: -55px;
-    margin-top: -55px;
+    width: 100px;  /* v0.2.30.71l: 110→100, 跟 img 100x100 同尺寸, 消除 5px 暗环 */
+    height: 100px;
+    margin-left: -50px;  /* 100/2 (v0.2.30.71l: 跟 width 同步 55→50) */
+    margin-top: -50px;
     border-radius: 50%;
-    border: 3px solid rgba(255, 195, 110, 0.85);
-    /* v0.2.30.55: box-sizing: border-box 让 box 视觉外径 = 110px (跟 width 一致), border 在 box 内渲染 */
-    box-sizing: border-box;
     pointer-events: none;
     z-index: 0;
     animation: voice-speaking-glow 1.6s ease-in-out infinite;
@@ -1692,39 +1673,102 @@
      1. 用户说话时: 挂断键大光晕呼吸闪烁 (v0.2.30.53 已有)
      2. 用户说完瞬间: 挂断键光晕停, 生成独立聚光灯/光斑, transform translate 平滑向上移动 + 放大到 AI 头像
      3. 到达 AI 头像后: 光斑无缝隐藏, 立即触发太阳神鸟旋转思考动画
-   v0.2.30.59: user 反馈"光圈大一点" — ::before 130→200, scale 0.3→0.4 起点, scale 1→0.65 终点 (200*0.65=130 跟 thinking 同尺寸无缝衔接) */
+   v0.2.30.59: user 反馈"光圈大一点" — ::before 130→200, scale 0.3→0.4 起点, scale 1→0.65 终点 (200*0.65=130 跟 thinking 同尺寸无缝衔接)
+   v0.2.30.68: user 反馈"看着从屏幕中间往上移动, 光团大小之前小了, 要跟说话时光晕一样大, 速度慢一拍"
+     修法: translateY 360→260 (起点 y 跟挂断键 y=718 匹配, 之前 360 起点 y=827 在屏幕外底部, vortex 30% 在屏幕内看着像中间飞)
+     起点 scale 0.4→0.5 (光团起步更大, 看着像"光团飞起")
+     终点 scale 0.65 保持 (无缝衔接 thinking 130)
+     动画 0.5s→0.7s 慢一拍
+     加 box-shadow 双层 (外层柔光 + 内层实光, 跟 speaking v0.2.30.67 锁死一致), 光团扩散总半径 360px ≈ speaking 365px
+     radial-gradient alpha 加亮 0.95→1.0, filter blur 6→8 柔化 */
+/* v0.2.30.71: transitioning 模糊雾气 — user 反馈"中间是黑的"
+   v0.2.30.71 之前: 中心 alpha 0.4 + blur 14px → 中心变暗看着"黑"
+   v0.2.30.71b 修法: 中心 alpha 0.4 → 0.75 (中心亮), 30%/60%/85% 多点 alpha 让 200x200 圆盘连成一片暖金雾
+     blur 14px → 8px (不太模糊, 中心更"实"), box-shadow alpha 略加 (0.55/0.42 → 0.6/0.45)
+   整体效果: 中心 0.75 alpha 暖金雾 + 中等 0.65/0.45 alpha + 远场 0.2 alpha + box-shadow 边缘散光 = 连成一片暖黄光晕
+   不是"光球"也不是"黑心", 是"一坨黄光雾" (跟 listening 视觉效果一致)
+   v0.2.30.71n: 修"看着是发光圆球, 不是一团模糊光晕"问题
+     真凶:
+       1. blur(8px) 太小, ::before 200x200 边缘 8px 散开看着还是清晰圆
+       2. box-shadow 双层 (0 0 200/80 + 0 0 80/25) 散光是从 ::before 边缘外扩散的"光环", 不是融合雾化
+       3. radial-gradient 中心 0.75 alpha 太"实", 外圈再虚也是"圆球"
+     修法:
+       1. 删 box-shadow (双层 0.6/0.45) — 让 background gradient + blur 主导, 散光是"渐变 + 模糊"不是"box 边缘光环"
+       2. blur 8→24 (3x 加大) — 边缘彻底散开, 看着是"雾"不是"球"
+       3. 中心 alpha 0.75→0.50 — 中心不"实", 跟外圈更平滑过渡
+       4. radial-gradient 5 点→8 点平滑曲线 — 消除"0%/30%/60%/85%/100%" 阶梯感 */
 #voice-call-screen #voice-participant-avatars-grid .participant-avatar-wrapper.glow-transitioning::before {
     content: '';
     position: absolute;
     top: 50px;  /* 终点: img 中心 y=50px */
     left: 50%;
-    width: 200px;  /* 加大到 200px, 飞行中视觉更大 */
-    height: 200px;
-    margin-left: -100px;
-    margin-top: -100px;
+    /* v0.2.30.71q: width/height 200→250 (容器本身大 25%)
+       之前 v0.2.30.59 改 130→200 是 user 反馈"光圈大一点", 200 不是锁死值
+       v0.2.30.71p user 反馈"再大一点" — 容器 +25% 让光雾整体大一坨 */
+    width: 250px;
+    height: 250px;
+    margin-left: -125px;  /* 跟 width 同步 100→125 */
+    margin-top: -125px;
     border-radius: 50%;
     box-sizing: border-box;
     pointer-events: none;
     z-index: 0;
-    /* 聚光灯效果: 中心亮 (0.95 alpha), 边缘暗 (透明) — 跟 thinking 的 conic-gradient 10 条光芒不同, 是手电筒光束 */
-    background: radial-gradient(circle, rgba(255, 235, 175, 0.95) 0%, rgba(255, 210, 130, 0.7) 30%, rgba(255, 190, 100, 0.35) 60%, transparent 90%);
-    filter: blur(6px);
-    animation: voice-call-spot-fly 0.5s ease-out forwards;
+    /* 8 点平滑曲线 — 中心 0.50 + 8 个 alpha 衰减点 (0% 0.50 → 100% 0) — 看着是"光雾"不是"实心球"
+       v0.2.30.71n 锁死不动 (user 接受"光雾效果")
+       v0.2.30.71t: 8 点 alpha 整体 +20% — user 反馈"光雾不够亮, 再亮一丢丢"
+       v0.2.30.71u: 累计 +40% (相对 71n 基准 0.50) — user 反馈"还是不怎么亮"
+         0%  0.50 → 0.70
+         15% 0.46 → 0.65
+         30% 0.42 → 0.58
+         45% 0.34 → 0.47
+         60% 0.26 → 0.36
+         75% 0.16 → 0.22
+         90% 0.08 → 0.11
+         100% 0   → 0 (保持)
+       颜色保留 (暖金 255,225,160 / 220,150 / 215,140 / 205,125 / 200,115 / 190,100 / 180,80)
+       blur 32 / 容器 250 / scale 0.75/0.95 / 删 box-shadow 全部不动 (v0.2.30.71n/71q 锁死) */
+    background: radial-gradient(circle,
+        rgba(255, 225, 160, 0.70) 0%,
+        rgba(255, 220, 150, 0.65) 15%,
+        rgba(255, 215, 140, 0.58) 30%,
+        rgba(255, 205, 125, 0.47) 45%,
+        rgba(255, 200, 115, 0.36) 60%,
+        rgba(255, 190, 100, 0.22) 75%,
+        rgba(255, 180, 80, 0.11) 90%,
+        transparent 100%
+    );
+    /* v0.2.30.71n: 删 box-shadow (双层 200/80 α0.6 + 80/25 α0.45)
+       box-shadow 是绕着 box 边缘外扩散的"光环" — 形成"圆球 + 边缘散光"视觉
+       纯 background + filter:blur 才是"渐变 + 模糊雾化" — 一坨光晕 */
+    /* v0.2.30.71q: blur 24→32 (再大 33%) — 边缘散开更多, 看着更"雾化" */
+    filter: blur(32px);
+    animation: voice-call-spot-fly 0.7s ease-out forwards;
 }
 
 @keyframes voice-call-spot-fly {
-    /* 起点: 挂断键位置 (屏幕底部, 距 wrapper 中心 ~360px) + 小尺寸 — 手电筒光束从按钮位置发出 */
+    /* 起点: 挂断键位置 (屏幕底部, translateY 260 适配 v0.2.30.66 挂断键 bottom:50 位置)
+       v0.2.30.71p: scale 0.5→0.7 (起点大, 看着"大坨光雾飞起")
+       v0.2.30.71q: scale 0.7→0.75 (再大 7%, user 反馈"再大一点")
+       视觉直径: 250*0.75+32=219.5≈220px (之前 164, 大 56px ≈ 大 34%) */
     0% {
-        transform: translateY(360px) scale(0.4);
+        transform: translateY(260px) scale(0.75);
         opacity: 0;
     }
     20% {
         opacity: 1;  /* 快速出现, 不延迟 */
     }
-    /* 终点: 0 偏移, scale 0.65 — 200*0.65=130 跟 thinking ::before 同尺寸, 无缝衔接 */
+    /* 终点: 0 偏移, scale 0.95 — 250*0.95=237.5 看着"大坨光雾落地"
+       v0.2.30.71p: scale 0.65→0.85 (终点大, 飞完大光雾覆盖 AI 头像)
+       v0.2.30.71q: scale 0.85→0.95 (再大 12%, 大坨光雾更明显)
+       视觉直径: 250*0.95+32=269.5≈270px (之前 194, 大 76px ≈ 大 39%, opacity 0 不可见)
+       跟 thinking 130 衔接: v0.2.30.71f 100% opacity 0 自然淡出再切 thinking
+         所以 270 vs thinking 130 的"缩"在 0 透明度下完成, 视觉上看不到"砰一下缩"
+       v0.2.30.71f: opacity 1→0 飞完淡出 — 之前 forwards 状态保持 opacity 1 + 依赖 setTimeout 700ms 切 thinking class
+         1. forwards + class 切换: 如果 setTimeout 失败或 class 没切换, transitioning ::before 一直显示 (forwards 保持) — 看着"光圈一直占据"
+         2. opacity 1→0: 飞完 0.7s 自然淡出, 不依赖 class 切换, 更安全 */
     100% {
-        transform: translateY(0) scale(0.65);
-        opacity: 1;
+        transform: translateY(0) scale(0.95);
+        opacity: 0;  /* 飞完淡出, 不停留 */
     }
 }
 
@@ -1785,4 +1829,291 @@
 #video-call-screen #video-participant-avatars-grid .participant-avatar.glow-speaking {
     animation: voice-avatar-glow-speak 1.6s ease-in-out infinite;
 } */
+
+/* =====================================================
+   v0.2.30.60: user 提供的 AI 思考动画方案 (vortex 流光)
+   暖金色 · 雾化流光 · 顺时针 2s 旋转 + 4.6s 呼吸 · 6 组长尾
+   核心: 内圈隐藏线条, 中段逐渐显现, 外圈与尾端才出现明显流线
+   ===================================================== */
+
+/* v0.2.30.71: vortex wrap 默认 display:none, 只在 .glow-thinking 才 display:flex
+   之前 v0.2.30.70 vortex wrap 始终 display:flex, 配合 wrapper 直接 img 让 AI 头像永远可见
+   但 v0.2.30.70 absolute 定位参照父级错 (wrapper 不是 positioned 父级), 跑到 avatar-area 50% 去了
+   跟 wrapper 内的 img 错位 80px (用户截图反馈)
+   修法: img 放回 wrapper 直接子元素 (v0.2.30.60 之前), vortex wrap 单独嵌套
+   listening/speaking: wrapper 直接 img 显示, vortex display:none
+   thinking: wrapper 直接 img 隐藏, vortex display:flex (内含 .ccw-avatar img 跟流光叠) */
+
+/* vortex wrap 默认隐藏, thinking 才显示 */
+#voice-call-screen #voice-participant-avatars-grid .participant-avatar-wrapper .ccw-vortex-wrap {
+    display: none;
+    position: absolute;  /* 不占 wrapper 空间 */
+    width: 130px;       /* v0.2.30.71: 显式 width/height, 否则 absolute 退回内容尺寸 (100x100) */
+    height: 130px;      /*   wrapper 居中会偏移. line 1825 的 .ccw-vortex-wrap width/height 选择器优先级低, 不会应用到这里 */
+    /* v0.2.30.71: 居中改用精确像素 — 跟 .glow-speaking::before 110 同位置 (img 中心 y=50, 半径 65)
+       之前 top:50% + translate(-50%,-50%) 依赖 wrapper 高度, wrapper 内容变化时居中点会飘 */
+    top: 50px;        /* img 中心 y=50px (img 100/2) */
+    left: 50%;
+    margin-left: -65px;  /* 130/2 */
+    margin-top: -65px;
+    z-index: 1;
+    pointer-events: none;
+    /* v0.2.30.71 修复 2 轮:
+       1. 加 border-radius: 50% (避免 box-shadow 矩形散光, 黑色正方形 bug)
+       2. 去掉 v0.2.30.71 加的双层 box-shadow (200/70 + 80/25), 回归 v0.2.30.62 vortex 旋转动画设计
+       user 反馈: "还一直占据在 AI 头像上 + 多一个黑圈" — box-shadow 200/70 让 vortex 区有大光晕持续占据
+         跟 listening 64x64 按钮的 box-shadow 一样大, 但 vortex 130x130, 散光范围约 285px = 占据整个 vortex 区
+       回归旋转动画: vortex wrap box-shadow 去掉, 只靠 .ccw-glow-base + .ccw-soft-halo + .ccw-soft-streak 加强渲染 */
+    border-radius: 50%;
+}
+
+/* v0.2.30.71 兜底: 任何非 .glow-thinking 状态都强制隐藏 vortex wrap (CSS 缓存/优先级漏过的终极保险)
+   user 反馈 listening 状态下 "AI 头像也在发光" — 怀疑是 v0.2.30.70 之前版本 vortex wrap 默认 display:flex
+   残留, 或者子选择器 (#voice-call-screen .ccw-vortex-wrap .ccw-xxx) 在某些情况下漏过 display: none 父级
+   用 :not(.glow-thinking) 强制覆盖 listening/speaking/transitioning 三种状态 */
+#voice-call-screen #voice-participant-avatars-grid .participant-avatar-wrapper:not(.glow-thinking) .ccw-vortex-wrap {
+    display: none !important;
+}
+#voice-call-screen #voice-participant-avatars-grid .participant-avatar-wrapper:not(.glow-thinking) .ccw-vortex-wrap * {
+    display: none !important;
+}
+#voice-call-screen #voice-participant-avatars-grid .participant-avatar-wrapper.glow-thinking .ccw-vortex-wrap {
+    display: flex;
+    z-index: 3;  /* thinking 状态 vortex 在最前 (覆盖 .participant-avatar z-index 2 之后) */
+    /* v0.2.30.71r: thinking 状态下 vortex wrap 130→100, 跟 .ccw-avatar 100x100 边缘重合
+       之前 vortex 130 嵌套让"AI 头像视觉圆"看着大 30px (vortex 130 vs avatar 100)
+       user 反馈"思考的时候头像本身圆变大" — vortex 130 圆周被 user 当成"AI 头像圆"
+       改 100 跟 avatar 100 边缘重合, 没有 vortex 圆周 30px 扩张
+       top: 50px 不变 (img 中心 y=50px, 跟 .glow-speaking::before 100x100 同居中)
+       box-shadow 9/24/42 + inset 9 保留 v0.2.30.60 模板原版 (avatar box-shadow, 不改)
+       music-player.css:1970 的 transform: scale(1.05) 同时删 (speaking 真凶) */
+    width: 100px;
+    height: 100px;
+    margin-left: -50px;
+    margin-top: -50px;
+}
+
+/* thinking 状态: 隐藏 wrapper 直接 img (避免双 img 重叠), 显示 vortex 内 .ccw-avatar img
+   用 visibility:hidden (不是 display:none) 保持空间占位, 不影响 .glow-speaking::before top:50px 居中计算 */
+#voice-call-screen #voice-participant-avatars-grid .participant-avatar-wrapper.glow-thinking > .participant-avatar {
+    visibility: hidden;
+}
+
+/* 流光层默认隐藏 — thinking 状态才显示
+   v0.2.30.71e: 加 .ccw-soft-halo / .ccw-soft-streak (SVG <g> 元素) 的 display 规则
+     之前 v0.2.30.71 改的规则只覆盖 .ccw-layer / .ccw-glow-base / .ccw-inner-light / .ccw-svg
+     .ccw-soft-halo / .ccw-soft-streak 是 SVG 内的 <g> 元素, 默认 display: inline
+     thinking 状态下应该显示, 但兜底规则 .ccw-vortex-wrap * 不影响默认 inline 行为
+     user 反馈 "动画效果看不到" — halo + streak 没显示 (因为 <g> 元素没有 display 规则触发) */
+#voice-call-screen .ccw-layer,
+#voice-call-screen .ccw-glow-base,
+#voice-call-screen .ccw-inner-light,
+#voice-call-screen .ccw-svg,
+#voice-call-screen .ccw-soft-halo,
+#voice-call-screen .ccw-soft-streak {
+    display: none;
+}
+#voice-call-screen .ccw-vortex-wrap .ccw-layer,
+#voice-call-screen .ccw-vortex-wrap .ccw-glow-base,
+#voice-call-screen .ccw-vortex-wrap .ccw-inner-light,
+#voice-call-screen .ccw-vortex-wrap .ccw-svg,
+#voice-call-screen .ccw-vortex-wrap .ccw-soft-halo,
+#voice-call-screen .ccw-vortex-wrap .ccw-soft-streak {
+    display: block;
+}
+#voice-call-screen .ccw-vortex-wrap .ccw-svg {
+    display: block;
+}
+
+/* v0.2.30.70: 修 .ccw-svg 在桌面浏览器 (Chrome/Edge) mask-image 兼容性
+   之前 user 反馈"电脑上看不见 vortex 流光" — SVG 元素上 mask-image 部分桌面浏览器渲染失败
+   加 mask-type: alpha + 备份无 mask fallback (用 clip-path 实现类似效果) */
+
+/* talking 状态下隐藏 wrapper 内"非 vortex 区域"的 .participant-avatar (vortex 内的 .participant-avatar 浮在 SVG 之上) */
+/* 注: wrapper 模板里 img 在 .ccw-avatar 内, 不在外层. 外层没有第二个 img 元素, 不用 hide. 模板已经单 img. */
+
+/* v0.2.30.71h: thinking 状态完全重写 — 原封不动照抄 user v0.2.30.60 旋转动画模板
+   之前 v0.2.30.71 多次改了 user 旋转动画代码 (mask-image / halo/streak opacity / glow-base center / avatar box-shadow)
+     → "大光圈" 掩盖 6 道流光旋转 + 用户反馈 "你写好不容易的代码别动"
+   修法: 重新抄 user v0.2.30.60 模板原版所有参数 (除了 .ccw-avatar 100x100 + .ccw-vortex-wrap 130x130 适配 AI 头像)
+   保留 v0.2.30.71 + 71e 加的兜底 (display: none / :not(.glow-thinking) !important / halo/streak display 规则) */
+
+/* 外层容器 — v0.2.30.62 缩 148→130, user 允许改尺寸适配 AI 头像
+   v0.2.30.60 原版 148x148 + 86 头像; v0.2.30.62 改 130x130 + 100 头像 (圆心大小 86→100)
+   border-radius: 50% 避免 v0.2.30.71 矩形 box-shadow bug */
+#voice-call-screen .ccw-vortex-wrap {
+    position: relative;
+    width: 130px;
+    height: 130px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    border-radius: 50%;
+}
+
+/* 呼吸层 (4.6s) — user v0.2.30.60 原版 */
+#voice-call-screen .ccw-layer {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    animation: vortex-breathe 4.6s ease-in-out infinite;
+}
+
+/* 中央暖金雾 — user v0.2.30.60 原版 (inset 14 + center alpha 0.18 + blur 24px)
+   "这是头像附近最主要的光, 不画明显圆环" — user 原注释 */
+#voice-call-screen .ccw-glow-base {
+    position: absolute;
+    inset: 14px;
+    border-radius: 50%;
+    background: radial-gradient(
+        circle,
+        rgba(255, 250, 220, 0.18) 0%,
+        rgba(255, 235, 170, 0.24) 20%,
+        rgba(255, 205, 90, 0.28) 38%,
+        rgba(255, 165, 30, 0.18) 57%,
+        rgba(255, 100, 0, 0.07) 76%,
+        rgba(255, 60, 0, 0) 94%
+    );
+    filter: blur(24px);
+    z-index: 1;
+}
+
+/* 头像边缘高亮 — user v0.2.30.60 原版 (inset 23 + center alpha 0.95 + blur 24px + drop-shadow)
+   "让这里变成亮光团, 而不是让流线变清晰" — user 原注释 */
+#voice-call-screen .ccw-inner-light {
+    position: absolute;
+    inset: 23px;
+    border-radius: 50%;
+    background: radial-gradient(
+        circle,
+        rgba(255, 255, 235, 0.95) 0%,
+        rgba(255, 240, 190, 0.82) 18%,
+        rgba(255, 215, 115, 0.58) 35%,
+        rgba(255, 180, 45, 0.28) 53%,
+        rgba(255, 130, 0, 0.08) 72%,
+        rgba(255, 100, 0, 0) 90%
+    );
+    filter:
+        blur(24px)
+        drop-shadow(
+            0 0 28px
+            rgba(255, 225, 130, 0.78)
+        );
+    opacity: 0.82;
+    z-index: 2;
+}
+
+/* SVG 流光层 — user v0.2.30.60 原版 (mask-image 关键参数 + 2s 旋转)
+   v0.2.30.70 加 mask-type: alpha 修桌面浏览器 (Chrome/Edge) SVG mask 兼容性
+   "内圈隐藏线条, 中段逐渐显现, 外圈与尾端才出现明显流线" — user 原注释
+   ★★★ 关键遮罩 原封不动照抄 user v0.2.30.60 模板 ★★★ */
+#voice-call-screen .ccw-svg {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    z-index: 3;
+    animation: vortex-spin 2s linear infinite;
+    mask-type: alpha;
+    -webkit-mask-type: alpha;
+    -webkit-mask-image: radial-gradient(
+        circle,
+        rgba(0,0,0,0) 34%,
+        rgba(0,0,0,0.04) 43%,
+        rgba(0,0,0,0.10) 51%,
+        rgba(0,0,0,0.22) 61%,
+        rgba(0,0,0,0.48) 72%,
+        rgba(0,0,0,0.72) 83%,
+        rgba(0,0,0,0.38) 91%,
+        rgba(0,0,0,0) 98%
+    );
+    mask-image: radial-gradient(
+        circle,
+        rgba(0,0,0,0) 34%,
+        rgba(0,0,0,0.04) 43%,
+        rgba(0,0,0,0.10) 51%,
+        rgba(0,0,0,0.22) 61%,
+        rgba(0,0,0,0.48) 72%,
+        rgba(0,0,0,0.72) 83%,
+        rgba(0,0,0,0.38) 91%,
+        rgba(0,0,0,0) 98%
+    );
+}
+
+/* 6 道核心流线 — user v0.2.30.60 原版 (blur 95 + drop-shadow 0.55/0.28 + opacity 0.38)
+   "比之前更虚, 不让内圈出现清晰线条" — user 原注释 */
+#voice-call-screen .ccw-soft-streak {
+    filter:
+        blur(95px)
+        drop-shadow(
+            0 0 55px
+            rgba(255, 205, 90, 0.55)
+        )
+        drop-shadow(
+            0 0 130px
+            rgba(255, 145, 20, 0.28)
+        );
+    opacity: 0.38;
+}
+
+/* 6 道外围扩散长尾 — user v0.2.30.60 原版 (blur 250 + opacity 0.20 + soft-glow 3.8s) */
+#voice-call-screen .ccw-soft-halo {
+    filter: blur(250px);
+    opacity: 0.20;
+    animation: soft-glow 3.8s ease-in-out infinite;
+}
+
+/* 头像 — user v0.2.30.60 原版 box-shadow 4 层 (user 自己设计的 9/24/42 + inset 9, 不是 v0.2.30.55 锁死的 7/18/30)
+   圆心大小 user 允许改 86→100 适配 AI 头像 (跟 listening/speaking 100x100 一致)
+   v0.2.30.71k: avatar 改回 100 (v0.2.30.71h 基准) — user 反馈 v0.2.30.71i 120 太大 + v0.2.30.71j 90 太小
+     v0.2.30.71h 100 + box-shadow 9/24/42 = 142 散光范围 — user 之前接受的基准
+     box-shadow 跟着 avatar 边缘走 (CSS box-shadow 本质), avatar 改 90 让散光 142→132 "光晕视觉小 10px"
+     改回 100 让 box-shadow 散光保持 142 (跟 v0.2.30.71h 一致) — user 期望的"光晕不变"
+   跟 listening/speaking 100x100 头像一致 (v0.2.30.62 锁死) — 跨状态头像大小相同
+   ★ box-shadow 原封不动照抄 user v0.2.30.60 模板 (9/24/42 + inset 9) */
+#voice-call-screen .ccw-avatar {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: #111;
+    overflow: hidden;
+    z-index: 5;
+    border: 1px solid rgba(255, 248, 225, 1);
+    box-shadow:
+        0 0 9px rgba(255, 240, 195, 0.95),
+        0 0 24px rgba(255, 190, 55, 0.66),
+        0 0 42px rgba(255, 155, 25, 0.30),
+        inset 0 0 9px rgba(255, 225, 90, 0.38);
+}
+
+#voice-call-screen .ccw-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+@keyframes vortex-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes vortex-breathe {
+    0%, 100% {
+        transform: scale(0.96);
+        opacity: 0.62;
+        filter: blur(0px) drop-shadow(0 0 22px rgba(255, 175, 35, 0.38));
+    }
+    50% {
+        transform: scale(1.035);
+        opacity: 0.82;
+        filter: blur(0px) drop-shadow(0 0 42px rgba(255, 205, 75, 0.62));
+    }
+}
+
+@keyframes soft-glow {
+    0%, 100% { opacity: 0.16; }
+    50% { opacity: 0.38; }
+}
 

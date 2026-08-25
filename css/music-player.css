@@ -1850,9 +1850,14 @@
                transform: scale(0.9);
            }
 
+           /* v0.2.30.71: 改成跟语音通话挂断键同款 (Material phone path 旋转 135° = 听筒朝下+斜着放)
+              之前 v0.2.30.64 改了 style.css (.call-action-btn.decline), 但 index.html 用分块 CSS 不引 style.css
+              真凶: music-player.css 也有 .call-action-btn.decline 规则, 之前是 iOS 风信封 X 交叉线 path (stroke)
+              修法: 改成跟 voice-call-screen .control-btn.hangup-btn 完全一致 (rotate 135, 跟 v0.2.30.35 锁死统一)
+              注: v0.2.30.64 style.css 写的是 rotate(180) 但注释说要"跟语音挂断键同款", 实际 voice hangup 是 rotate(135) */
            .call-action-btn.decline {
                background-color: #ff3b30;
-               background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 16.5L3 6m18 6l-5.6-5.6a1.2 1.2 0 0 0-1.7 0L3 18.2a1.2 1.2 0 0 0-.3 1.2l1.2 3.6a1.2 1.2 0 0 0 1.2.9h15.6a1.2 1.2 0 0 0 1.2-1.2V7.7a1.2 1.2 0 0 0-.3-1.1z"/></svg>');
+               background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path transform="rotate(135 12 12)" d="M20 15.5c-1.25 0-2.45-.2-3.57-.57-.35-.12-.74-.03-1.01.24l-2.2 2.2a15.045 15.045 0 0 1-6.59-6.58l2.2-2.21a.96.96 0 0 0 .25-1A11.36 11.36 0 0 1 8.5 4c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1 0 9.39 7.61 17 17 17 .55 0 1-.45 1-1v-3.5c0-.55-.45-1-1-1z"/></svg>');
            }
 
            .call-action-btn.accept {
@@ -1962,7 +1967,10 @@
            .participant-avatar.speaking {
                border-color: #4cd964;
                box-shadow: 0 0 20px rgba(76, 217, 100, 0.6);
-               transform: scale(1.05);
+               /* v0.2.30.71r: 删 transform: scale(1.05) — voice-call 复用 .participant-avatar.speaking 类名时
+                  会意外触发 music-player 模块的 5% 放大, 让 voice-call 头像看着"圆本身变大 5px"
+                  群聊没人用 (user 2026-08-25 明确), 直接删 music-player 的 transform 不影响其他场景
+                  voice-call 内另外用 .glow-speaking 状态做光晕呼吸, 不依赖这个 transform */
            }
 
 

@@ -2185,9 +2185,53 @@ ${linkedContents}
       wrapper.className = 'participant-avatar-wrapper';
       wrapper.dataset.participantId = p.id;
       const displayName = p.groupNickname || p.name;
+      // v0.2.30.71: img 放回 wrapper 直接子元素 (listening/speaking 状态显示)
+      // vortex wrap 单独嵌套 (thinking 状态显示, 内部 .ccw-avatar 装 img)
+      // 之前 v0.2.30.60-70: img 嵌套在 .ccw-avatar 里, vortex wrap 改 absolute 居中但 absolute 参照父级错
+      // 跑到 .voice-call-avatar-area 去了, 跟 wrapper 内的 img 错位 80px (用户截图反馈)
+      // 修法: wrapper 顶端直接 img + vortex wrap 单独嵌套含 .ccw-avatar img
+      // listening/speaking: wrapper 直接 img 显示, vortex display:none
+      // thinking: wrapper 直接 img 隐藏, vortex display:flex (内含 .ccw-avatar img 跟漩涡流光叠)
+      // 两份 img 用同一 src, 浏览器缓存复用, 网络无压力
       wrapper.innerHTML = `
         <img src="${p.avatar}" class="participant-avatar" alt="${displayName}">
-        <div class="participant-name">${displayName}</div>
+        <div class="ccw-vortex-wrap">
+          <div class="ccw-layer">
+            <div class="ccw-glow-base"></div>
+            <div class="ccw-inner-light"></div>
+            <svg class="ccw-svg" viewBox="0 0 148 148">
+              <defs>
+                <linearGradient id="voice-call-soft-gold-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#FFFDF0" stop-opacity="0.72"/>
+                  <stop offset="18%" stop-color="#FFF0AD" stop-opacity="0.60"/>
+                  <stop offset="35%" stop-color="#FFD66A" stop-opacity="0.48"/>
+                  <stop offset="55%" stop-color="#FFB52E" stop-opacity="0.30"/>
+                  <stop offset="80%" stop-color="#F28A18" stop-opacity="0.10"/>
+                  <stop offset="100%" stop-color="#E85B00" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <g class="ccw-soft-halo" stroke="url(#voice-call-soft-gold-gradient)" fill="none" stroke-linecap="round" stroke-width="7">
+                <path d="M74 23 C56 22 38 29 25 44 C17 53 12 61 8 69" transform="rotate(0 74 74)"/>
+                <path d="M74 23 C56 22 38 29 25 44 C17 53 12 61 8 69" transform="rotate(60 74 74)"/>
+                <path d="M74 23 C56 22 38 29 25 44 C17 53 12 61 8 69" transform="rotate(120 74 74)"/>
+                <path d="M74 23 C56 22 38 29 25 44 C17 53 12 61 8 69" transform="rotate(180 74 74)"/>
+                <path d="M74 23 C56 22 38 29 25 44 C17 53 12 61 8 69" transform="rotate(240 74 74)"/>
+                <path d="M74 23 C56 22 38 29 25 44 C17 53 12 61 8 69" transform="rotate(300 74 74)"/>
+              </g>
+              <g class="ccw-soft-streak" stroke="url(#voice-call-soft-gold-gradient)" fill="none" stroke-linecap="round" stroke-width="4">
+                <path d="M74 24 C57 23 40 30 27 44 C19 52 14 59 10 66" transform="rotate(0 74 74)"/>
+                <path d="M74 24 C57 23 40 30 27 44 C19 52 14 59 10 66" transform="rotate(60 74 74)"/>
+                <path d="M74 24 C57 23 40 30 27 44 C19 52 14 59 10 66" transform="rotate(120 74 74)"/>
+                <path d="M74 24 C57 23 40 30 27 44 C19 52 14 59 10 66" transform="rotate(180 74 74)"/>
+                <path d="M74 24 C57 23 40 30 27 44 C19 52 14 59 10 66" transform="rotate(240 74 74)"/>
+                <path d="M74 24 C57 23 40 30 27 44 C19 52 14 59 10 66" transform="rotate(300 74 74)"/>
+              </g>
+            </svg>
+          </div>
+          <div class="ccw-avatar">
+            <img src="${p.avatar}" class="participant-avatar" alt="${displayName}">
+          </div>
+        </div>
       `;
       grid.appendChild(wrapper);
     });
@@ -2242,12 +2286,13 @@ ${linkedContents}
     voiceCallState.isTtsPlaying = false;
     voiceCallState.canUserSpeak = false;
     setVoiceCallStatusText('思考中');
-    // v0.2.30.56: 过渡动画 — listening → 光斑从挂断键飞 0.5s → thinking
-    // 光斑到 AI 头像后无缝切 thinking 旋转光晕 (CSS ::before 同位置同尺寸 130x130)
+    // v0.2.30.56: 过渡动画 — listening → 光斑从挂断键飞 → thinking
+    // v0.2.30.68 改 animation 0.5s → 0.7s, v0.2.30.71 setTimeout 0.5s → 0.7s 跟 animation 匹配
+    // 之前 500ms < 0.7s animation — 过渡没飞完就切到 thinking, vortex wrap + transitioning ::before 叠在一起看着"光晕占据"
     setVoiceCallGlowState('transitioning');
     setTimeout(() => {
       setVoiceCallGlowState('thinking');
-    }, 500);
+    }, 700);
 
     const chat = state.chats[voiceCallState.activeChatId];
     // 与主聊天保持一致：实时通过 resolveApiSlotConfig 解析主 API 配置，
