@@ -1963,7 +1963,9 @@
     animation: vortex-breathe 4.6s ease-in-out infinite;
 }
 
-/* 中央暖金雾 — user v0.2.30.60 原版 (inset 14 + center alpha 0.18 + blur 24px)
+/* 中央暖金雾 — user v0.2.30.60 原版 + v0.2.30.71y 加强提亮
+   v0.2.30.71y: center alpha 0.18→0.32, 各点 +0.10-0.18, 颜色更亮黄
+     之前 0.18 中心太暗, 深色背景几乎看不见, 加强后中央暖金雾明显
    "这是头像附近最主要的光, 不画明显圆环" — user 原注释 */
 #voice-call-screen .ccw-glow-base {
     position: absolute;
@@ -1971,18 +1973,20 @@
     border-radius: 50%;
     background: radial-gradient(
         circle,
-        rgba(255, 250, 220, 0.18) 0%,
-        rgba(255, 235, 170, 0.24) 20%,
-        rgba(255, 205, 90, 0.28) 38%,
-        rgba(255, 165, 30, 0.18) 57%,
-        rgba(255, 100, 0, 0.07) 76%,
+        rgba(255, 252, 230, 0.32) 0%,
+        rgba(255, 240, 185, 0.42) 20%,
+        rgba(255, 215, 110, 0.50) 38%,
+        rgba(255, 175, 50, 0.36) 57%,
+        rgba(255, 120, 10, 0.18) 76%,
         rgba(255, 60, 0, 0) 94%
     );
     filter: blur(24px);
     z-index: 1;
 }
 
-/* 头像边缘高亮 — user v0.2.30.60 原版 (inset 23 + center alpha 0.95 + blur 24px + drop-shadow)
+/* 头像边缘高亮 — user v0.2.30.60 原版 + v0.2.30.71y 加强提亮
+   v0.2.30.71y: 各点 alpha +0.10-0.14 + drop-shadow 28→38 alpha 0.78→0.95 + opacity 0.82→0.95
+     之前头像边缘"亮光团"看着弱, 加强后中心更亮 + drop-shadow 更宽更亮
    "让这里变成亮光团, 而不是让流线变清晰" — user 原注释 */
 #voice-call-screen .ccw-inner-light {
     position: absolute;
@@ -1990,20 +1994,20 @@
     border-radius: 50%;
     background: radial-gradient(
         circle,
-        rgba(255, 255, 235, 0.95) 0%,
-        rgba(255, 240, 190, 0.82) 18%,
-        rgba(255, 215, 115, 0.58) 35%,
-        rgba(255, 180, 45, 0.28) 53%,
-        rgba(255, 130, 0, 0.08) 72%,
+        rgba(255, 255, 240, 0.95) 0%,
+        rgba(255, 245, 200, 0.92) 18%,
+        rgba(255, 220, 125, 0.72) 35%,
+        rgba(255, 185, 60, 0.42) 53%,
+        rgba(255, 140, 10, 0.15) 72%,
         rgba(255, 100, 0, 0) 90%
     );
     filter:
         blur(24px)
         drop-shadow(
-            0 0 28px
-            rgba(255, 225, 130, 0.78)
+            0 0 38px
+            rgba(255, 230, 140, 0.95)
         );
-    opacity: 0.82;
+    opacity: 0.95;
     z-index: 2;
 }
 
@@ -2046,37 +2050,57 @@
     );
 }
 
-/* 6 道核心流线 — user v0.2.30.60 原版 (blur 95 + drop-shadow 0.55/0.28 + opacity 0.38)
+/* 6 道核心流线 — user v0.2.30.60 原版 + v0.2.30.71y 加强提亮聚拢
+   v0.2.30.71y: blur 95→72 (缩小聚拢 24%) + drop-shadow 55→65/130→165 (更宽更亮) + alpha 大幅提高 + 加第 3 层高亮中心
+     之前 6 道流线看着太散太暗, 加强后流线聚拢, 中心有高亮核心
+     0% 0.38 → 0.70 (不透明度 +84%)
+     第 1 层 drop-shadow 55→65 + α 0.55→0.75
+     第 2 层 drop-shadow 130→165 + α 0.28→0.50
+     第 3 层 drop-shadow 0 0 35px α0.85 高亮中心 (新增)
    "比之前更虚, 不让内圈出现清晰线条" — user 原注释 */
 #voice-call-screen .ccw-soft-streak {
     filter:
-        blur(95px)
+        blur(72px)
         drop-shadow(
-            0 0 55px
-            rgba(255, 205, 90, 0.55)
+            0 0 35px
+            rgba(255, 230, 130, 0.85)
         )
         drop-shadow(
-            0 0 130px
-            rgba(255, 145, 20, 0.28)
+            0 0 65px
+            rgba(255, 205, 90, 0.75)
+        )
+        drop-shadow(
+            0 0 165px
+            rgba(255, 145, 20, 0.50)
         );
-    opacity: 0.38;
+    opacity: 0.70;
 }
 
-/* 6 道外围扩散长尾 — user v0.2.30.60 原版 (blur 250 + opacity 0.20 + soft-glow 3.8s) */
+/* 6 道外围扩散长尾 — user v0.2.30.60 原版 + v0.2.30.71y 加强提亮聚拢
+   v0.2.30.71y: blur 250→180 (缩小聚拢 28%) + opacity 0.20→0.50 (不透明度 +150%) + 加 drop-shadow 80/200 外围扩散
+     之前外围扩散长尾太散太暗, 加强后外围晕轮更明显
+   soft-glow 3.8s 关键帧保留 (user 模板原版) */
 #voice-call-screen .ccw-soft-halo {
-    filter: blur(250px);
-    opacity: 0.20;
+    filter:
+        blur(180px)
+        drop-shadow(
+            0 0 80px
+            rgba(255, 175, 35, 0.30)
+        )
+        drop-shadow(
+            0 0 200px
+            rgba(255, 130, 10, 0.20)
+        );
+    opacity: 0.50;
     animation: soft-glow 3.8s ease-in-out infinite;
 }
 
-/* 头像 — user v0.2.30.60 原版 box-shadow 4 层 (user 自己设计的 9/24/42 + inset 9, 不是 v0.2.30.55 锁死的 7/18/30)
-   圆心大小 user 允许改 86→100 适配 AI 头像 (跟 listening/speaking 100x100 一致)
-   v0.2.30.71k: avatar 改回 100 (v0.2.30.71h 基准) — user 反馈 v0.2.30.71i 120 太大 + v0.2.30.71j 90 太小
-     v0.2.30.71h 100 + box-shadow 9/24/42 = 142 散光范围 — user 之前接受的基准
-     box-shadow 跟着 avatar 边缘走 (CSS box-shadow 本质), avatar 改 90 让散光 142→132 "光晕视觉小 10px"
-     改回 100 让 box-shadow 散光保持 142 (跟 v0.2.30.71h 一致) — user 期望的"光晕不变"
-   跟 listening/speaking 100x100 头像一致 (v0.2.30.62 锁死) — 跨状态头像大小相同
-   ★ box-shadow 原封不动照抄 user v0.2.30.60 模板 (9/24/42 + inset 9) */
+/* 头像 — user v0.2.30.60 原版 box-shadow 4 层 + v0.2.30.71y 加强扩宽
+   v0.2.30.71y: box-shadow 9/24/42→9/32/60 (更宽更厚) + 各层 alpha 0.95/0.66/0.30→0.95/0.85/0.55 + inset 9→12 + α 0.38→0.55
+     之前散光看着"细而微弱", 加强后散光扩宽到 60px + 各层更亮 + 内阴影更明显
+     深色背景下头像边缘"清晰、明显、饱满" (user 2026-08-25 要求)
+   圆心大小 100x100 不动 (v0.2.30.71k 锁死)
+   跟 listening/speaking 100x100 头像一致 (v0.2.30.62 锁死) — 跨状态头像大小相同 */
 #voice-call-screen .ccw-avatar {
     position: relative;
     width: 100px;
@@ -2088,9 +2112,9 @@
     border: 1px solid rgba(255, 248, 225, 1);
     box-shadow:
         0 0 9px rgba(255, 240, 195, 0.95),
-        0 0 24px rgba(255, 190, 55, 0.66),
-        0 0 42px rgba(255, 155, 25, 0.30),
-        inset 0 0 9px rgba(255, 225, 90, 0.38);
+        0 0 32px rgba(255, 195, 70, 0.85),
+        0 0 60px rgba(255, 165, 35, 0.55),
+        inset 0 0 12px rgba(255, 230, 100, 0.55);
 }
 
 #voice-call-screen .ccw-avatar img {

@@ -1,6 +1,16 @@
 // Service Worker file (sw.js)
 // Whitelist cache strategy: cache only known static assets; API requests pass through.
-// 2026-08-25 v0.2.30.71x (删 mask-type: alpha 修手机 SVG 旋转看不见): bump CACHE_VERSION 强制清缓存
+// 2026-08-25 v0.2.30.71y (旋转动画大幅提亮: blur 缩小聚拢 + opacity 大幅提高 + 多层 drop-shadow 叠加): bump CACHE_VERSION 强制清缓存
+//   user 反馈: "旋转动画是真的在旋转的, 但不明显, 头像外的光很少, 线条也不够明亮, 看不太出来"
+//   user 详细要求: "光晕的尺寸向外扩展得更宽更厚, 提高渐变色彩的不透明度和饱和度, 缩小过大的模糊半径使光线更加聚拢, 叠加多层高亮的发光阴影效果, 确保在深色背景下有清晰、明显且饱满的旋转发光视觉感"
+//   5 处改动 (11 个 ccw-* 规则中):
+//     1. .ccw-glow-base center alpha 0.18→0.32, 各点 +0.10-0.18 (中央暖金雾明显)
+//     2. .ccw-inner-light 各点 alpha +0.10-0.14 + drop-shadow 28→38 + α 0.78→0.95 + opacity 0.82→0.95 (亮光团更亮)
+//     3. .ccw-soft-streak blur 95→72 (聚拢 24%) + opacity 0.38→0.70 (不透明度 +84%) + drop-shadow 55→65/130→165 + 加第 3 层 0 0 35px α0.85 高亮中心
+//     4. .ccw-soft-halo blur 250→180 (聚拢 28%) + opacity 0.20→0.50 (不透明度 +150%) + 加 2 层 drop-shadow 80/200
+//     5. .ccw-avatar box-shadow 9/24/42→9/32/60 (更宽) + 各层 α +0.19-0.25 + inset 9→12 (内阴影更明显)
+//   保留: mask-image 8 点 34%-98% (★★★ 关键遮罩不动) + vortex-spin 2s + vortex-breathe 4.6s + soft-glow 3.8s 关键帧时长
+//   破 v0.2.30.71h "原封不动照抄 user v0.2.30.60 模板" 锁死 — user 2026-08-25 明确要求提亮
 //   user 反馈: "单文件 HTML 完美旋转, voice-call 看不到旋转"
 //   真凶: video-voice-call.css:2020 mask-type: alpha + -webkit-mask-type: alpha (v0.2.30.70 加的桌面 Chrome 兼容性)
 //     跟 transform: rotate() 冲突, iOS Safari SVG 旋转被遮罩, 看不到 6 道流线
@@ -813,7 +823,7 @@
 //   真凶 (user 2026-08-22 00:19): Gemini native 主动信息推送过来是 markdown "```json" 代码�? 旧代码直接用 message 字段显示整段
 //   修法: 解析 message 字段�?markdown + JSON, 多段 text �?多个气泡 (跟主�?chat 一�?
 //   跨项目通用 SOP: 任何 push 路径�?server �?message 字段都应该过 4 段解�? 跟主屏对�?
-const CACHE_VERSION = 'v0.2.30.71x';
+const CACHE_VERSION = 'v0.2.30.71y';
 // (v0.2.26: 推送落进聊天框 �?SW push handler 优先�?data.fixedMessage (不管 messageType) 直接显示真内�?+ �?IndexedDB
 //   + postMessage 主页�?PROACTIVE_WAKE_PUSHED. 真凶: 之前 messageType==='patrol' �?SW �?guided/auto 占位分支,
 //   fixedMessage 字段被忽�? 主页�?handleProactiveWake 又调一�?LLM (浪费 + 通知保持占位).
