@@ -1,6 +1,46 @@
 // Service Worker file (sw.js)
 // Whitelist cache strategy: cache only known static assets; API requests pass through.
-// 2026-08-25 v0.2.30.71y (旋转动画大幅提亮: blur 缩小聚拢 + opacity 大幅提高 + 多层 drop-shadow 叠加): bump CACHE_VERSION 强制清缓存
+// 2026-08-25 v0.2.30.71ac (旋转动画太阳神鸟清晰化: 6 道流线 + 6 道长尾 清晰可辨): bump CACHE_VERSION 强制清缓存
+//   user 反馈: "原来代码有几条线? ... 看着这些线条不明显, 不明显就是糊成一坨, 你把线条按提示词的意思搞明显一点"
+//   user 给"太阳神鸟"4 条 prompt: blur 8-12, 流光头部 0.8-0.9, 弱化内圈大光斑, 6 道流线清晰可辨
+//   4 处改动 (11 个 ccw-* 规则中 4 个):
+//     1. .ccw-soft-streak (6 道核心流线): blur 72→10 (符合 8-12 范围, 之前 72 "糊成一坨") + opacity 0.70→0.85 (起始端 0.8-0.9)
+//        + drop-shadow 3 层 (35/65/165) → 1 层 0 0 18px α0.55 ("适度 drop-shadow 温润光晕", 之前叠光太散)
+//     2. .ccw-soft-halo (6 道外围长尾): blur 180→12 (符合 8-12 范围) + opacity 0.50→0.75
+//        + drop-shadow 2 层 (80/200) → 1 层 0 0 24px α0.40
+//     3. .ccw-glow-base (中心暖金雾): center alpha 0.32→0.20, 各点减 0.08-0.10, blur 24→18 (弱化内圈大光斑)
+//     4. .ccw-inner-light (头像边缘高亮): 各点 alpha 减 0.05-0.10, drop-shadow 38→28 alpha 0.95→0.65, opacity 0.95→0.75
+//     5. .ccw-avatar box-shadow: 9/32/60→9/24/40 + 各层 alpha 减 0.10-0.15 + inset 12→9
+//   结构不变: 12 条 path (6 道核心 + 6 道外围长尾) + 6 角形 60° 旋转分布
+//   头亮尾虚: 保留原 linearGradient (offset 0% α0.72 → 100% α0) + 提高 opacity 0.70/0.50→0.85/0.75 (降 blur 让渐变清晰显示)
+//   风险: 降 blur 让流线变硬, 之前 v0.2.30.60 模板"流线虚"的设计被反转 (user 接受反转, "结构不变, 意思就是把线条搞明显")
+//   user 反馈: "AI 说话时候的呼吸光晕也再亮一点, 用户说话时的呼吸光圈也亮一点"
+//   2 个关键帧改 (保守 +15-20% 避免再次过头):
+//     1. voice-hangup-glow (listening): 0% 外层 170/50 α0.55→200/60 α0.70, 内层 70/18 α0.42→85/22 α0.55
+//        50% 外层 220/70 α0.7→255/80 α0.85, 内层 100/25 α0.55→125/30 α0.70
+//        红色底层 0 4px 16px rgba(255, 59, 48) 不动 (v0.2.30.51 锁死)
+//     2. voice-speaking-glow (speaking): 0% 外层 145/40 α0.50→170/50 α0.62, 内层 60/15 α0.38→78/20 α0.50
+//        50% 外层 188/58 α0.62→220/70 α0.78, 内层 85/20 α0.48→110/28 α0.62
+//   speaking 比 listening 小一档 (已经在 AI 头像 img 100 边缘, 比 listening 挂断键 64 边缘范围小)
+//   破 v0.2.30.71l 锁死值 (145/40→170/50, 188/58→220/70) — user 2026-08-25 反馈"再亮一点"
+//   风险: v0.2.30.69 折中是因为 v0.2.30.67 改亮过头, 这次保守 +15-20% 避免再次过头
+//   user 反馈: "飞行光斑也挪一下, 改成从挂断键起飞, 顺便再搞亮一点, 现在飞行光斑还不够亮不够大"
+//   5 项改动 (transitioning ::before + voice-call-spot-fly 关键帧):
+//     1. voice-call-spot-fly translateY 260→235 (上挪 25px 跟挂断键同步, 从挂断键起飞)
+//     2. voice-call-spot-fly scale 0.75→0.85 起点 / 0.95→1.05 终点 (再大 13%/11%)
+//     3. ::before 容器 250→280 (再大 12%) + margin -125→-140
+//     4. ::before blur 32→40 (再大 25%, 边缘散开更多)
+//     5. ::before 8 点 alpha 累计 +68% (相对 71n 基准 0.50, 中心 0.50→0.84)
+//   风险: 跟 v0.2.30.71d→71f 教训"叠成大光圈"类似, 4 项同时改可能过头, user 验证后回调 (类似 71f 减弱)
+//   user 反馈: "通话界面的挂断键太靠下了, 挪上去一点"
+//   v0.2.30.66 改 bottom 40→50px (往上挪 10px) user 当时接受, 但实际看着还是靠下
+//   v0.2.30.71z: 再往上挪 25px (50→75), 挂断键中心 y 从屏幕底 82→107 (上挪 25px)
+//   不动: width 64 / height 64 / left 50% / transform translateX(-50%) (v0.2.30.66 锁死)
+//   顺带影响: voice-call-spot-fly translateY 260px 是按 v0.2.30.66 挂断键 y=718 算的
+//     v0.2.30.71z 后挂断键 y=693 (上挪 25px), 飞行光斑起点会"从屏幕外底部"飞起来
+//     v0.2.30.68 注释说"之前 360 起点 y=827 在屏幕外底部, vortex 30% 在屏幕内看着像中间飞"
+//     如果 user 验证后发现"飞行光斑起点不对", 改 translateY 260→235 (跟挂断键同步上挪 25px)
+//   user "不忙推" — 改完先验证, 等指示再推
 //   user 反馈: "旋转动画是真的在旋转的, 但不明显, 头像外的光很少, 线条也不够明亮, 看不太出来"
 //   user 详细要求: "光晕的尺寸向外扩展得更宽更厚, 提高渐变色彩的不透明度和饱和度, 缩小过大的模糊半径使光线更加聚拢, 叠加多层高亮的发光阴影效果, 确保在深色背景下有清晰、明显且饱满的旋转发光视觉感"
 //   5 处改动 (11 个 ccw-* 规则中):
@@ -823,7 +863,7 @@
 //   真凶 (user 2026-08-22 00:19): Gemini native 主动信息推送过来是 markdown "```json" 代码�? 旧代码直接用 message 字段显示整段
 //   修法: 解析 message 字段�?markdown + JSON, 多段 text �?多个气泡 (跟主�?chat 一�?
 //   跨项目通用 SOP: 任何 push 路径�?server �?message 字段都应该过 4 段解�? 跟主屏对�?
-const CACHE_VERSION = 'v0.2.30.71y';
+const CACHE_VERSION = 'v0.2.30.71ac';
 // (v0.2.26: 推送落进聊天框 �?SW push handler 优先�?data.fixedMessage (不管 messageType) 直接显示真内�?+ �?IndexedDB
 //   + postMessage 主页�?PROACTIVE_WAKE_PUSHED. 真凶: 之前 messageType==='patrol' �?SW �?guided/auto 占位分支,
 //   fixedMessage 字段被忽�? 主页�?handleProactiveWake 又调一�?LLM (浪费 + 通知保持占位).
