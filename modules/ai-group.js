@@ -641,7 +641,7 @@ ${longTimeNoSee ? `【重要提示】你们已经很久没聊天了！你【必�
 
       console.log(`正在为后台活动发送API请求 ("${chat.name}")`);
 
-      let isGemini = proxyUrl === GEMINI_API_URL;
+      let isGemini = isGeminiNativeUrl(proxyUrl);
       let geminiConfig = toGeminiRequestData(model, apiKey, systemPrompt, messagesPayload);
 
       const response = isGemini ?
@@ -1828,7 +1828,7 @@ ${longTermMemoryContext}
         role: 'user',
         content: systemPrompt
       }];
-      let isGemini = proxyUrl === GEMINI_API_URL;
+      let isGemini = isGeminiNativeUrl(proxyUrl);
       let geminiConfig = toGeminiRequestData(model, apiKey, systemPrompt, messagesPayload);
 
       const response = isGemini ?
@@ -2213,3 +2213,4 @@ ${longTermMemoryContext}
 
   // ========== 全局暴露 (2026-07-18 加) ==========
   // v0.2.18: triggerProactiveMessage 已删, 暴露同步删
+

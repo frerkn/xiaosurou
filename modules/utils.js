@@ -438,6 +438,11 @@ let currentQzoneReplyContext = null;
 let editingNpcId = null;
 let pendingBackupData = null;
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models'
+
+function isGeminiNativeUrl(proxyUrl) {
+    if (!proxyUrl || typeof proxyUrl !== 'string') return false;
+    return proxyUrl.indexOf('/v1beta/models') >= 0 && proxyUrl.indexOf('/v1beta/openai') < 0;
+}
 function findBestStickerMatch(meaning, availableStickers) {
   if (!meaning || !availableStickers || availableStickers.length === 0) {
     return null;

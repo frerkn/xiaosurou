@@ -1959,7 +1959,7 @@ ${linkedContents}
         content: `${getDisplayNameInGroup(chat, msg.senderName)}: ${msg.content}`
       }));
 
-      let isGemini = proxyUrl.includes('generativelanguage.googleapis.com');
+      let isGemini = isGeminiNativeUrl(proxyUrl);
       let response;
 
       if (isGemini) {
@@ -2260,7 +2260,7 @@ ${linkedContents}
 
         try {
           let geminiConfig = toGeminiRequestData(model, apiKey, callDecisionPrompt, messagesForCallDecision);
-          let isGemini = proxyUrl === GEMINI_API_URL;
+          let isGemini = isGeminiNativeUrl(proxyUrl);
           // 判断是否使用后端代理
           const useMainApiProxy = !isGemini
             && typeof window.fetchViaOpenAICompatibleProxy === 'function'
@@ -2426,7 +2426,7 @@ ${linkedContents}
 
         try {
           let geminiConfig = toGeminiRequestData(model, apiKey, callDecisionPrompt, messagesForCallDecision);
-          let isGemini = proxyUrl === GEMINI_API_URL;
+          let isGemini = isGeminiNativeUrl(proxyUrl);
           // 判断是否使用后端代理
           const useMainApiProxy = !isGemini
             && typeof window.fetchViaOpenAICompatibleProxy === 'function'
@@ -2646,7 +2646,7 @@ ${linkedContents}
           }
           ];
 
-          let isGemini = proxyUrl === GEMINI_API_URL;
+          let isGemini = isGeminiNativeUrl(proxyUrl);
           let geminiConfig = toGeminiRequestData(model, apiKey, decisionPrompt, [{
             role: 'user',
             content: "请根据以上设定，立即做出你的决定。"
@@ -4751,7 +4751,7 @@ ${getActiveThoughtsPrompt()}
         }
       }
 
-      let isGemini = proxyUrl === GEMINI_API_URL;
+      let isGemini = isGeminiNativeUrl(proxyUrl);
       let geminiConfig = toGeminiRequestData(model, apiKey, systemPrompt, messagesPayload)
       const currentApiController = currentAiGenerationController;
       const stopBtn = getStopGenerationButton();
@@ -8316,7 +8316,7 @@ ${linkedContents}
         content: `[系统指令：用户按下了"推进"按钮，现在轮到你主动行动了，请继续对话。]`
       });
 
-      let isGemini = proxyUrl === GEMINI_API_URL;
+      let isGemini = isGeminiNativeUrl(proxyUrl);
       let geminiConfig = toGeminiRequestData(model, apiKey, systemPrompt, messagesForApi);
 
       const response = isGemini ?
