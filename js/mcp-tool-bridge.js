@@ -762,7 +762,7 @@
             if (isGeminiNativeRequest(url)) {
                 debugGeminiToast('🟢 Gemini Native 入口: ' + String(url).slice(0, 60), 'info');
                 try {
-                    return await runChatWithToolLoopGemini(url, options);
+                    return await runChatWithToolLoopGemini(url, init);
                 } catch (geminiLoopErr) {
                     debugGeminiToast('❌ Gemini 循环异常: ' + ((geminiLoopErr && geminiLoopErr.message) || String(geminiLoopErr)).slice(0, 80), 'error');
                     console.error('[McpBridge] Gemini 工具循环异常, 回退无工具模式:', geminiLoopErr);
