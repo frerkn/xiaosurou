@@ -40,6 +40,14 @@
     const MAX_CARD_HISTORY = 12;
     const TOOL_LOOP_MAX = 6;
 
+    // Gemini 调试: localStorage MCP_DEBUG_GEMINI !== '0' 时开 (默认开, console 跑 localStorage.setItem('MCP_DEBUG_GEMINI','0') 关闭)
+    const MCP_DEBUG_GEMINI = (typeof localStorage !== 'undefined' && localStorage.getItem('MCP_DEBUG_GEMINI') !== '0');
+    function debugGeminiToast(msg, type) {
+        if (!MCP_DEBUG_GEMINI) return;
+        try { if (typeof window.showToast === 'function') window.showToast(msg, type || 'info', 8000); } catch (e) {}
+        try { console.log('[Gemini Debug]', msg); } catch (e) {}
+    }
+
     // ========== 工具命名 (跟糯米机 sanitizeToolName / serverSlug 等价) ==========
 
     function sanitizeToolName(name) {
@@ -458,6 +466,7 @@
         let lastRespData = null;
         let lastResp = null;
         emitProgress({ phase: 'session_start', summary: 'Gemini 已合并 ' + tools.length + ' 个 MCP 工具' });
+        debugGeminiToast('🔧 Gemini 合并 ' + tools.length + ' 个工具, systemInstruction ' + (geminiBody.systemInstruction.parts[0].text.length) + ' 字符, tools 顶层 ' + (geminiBody.tools ? JSON.stringify(geminiBody.tools).length : 0) + ' 字符', 'info');
 
         while (iteration < TOOL_LOOP_MAX) {
             iteration++;
@@ -524,6 +533,7 @@
                         continue;
                     }
                     emitProgress({ phase: 'tool_start', toolName: fn, summary: summarizeToolAction(resolved.toolName, args) });
+                    try { console.log('[Gemini Debug] tool_start', fn, summarizeToolAction(resolved.toolName, args)); } catch (e) {}
                     let callResult;
                     try {
                         callResult = await global.McpGenericClient.callTool(resolved.server, resolved.toolName, args);
@@ -538,6 +548,7 @@
                             ? summarizeToolResult(resolved.toolName, callResult)
                             : ('失败: ' + (callResult.error || '')).slice(0, 80),
                     });
+                    try { console.log('[Gemini Debug] tool_' + (callResult.success ? 'ok' : 'err'), fn, callResult.success ? summarizeToolResult(resolved.toolName, callResult) : callResult.error); } catch (e) {}
                     functionResponseParts.push({
                         functionResponse: {
                             name: resolved.toolName,
@@ -551,6 +562,7 @@
                 if (err && err.name === 'AbortError') {
                     if (timedOut) {
                         emitProgress({ phase: 'session_done', summary: 'Gemini 单轮超时, 回退无工具模式' });
+                        debugGeminiToast('⏰ Gemini 单轮 90s 超时, 回退无工具模式', 'error');
                         return (originalFetch || fetch)(url, options);
                     }
                     throw err;
@@ -559,6 +571,7 @@
             }
         }
         emitProgress({ phase: 'session_done', summary: '达到工具循环上限, 安全退出' });
+        debugGeminiToast('⏰ Gemini 工具循环达上限 6 轮', 'error');
         return wrapAsJsonResp(lastRespData || { error: 'no_response' }, lastResp);
     }
 
@@ -740,9 +753,11 @@
                 return originalFetch.apply(this, arguments);
             }
             if (isGeminiNativeRequest(url)) {
+                debugGeminiToast('🟢 Gemini Native 入口: ' + String(url).slice(0, 60), 'info');
                 try {
                     return await runChatWithToolLoopGemini(url, options);
                 } catch (geminiLoopErr) {
+                    debugGeminiToast('❌ Gemini 循环异常: ' + ((geminiLoopErr && geminiLoopErr.message) || String(geminiLoopErr)).slice(0, 80), 'error');
                     console.error('[McpBridge] Gemini 工具循环异常, 回退无工具模式:', geminiLoopErr);
                     try { emitProgress({ phase: 'session_done', summary: 'Gemini 循环异常, 回退' }); } catch (e) {}
                     return originalFetch.apply(this, arguments);
