@@ -448,8 +448,8 @@
     }
 
     // Gemini native 调工具主循环 (systemInstruction 顶级字段 + 每轮 90s 独立 timer + functionResponse.response 严格 object)
-    async function runChatWithToolLoopGemini(url, options) {
-        if (!global.McpGenericClient) return (originalFetch || fetch)(url, options);
+    async function runChatWithToolLoopGemini(url, init) {
+        if (!global.McpGenericClient) return (originalFetch || fetch)(url, init);
         const built = buildMcpOpenAITools();
         const tools = built.tools;
         const resolve = built.resolve;
@@ -488,7 +488,7 @@
         while (iteration < TOOL_LOOP_MAX) {
             iteration++;
             const controller = new AbortController();
-            const externalSignal = options && options.signal;
+            const externalSignal = init && init.signal;
             const onExternalAbort = () => { try { controller.abort(); } catch (e) {} };
             if (externalSignal) {
                 if (externalSignal.aborted) {
@@ -500,7 +500,7 @@
             const timer = setTimeout(() => { timedOut = true; controller.abort(); }, SINGLE_ROUND_TIMEOUT_MS);
 
             try {
-                const iterHeaders = Object.assign({ 'Content-Type': 'application/json' }, (options && options.headers) || {});
+                const iterHeaders = Object.assign({ 'Content-Type': 'application/json' }, (init && init.headers) || {});
                 const resp = await fetchForLLM(url, {
                     method: 'POST',
                     headers: iterHeaders,
@@ -580,7 +580,7 @@
                     if (timedOut) {
                         emitProgress({ phase: 'session_done', summary: 'Gemini 单轮超时, 回退无工具模式' });
                         debugGeminiToast('⏰ Gemini 单轮 90s 超时, 回退无工具模式', 'error');
-                        return (originalFetch || fetch)(url, options);
+                        return (originalFetch || fetch)(url, init);
                     }
                     throw err;
                 }
