@@ -41,10 +41,17 @@
     const TOOL_LOOP_MAX = 6;
 
     // Gemini 调试: localStorage MCP_DEBUG_GEMINI !== '0' 时开 (默认开, console 跑 localStorage.setItem('MCP_DEBUG_GEMINI','0') 关闭)
+    // PWA 适配: 错误用 showCustomAlert 模态 (必须点 OK 才能继续, 保证看到 + 截图), 成功用 15 秒 toast, 工具调过程用 console.log
     const MCP_DEBUG_GEMINI = (typeof localStorage !== 'undefined' && localStorage.getItem('MCP_DEBUG_GEMINI') !== '0');
     function debugGeminiToast(msg, type) {
         if (!MCP_DEBUG_GEMINI) return;
-        try { if (typeof window.showToast === 'function') window.showToast(msg, type || 'info', 8000); } catch (e) {}
+        try {
+            if (type === 'error' && typeof window.showCustomAlert === 'function') {
+                window.showCustomAlert('[Gemini 调试]', msg);
+            } else if (typeof window.showToast === 'function') {
+                window.showToast(msg, type || 'info', 15000);
+            }
+        } catch (e) {}
         try { console.log('[Gemini Debug]', msg); } catch (e) {}
     }
 
