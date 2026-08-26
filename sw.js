@@ -26,6 +26,10 @@ const URLS_TO_CACHE = [
   './js/mcp-ui-list.js',
   // v0.1.55 新增: MCP 菜单卡片渲染（粉白色系浮动按�?+ 全屏 sheet�?
   './js/mcp-menu-card.js',
+  './js/mcp-pay-card.js',
+  './js/mcp-tool-call-log.js',
+  // v0.2.31.9: 工具调用实时进度 (紧跟 AI 气泡, 完成后移除)
+  './js/mcp-tool-progress.js',
   './css/mcp-miniapp-pink.css',
   // v0.1.30 新增：Live2D 视频通话（cubism 引擎 + loader + 视频通话主文件）
   './lib/live2dcubismcore.min.js',
