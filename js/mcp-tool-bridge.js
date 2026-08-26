@@ -453,19 +453,29 @@
         const built = buildMcpOpenAITools();
         const tools = built.tools;
         const resolve = built.resolve;
-        if (!tools.length) return (originalFetch || fetch)(url, options);
+        if (!tools.length) return (originalFetch || fetch)(url, init);
 
         let baseBody;
-        try { baseBody = JSON.parse(options.body); }
-        catch (e) { return (originalFetch || fetch)(url, options); }
+        try { baseBody = JSON.parse(init.body); }
+        catch (e) { return (originalFetch || fetch)(url, init); }
 
-        const converted = convertOpenAIMessagesToGemini(baseBody.messages);
         const append = buildMcpSystemBlock() + '\n' + MCP_TAIL_REMINDER;
-        const geminiBody = {
-            contents: converted.contents,
-            systemInstruction: { parts: [{ text: (converted.systemText ? converted.systemText + '\n\n' : '') + append }] },
-            tools: openAIToolsToGemini(tools),
-        };
+        // 2026-08-26 fix: ai-response.js 调 Gemini 时 body 已经是 Gemini 格式 ({contents:[...]}),
+        // 不是 OpenAI 格式 ({messages:[...]}). 直接用 + 添加工具, 不要走 OpenAI 转换 (会拿不到 contents)
+        let geminiBody;
+        if (Array.isArray(baseBody.contents)) {
+            geminiBody = Object.assign({}, baseBody);
+            geminiBody.tools = openAIToolsToGemini(tools);
+            const origText = (geminiBody.systemInstruction && geminiBody.systemInstruction.parts && geminiBody.systemInstruction.parts[0] && geminiBody.systemInstruction.parts[0].text) || '';
+            geminiBody.systemInstruction = { parts: [{ text: (origText ? origText + '\n\n' : '') + append }] };
+        } else {
+            const converted = convertOpenAIMessagesToGemini(baseBody.messages);
+            geminiBody = {
+                contents: converted.contents,
+                systemInstruction: { parts: [{ text: (converted.systemText ? converted.systemText + '\n\n' : '') + append }] },
+                tools: openAIToolsToGemini(tools),
+            };
+        }
 
         const fetchForLLM = originalFetch || fetch;
         const SINGLE_ROUND_TIMEOUT_MS = 90000;
