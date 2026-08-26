@@ -364,6 +364,204 @@
     //   user 决定: 放弃 Gemini 调工具, 走 v0.1.69 行为 — Gemini native 永远 bypass
     //   调工具用 M3 / Gemini OpenAI 兼容端点 / 公益站 (这些都是 OpenAI 风格, 走 runChatWithToolLoop)
 
+    // ========== Gemini 调工具 ==========
+
+    // type 大写 (Gemini proto3 枚举要求 STRING/INTEGER/OBJECT, OpenAI 给小写)
+    function convertSchemaToGemini(schema) {
+        if (!schema || typeof schema !== 'object') return { type: 'OBJECT', properties: {} };
+        const typeMap = {
+            'string': 'STRING', 'number': 'NUMBER', 'integer': 'INTEGER',
+            'boolean': 'BOOLEAN', 'object': 'OBJECT', 'array': 'ARRAY',
+            'STRING': 'STRING', 'NUMBER': 'NUMBER', 'INTEGER': 'INTEGER',
+            'BOOLEAN': 'BOOLEAN', 'OBJECT': 'OBJECT', 'ARRAY': 'ARRAY',
+        };
+        const rawType = schema.type || 'object';
+        const out = { type: typeMap[String(rawType).toLowerCase()] || 'TYPE_UNSPECIFIED' };
+        if (schema.description) out.description = schema.description;
+        if (Array.isArray(schema.enum)) {
+            out.enum = schema.enum.map(function (v) { return String(v); });
+        }
+        if (schema.properties) {
+            out.properties = {};
+            for (const k in schema.properties) {
+                out.properties[k] = convertSchemaToGemini(schema.properties[k]);
+            }
+        }
+        if (Array.isArray(schema.required)) out.required = schema.required;
+        if (schema.items) out.items = convertSchemaToGemini(schema.items);
+        return out;
+    }
+
+    // OpenAI function-calling tools[] → Gemini tools[{functionDeclarations}]
+    function openAIToolsToGemini(openAITools) {
+        const declarations = (openAITools || []).map(function (t) {
+            if (!t || t.type !== 'function') return null;
+            const f = t.function || {};
+            return {
+                name: f.name,
+                description: f.description || '',
+                parameters: convertSchemaToGemini(f.parameters || { type: 'object', properties: {} })
+            };
+        }).filter(Boolean);
+        if (!declarations.length) return undefined;
+        return [{ functionDeclarations: declarations }];
+    }
+
+    // 工具结果 → JSON Object 包装 (Gemini functionResponse.response 必须 object, 塞 string 必 400)
+    function formatGeminiFunctionResponseContent(callResult) {
+        if (!callResult || !callResult.success) {
+            return { success: false, error: (callResult && callResult.error) || '工具调用失败' };
+        }
+        return { success: true, result: formatMcpToolResult(callResult.data) };
+    }
+
+    // OpenAI messages → Gemini {contents, systemText} (第一版只处理 system/user/assistant 纯文本)
+    function convertOpenAIMessagesToGemini(messages) {
+        const contents = [];
+        let systemText = '';
+        for (const m of (messages || [])) {
+            if (!m || !m.role) continue;
+            if (m.role === 'system' || m.role === 'developer') {
+                systemText += (systemText ? '\n\n' : '') + (m.content || '');
+            } else if (m.role === 'user') {
+                contents.push({ role: 'user', parts: [{ text: String(m.content || '') }] });
+            } else if (m.role === 'assistant') {
+                contents.push({ role: 'model', parts: [{ text: String(m.content || '') }] });
+            }
+        }
+        return { contents: contents, systemText: systemText };
+    }
+
+    // Gemini native 调工具主循环 (systemInstruction 顶级字段 + 每轮 90s 独立 timer + functionResponse.response 严格 object)
+    async function runChatWithToolLoopGemini(url, options) {
+        if (!global.McpGenericClient) return (originalFetch || fetch)(url, options);
+        const built = buildMcpOpenAITools();
+        const tools = built.tools;
+        const resolve = built.resolve;
+        if (!tools.length) return (originalFetch || fetch)(url, options);
+
+        let baseBody;
+        try { baseBody = JSON.parse(options.body); }
+        catch (e) { return (originalFetch || fetch)(url, options); }
+
+        const converted = convertOpenAIMessagesToGemini(baseBody.messages);
+        const append = buildMcpSystemBlock() + '\n' + MCP_TAIL_REMINDER;
+        const geminiBody = {
+            contents: converted.contents,
+            systemInstruction: { parts: [{ text: (converted.systemText ? converted.systemText + '\n\n' : '') + append }] },
+            tools: openAIToolsToGemini(tools),
+        };
+
+        const fetchForLLM = originalFetch || fetch;
+        const SINGLE_ROUND_TIMEOUT_MS = 90000;
+        let iteration = 0;
+        let lastRespData = null;
+        let lastResp = null;
+        emitProgress({ phase: 'session_start', summary: 'Gemini 已合并 ' + tools.length + ' 个 MCP 工具' });
+
+        while (iteration < TOOL_LOOP_MAX) {
+            iteration++;
+            const controller = new AbortController();
+            const externalSignal = options && options.signal;
+            const onExternalAbort = () => { try { controller.abort(); } catch (e) {} };
+            if (externalSignal) {
+                if (externalSignal.aborted) {
+                    const err = new Error('aborted'); err.name = 'AbortError'; throw err;
+                }
+                externalSignal.addEventListener('abort', onExternalAbort, { once: true });
+            }
+            let timedOut = false;
+            const timer = setTimeout(() => { timedOut = true; controller.abort(); }, SINGLE_ROUND_TIMEOUT_MS);
+
+            try {
+                const iterHeaders = Object.assign({ 'Content-Type': 'application/json' }, (options && options.headers) || {});
+                const resp = await fetchForLLM(url, {
+                    method: 'POST',
+                    headers: iterHeaders,
+                    body: JSON.stringify(geminiBody),
+                    signal: controller.signal,
+                });
+                clearTimeout(timer);
+                if (externalSignal) externalSignal.removeEventListener('abort', onExternalAbort);
+                lastResp = resp;
+                if (!resp.ok) return resp;
+                const data = await resp.json();
+                lastRespData = data;
+
+                const candidate = data.candidates && data.candidates[0];
+                if (!candidate) {
+                    emitProgress({ phase: 'session_done', summary: 'Gemini 响应无 candidate' });
+                    return wrapAsJsonResp(data, resp);
+                }
+                const parts = (candidate.content && candidate.content.parts) || [];
+                const functionCalls = parts.filter(p => p && p.functionCall);
+                if (functionCalls.length === 0) {
+                    emitProgress({ phase: 'session_done', summary: 'AI 已完成' });
+                    return wrapAsJsonResp(data, resp);
+                }
+
+                // 把整轮 model parts 推回 (含 text + functionCall, 按 Gemini 响应顺序)
+                const modelParts = [];
+                for (const p of parts) {
+                    if (p && p.text !== undefined) modelParts.push({ text: p.text });
+                    else if (p && p.functionCall) {
+                        modelParts.push({ functionCall: { name: p.functionCall.name, args: p.functionCall.args || {} } });
+                    }
+                }
+                geminiBody.contents.push({ role: 'model', parts: modelParts });
+
+                // 调所有工具, 收集 functionResponse parts (按 Gemini 响应顺序, response 严格 object)
+                const functionResponseParts = [];
+                for (const fc of functionCalls) {
+                    const fn = fc.functionCall.name;
+                    const args = fc.functionCall.args || {};
+                    const resolved = resolve.get(fn);
+                    if (!resolved) {
+                        emitProgress({ phase: 'tool_err', toolName: fn, summary: '工具未注册: ' + fn });
+                        functionResponseParts.push({
+                            functionResponse: { name: fn, response: { success: false, error: '工具未注册: ' + fn } }
+                        });
+                        continue;
+                    }
+                    emitProgress({ phase: 'tool_start', toolName: fn, summary: summarizeToolAction(resolved.toolName, args) });
+                    let callResult;
+                    try {
+                        callResult = await global.McpGenericClient.callTool(resolved.server, resolved.toolName, args);
+                    } catch (e) {
+                        callResult = { success: false, error: '工具调用异常: ' + ((e && e.message) || String(e)) };
+                    }
+                    emitCardMessage(resolved.server, resolved.toolName, args, callResult);
+                    emitProgress({
+                        phase: callResult.success ? 'tool_ok' : 'tool_err',
+                        toolName: fn,
+                        summary: callResult.success
+                            ? summarizeToolResult(resolved.toolName, callResult)
+                            : ('失败: ' + (callResult.error || '')).slice(0, 80),
+                    });
+                    functionResponseParts.push({
+                        functionResponse: {
+                            name: resolved.toolName,
+                            response: formatGeminiFunctionResponseContent(callResult),
+                        }
+                    });
+                }
+                geminiBody.contents.push({ role: 'function', parts: functionResponseParts });
+            } catch (err) {
+                clearTimeout(timer);
+                if (err && err.name === 'AbortError') {
+                    if (timedOut) {
+                        emitProgress({ phase: 'session_done', summary: 'Gemini 单轮超时, 回退无工具模式' });
+                        return (originalFetch || fetch)(url, options);
+                    }
+                    throw err;
+                }
+                throw err;
+            }
+        }
+        emitProgress({ phase: 'session_done', summary: '达到工具循环上限, 安全退出' });
+        return wrapAsJsonResp(lastRespData || { error: 'no_response' }, lastResp);
+    }
+
     async function runChatWithToolLoop(url, options) {
         if (!global.McpGenericClient) {
             return (originalFetch || fetch)(url, options);
@@ -542,8 +740,13 @@
                 return originalFetch.apply(this, arguments);
             }
             if (isGeminiNativeRequest(url)) {
-                // Gemini native 永远 bypass (v0.1.69 行为)
-                return originalFetch.apply(this, arguments);
+                try {
+                    return await runChatWithToolLoopGemini(url, options);
+                } catch (geminiLoopErr) {
+                    console.error('[McpBridge] Gemini 工具循环异常, 回退无工具模式:', geminiLoopErr);
+                    try { emitProgress({ phase: 'session_done', summary: 'Gemini 循环异常, 回退' }); } catch (e) {}
+                    return originalFetch.apply(this, arguments);
+                }
             }
 
             const servers = global.McpGenericClient.getEnabledServers();
@@ -640,6 +843,34 @@
         }
     }
 
+    // 诊断: 不发请求, 返回 Gemini body 转换结果, 用户在 console 跑看对不对
+    function debugGeminiToolLoop(options) {
+        if (!options || !options.body) return { error: 'options.body 缺失' };
+        if (!global.McpGenericClient) return { error: 'McpGenericClient 未加载' };
+        const built = buildMcpOpenAITools();
+        const tools = built.tools;
+        if (!tools.length) return { error: '没有 enabled MCP 工具' };
+
+        let baseBody;
+        try { baseBody = JSON.parse(options.body); } catch (e) { return { error: 'body 不是合法 JSON: ' + e.message }; }
+
+        const converted = convertOpenAIMessagesToGemini(baseBody.messages);
+        const append = buildMcpSystemBlock() + '\n' + MCP_TAIL_REMINDER;
+        const geminiBody = {
+            contents: converted.contents,
+            systemInstruction: { parts: [{ text: (converted.systemText ? converted.systemText + '\n\n' : '') + append }] },
+            tools: openAIToolsToGemini(tools),
+        };
+
+        return {
+            ok: true,
+            exposedToolsCount: tools.length,
+            exposedToolNames: tools.map(t => t.function.name),
+            geminiBody: geminiBody,
+            geminiBodySize: JSON.stringify(geminiBody).length,
+        };
+    }
+
     // ========== 暴露 API ==========
 
     global.McpBridge = {
@@ -668,6 +899,7 @@
         // 诊断
         getStatus: getStatus,
         resetAll: resetAll,
+        debugGeminiToolLoop: debugGeminiToolLoop,
         lastInterceptLog: lastInterceptLog,
     };
 
