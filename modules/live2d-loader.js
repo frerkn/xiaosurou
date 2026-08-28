@@ -65,6 +65,15 @@ async function mountLive2D(canvas, modelPath, options) {
     });
 
     // Live2DModel.from 加载 model3.json + 解析引用
+    // 兜底 monkey patch: PIXI v8.6+ 移除了 renderer.geometry.resetState, untitled engine 1.3.5 内部还在调
+    if (app.renderer && app.renderer.geometry && typeof app.renderer.geometry.resetState !== 'function') {
+      app.renderer.geometry.resetState = function () {
+        if (app.renderer.runners && app.renderer.runners.reset && typeof app.renderer.runners.reset.emit === 'function') {
+          try { app.renderer.runners.reset.emit(); } catch (e) {}
+        }
+      };
+      _log('info', 'monkey patch: renderer.geometry.resetState stub 已加 (PIXI v8.6+ 兼容)');
+    }
     const model = await Live2DModel.from(modelPath, {
       idleMotionGroup: 'Idle',
       // 关 mipmap 省 33% 显存 (纹理上限 8192 时很关键)
