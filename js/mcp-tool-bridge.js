@@ -526,12 +526,18 @@
                     return wrapAsJsonResp(data, resp);
                 }
 
-                // 把整轮 model parts 推回 (含 text + functionCall, 按 Gemini 响应顺序)
+                // 把整轮 model parts 推回 (含 text + functionCall + thoughtSignature, 按 Gemini 响应顺序)
+                // Gemini 2.5+/3.x: thoughtSignature 必须完整保留回传 (part 级别), 否则下一轮 400 'missing thought_signature'
                 const modelParts = [];
                 for (const p of parts) {
-                    if (p && p.text !== undefined) modelParts.push({ text: p.text });
-                    else if (p && p.functionCall) {
-                        modelParts.push({ functionCall: { name: p.functionCall.name, args: p.functionCall.args || {} } });
+                    if (p && p.text !== undefined) {
+                        const part = { text: p.text };
+                        if (p.thoughtSignature) part.thoughtSignature = p.thoughtSignature;
+                        modelParts.push(part);
+                    } else if (p && p.functionCall) {
+                        const part = { functionCall: { name: p.functionCall.name, args: p.functionCall.args || {} } };
+                        if (p.thoughtSignature) part.thoughtSignature = p.thoughtSignature;
+                        modelParts.push(part);
                     }
                 }
                 geminiBody.contents.push({ role: 'model', parts: modelParts });
