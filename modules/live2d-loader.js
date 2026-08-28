@@ -114,24 +114,38 @@ async function mountLive2D(canvas, modelPath, options) {
     // 渲染诊断: 1s/3s 后看 model 实际状态, 排查 race condition
     setTimeout(() => {
       const internal = model && model.internalModel;
-      const renderer = internal && internal.renderer;
       const stage = app.stage;
       const canvasRect = canvas.getBoundingClientRect();
       const hasInStage = stage && stage.children && stage.children.indexOf(model) >= 0;
-      const texCount = (model.textures || []).length;
-      const texReady = (model.textures || []).filter((t) => t && t.source && !t.source.destroyed).length;
-      const m = model.internalModel && model.internalModel.coreModel;
+      const texs = (model.textures || []);
+      // PIXI v8 texture 真实尺寸检查 (t.width/t.height 是 PIXI 算的, 比 source 更准)
+      const texInfo = texs.map((t, i) => {
+        if (!t) return `${i}=null`;
+        const w = t.width || 0;
+        const h = t.height || 0;
+        const v = t.valid;
+        return `${i}=${w}x${h}${v ? '✓' : '✗'}`;
+      }).join(', ');
       const originalW = internal && internal.originalWidth;
       const originalH = internal && internal.originalHeight;
       const bounds = model.getBounds ? model.getBounds() : null;
-      _log('info', `1s 后: texReady ${texReady}/${texCount}, inStage=${hasInStage}, originalCanvas=${originalW}x${originalH}, bounds=${bounds ? `${Math.round(bounds.width)}x${Math.round(bounds.height)}` : 'null'}, canvasRect=${Math.round(canvasRect.width)}x${Math.round(canvasRect.height)}@${Math.round(canvasRect.top)},${Math.round(canvasRect.left)}, display=${getComputedStyle(canvas).display}, visibility=${getComputedStyle(canvas).visibility}, opacity=${getComputedStyle(canvas).opacity}, z=${getComputedStyle(canvas).zIndex}`);
+      const tickerStarted = app.ticker && app.ticker.started;
+      const rendererType = app.renderer && app.renderer.type;
+      const ctxLost = canvas.getContext && canvas.getContext('webgl2') ? false : (canvas.getContext && canvas.getContext('webgl') ? false : '?');
+      // 主动调一次 render 确认 PIXI 渲染循环
+      try { app.renderer.render(app.stage); _log('info', `1s 后: 主动 render ok, tickerStarted=${tickerStarted}, rendererType=${rendererType}`); } catch (e) { _log('err', `主动 render 失败: ${e && e.message}`); }
+      _log('info', `1s 后: tex=[${texInfo}], inStage=${hasInStage}, originalCanvas=${originalW}x${originalH}, bounds=${bounds ? `${Math.round(bounds.width)}x${Math.round(bounds.height)}` : 'null'}, canvasRect=${Math.round(canvasRect.width)}x${Math.round(canvasRect.height)}@${Math.round(canvasRect.top)},${Math.round(canvasRect.left)}`);
     }, 1000);
     setTimeout(() => {
       const stage = app.stage;
       const hasInStage = stage && stage.children && stage.children.indexOf(model) >= 0;
-      const texReady = (model.textures || []).filter((t) => t && t.source && !t.source.destroyed).length;
-      const texCount = (model.textures || []).length;
-      _log(texReady > 0 ? 'ok' : 'err', `3s 后: texReady ${texReady}/${texCount}, inStage=${hasInStage}`);
+      const texs = (model.textures || []);
+      const texInfo = texs.map((t, i) => {
+        if (!t) return `${i}=null`;
+        return `${i}=${t.width || 0}x${t.height || 0}${t.valid ? '✓' : '✗'}`;
+      }).join(', ');
+      const allValid = texs.length > 0 && texs.every((t) => t && t.valid && t.width > 0);
+      _log(allValid ? 'ok' : 'err', `3s 后: tex=[${texInfo}], inStage=${hasInStage}, ticker=${app.ticker && app.ticker.started ? 'on' : 'OFF'}`);
     }, 3000);
 
     console.log('[Live2D v0.2.0] mounted:', modelPath, 'size:', w, 'x', h, 'frames:', frameWait);
