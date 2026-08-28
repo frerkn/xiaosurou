@@ -112,9 +112,11 @@ async function mountLive2D(canvas, modelPath, options) {
     canvas._live2dModel = model;
 
     console.log('[Live2D v0.2.0] mounted:', modelPath, 'size:', w, 'x', h, 'frames:', frameWait);
+    _log('ok', `mounted: ${modelPath} (canvas ${w}x${h}, model ${Math.round(model.width)}x${Math.round(model.height)})`);
     return { success: true, app, model };
   } catch (err) {
     console.warn('[Live2D] mount failed:', err, 'path:', modelPath);
+    _log('err', `mount 失败: ${err && err.message ? err.message : String(err)}`);
     return { success: false, error: err };
   }
 }
@@ -128,6 +130,7 @@ function disposeLive2D(canvas) {
   }
   canvas._live2dApp = null;
   canvas._live2dModel = null;
+  _log('dim', 'disposed');
   return true;
 }
 
@@ -168,6 +171,28 @@ function setExpression(canvas, expressionId) {
 
 function isMounted(canvas) {
   return !!(canvas && canvas._live2dApp);
+}
+
+// v0.2.0 P1 临时诊断浮窗 — 手机 PWA 没 console, 临时挂画面顶上, 验证完删/包 dev mode
+const _diag = (() => {
+  if (typeof document === 'undefined') return null;
+  const el = document.createElement('div');
+  el.dataset.live2dDiag = '1';
+  el.style.cssText = 'position:fixed;top:env(safe-area-inset-top,0);left:0;right:0;z-index:2147483647;padding:8px 12px;font:13px/1.4 -apple-system,system-ui,sans-serif;color:#fff;background:rgba(20,20,28,.92);border-bottom:1px solid rgba(255,255,255,.15);word-break:break-all;pointer-events:none;white-space:pre-wrap;max-height:30vh;overflow:auto;';
+  document.body.appendChild(el);
+  return el;
+})();
+function _log(level, msg) {
+  if (!_diag) return;
+  const colors = { ok: '#7ee787', err: '#ff7b72', info: '#d2a8ff', dim: '#8b949e' };
+  const icon = { ok: '✓', err: '✗', info: '·', dim: '·' };
+  const time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+  const line = document.createElement('div');
+  line.style.cssText = `color:${colors[level] || '#fff'}`;
+  line.textContent = `${icon[level] || '·'} ${time}  ${msg}`;
+  _diag.appendChild(line);
+  while (_diag.children.length > 6) _diag.removeChild(_diag.firstChild);
+  if (level === 'err') console.warn('[Live2D-diag]', msg);
 }
 
 window.Live2DLoader = {
