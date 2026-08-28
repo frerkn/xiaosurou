@@ -40,21 +40,6 @@
     const MAX_CARD_HISTORY = 12;
     const TOOL_LOOP_MAX = 6;
 
-    // Gemini 调试: localStorage MCP_DEBUG_GEMINI !== '0' 时开 (默认开, console 跑 localStorage.setItem('MCP_DEBUG_GEMINI','0') 关闭)
-    // PWA 适配: 错误用 showCustomAlert 模态 (必须点 OK 才能继续, 保证看到 + 截图), 成功用 15 秒 toast, 工具调过程用 console.log
-    const MCP_DEBUG_GEMINI = (typeof localStorage !== 'undefined' && localStorage.getItem('MCP_DEBUG_GEMINI') !== '0');
-    function debugGeminiToast(msg, type) {
-        if (!MCP_DEBUG_GEMINI) return;
-        try {
-            if (type === 'error' && typeof window.showCustomAlert === 'function') {
-                window.showCustomAlert('[Gemini 调试]', msg);
-            } else if (typeof window.showToast === 'function') {
-                window.showToast(msg, type || 'info', 15000);
-            }
-        } catch (e) {}
-        try { console.log('[Gemini Debug]', msg); } catch (e) {}
-    }
-
     // ========== 工具命名 (跟糯米机 sanitizeToolName / serverSlug 等价) ==========
 
     function sanitizeToolName(name) {
@@ -556,7 +541,6 @@
                         continue;
                     }
                     emitProgress({ phase: 'tool_start', toolName: fn, summary: summarizeToolAction(resolved.toolName, args) });
-                    try { console.log('[Gemini Debug] tool_start', fn, summarizeToolAction(resolved.toolName, args)); } catch (e) {}
                     let callResult;
                     try {
                         callResult = await global.McpGenericClient.callTool(resolved.server, resolved.toolName, args);
@@ -571,7 +555,6 @@
                             ? summarizeToolResult(resolved.toolName, callResult)
                             : ('失败: ' + (callResult.error || '')).slice(0, 80),
                     });
-                    try { console.log('[Gemini Debug] tool_' + (callResult.success ? 'ok' : 'err'), fn, callResult.success ? summarizeToolResult(resolved.toolName, callResult) : callResult.error); } catch (e) {}
                     functionResponseParts.push({
                         functionResponse: {
                             name: resolved.toolName,
@@ -585,7 +568,6 @@
                 if (err && err.name === 'AbortError') {
                     if (timedOut) {
                         emitProgress({ phase: 'session_done', summary: 'Gemini 单轮超时, 回退无工具模式' });
-                        debugGeminiToast('⏰ Gemini 单轮 90s 超时, 回退无工具模式', 'error');
                         return (originalFetch || fetch)(url, init);
                     }
                     throw err;
@@ -594,7 +576,6 @@
             }
         }
         emitProgress({ phase: 'session_done', summary: '达到工具循环上限, 安全退出' });
-        debugGeminiToast('⏰ Gemini 工具循环达上限 6 轮', 'error');
         return wrapAsJsonResp(lastRespData || { error: 'no_response' }, lastResp);
     }
 
@@ -881,34 +862,6 @@
         }
     }
 
-    // 诊断: 不发请求, 返回 Gemini body 转换结果, 用户在 console 跑看对不对
-    function debugGeminiToolLoop(options) {
-        if (!options || !options.body) return { error: 'options.body 缺失' };
-        if (!global.McpGenericClient) return { error: 'McpGenericClient 未加载' };
-        const built = buildMcpOpenAITools();
-        const tools = built.tools;
-        if (!tools.length) return { error: '没有 enabled MCP 工具' };
-
-        let baseBody;
-        try { baseBody = JSON.parse(options.body); } catch (e) { return { error: 'body 不是合法 JSON: ' + e.message }; }
-
-        const converted = convertOpenAIMessagesToGemini(baseBody.messages);
-        const append = buildMcpSystemBlock() + '\n' + MCP_TAIL_REMINDER;
-        const geminiBody = {
-            contents: converted.contents,
-            systemInstruction: { parts: [{ text: (converted.systemText ? converted.systemText + '\n\n' : '') + append }] },
-            tools: openAIToolsToGemini(tools),
-        };
-
-        return {
-            ok: true,
-            exposedToolsCount: tools.length,
-            exposedToolNames: tools.map(t => t.function.name),
-            geminiBody: geminiBody,
-            geminiBodySize: JSON.stringify(geminiBody).length,
-        };
-    }
-
     // ========== 暴露 API ==========
 
     global.McpBridge = {
@@ -937,7 +890,6 @@
         // 诊断
         getStatus: getStatus,
         resetAll: resetAll,
-        debugGeminiToolLoop: debugGeminiToolLoop,
         lastInterceptLog: lastInterceptLog,
     };
 
