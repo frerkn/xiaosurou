@@ -135,7 +135,7 @@ self.addEventListener('fetch', event => {
     url.includes('i.postimg.cc/') ||
     url.includes('img.baidu.re/') ||
     // v0.2.0 更新：Live2D 引擎 (PIXI v8 + untitled-pixi-live2d-engine + Cubism Core 5/6)
-    url.includes('cdn.jsdelivr.net/npm/pixi.js@8') ||
+    url.includes('cdn.jsdelivr.net/npm/pixi.js@8.0.0') ||
     url.includes('cdn.jsdelivr.net/npm/untitled-pixi-live2d-engine') ||
     url.includes('cubism.live2d.com/sdk-web/core');
 
