@@ -3,7 +3,7 @@
 // CACHE_VERSION bump 强制清缓存
 // 关键约束: URLS_TO_CACHE 增删需同步 sw.js 注释 + ?v= 版本号
 
-const CACHE_VERSION = 'v0.2.31.17';
+const CACHE_VERSION = 'v0.2.31.18';
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [
@@ -31,8 +31,8 @@ const URLS_TO_CACHE = [
   // v0.2.31.9: 工具调用实时进度 (紧跟 AI 气泡, 完成后移除)
   './js/mcp-tool-progress.js',
   './css/mcp-miniapp-pink.css',
-  // v0.1.30 新增：Live2D 视频通话（cubism 引擎 + loader + 视频通话主文件）
-  './lib/live2dcubismcore.min.js',
+  // v0.2.0 新增：Live2D 视频通话（PIXI v8 + untitled-pixi-live2d-engine + 视频通话主文件）
+  // Core 5/6 runtime 走 cubism.live2d.com CDN, 不本地缓存 (官方限制再分发)
   './modules/live2d-loader.js',
   './modules/video-voice-call.js',
   'https://unpkg.com/dexie/dist/dexie.js',
@@ -122,8 +122,7 @@ self.addEventListener('fetch', event => {
      url.includes('/js/mcp-generic-client.js') ||
      url.includes('/js/mcp-tool-bridge.js') ||
      url.includes('/js/mcp-ui-list.js') ||
-     // v0.1.30 新增：Live2D 视频通话（引�?+ loader + 模型目录�?
-     url.includes('/lib/live2dcubismcore.min.js') ||
+     // v0.2.0 更新：Live2D 视频通话（loader + 视频通话主文件 + 模型目录）
      url.includes('/modules/live2d-loader.js') ||
      url.includes('/modules/video-voice-call.js') ||
      url.includes('/assets/live2d/'));
@@ -135,10 +134,10 @@ self.addEventListener('fetch', event => {
     url.includes('phoebeboo.github.io/mewoooo/pp.js') ||
     url.includes('i.postimg.cc/') ||
     url.includes('img.baidu.re/') ||
-    // v0.1.30 新增：Live2D 引擎 (UMD prebuilt, 完全不用 esm.sh)
-    url.includes('cdn.jsdelivr.net/npm/pixi.js') ||
-    url.includes('cdn.jsdelivr.net/npm/pixi-live2d-display') ||
-    url.includes('cdn.jsdelivr.net/gh/dylanNew/live2d');
+    // v0.2.0 更新：Live2D 引擎 (PIXI v8 + untitled-pixi-live2d-engine + Cubism Core 5/6)
+    url.includes('cdn.jsdelivr.net/npm/pixi.js@8') ||
+    url.includes('cdn.jsdelivr.net/npm/untitled-pixi-live2d-engine') ||
+    url.includes('cubism.live2d.com/sdk-web/core');
 
   if (isLocalAsset || isKnownCDN) {
     const isVersioned = url.includes('?v=');

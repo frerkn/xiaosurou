@@ -46,8 +46,10 @@
   let videoCallAiTurnSeq = 0;
 
   // ============================================================
-  // v0.1.30 Live2D 视频通话 - 挂载/卸载/fallback 辅助函数
+  // v0.2.0 Live2D 视频通话 - 挂载/卸载/fallback 辅助函数
   // 设计: 配了 live2dModelPath 就挂 Live2D, 失败回退静态图, 没配保持原样
+  // 库升级: PIXI v6.5.0 + pixi-live2d-display 0.4.0 → PIXI v8 + untitled-pixi-live2d-engine 1.3.5 + Cubism Core 5
+  // 外部 API 不变 (window.Live2DLoader), loader.js 内部重写
   // ============================================================
 
   /**

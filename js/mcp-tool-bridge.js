@@ -468,7 +468,6 @@
         let lastRespData = null;
         let lastResp = null;
         emitProgress({ phase: 'session_start', summary: 'Gemini 已合并 ' + tools.length + ' 个 MCP 工具' });
-        debugGeminiToast('🔧 Gemini 合并 ' + tools.length + ' 个工具, systemInstruction ' + (geminiBody.systemInstruction.parts[0].text.length) + ' 字符, tools 顶层 ' + (geminiBody.tools ? JSON.stringify(geminiBody.tools).length : 0) + ' 字符', 'info');
 
         while (iteration < TOOL_LOOP_MAX) {
             iteration++;
@@ -757,11 +756,9 @@
                 return originalFetch.apply(this, arguments);
             }
             if (isGeminiNativeRequest(url)) {
-                debugGeminiToast('🟢 Gemini Native 入口: ' + String(url).slice(0, 60), 'info');
                 try {
                     return await runChatWithToolLoopGemini(url, init);
                 } catch (geminiLoopErr) {
-                    debugGeminiToast('❌ Gemini 循环异常: ' + ((geminiLoopErr && geminiLoopErr.message) || String(geminiLoopErr)).slice(0, 80), 'error');
                     console.error('[McpBridge] Gemini 工具循环异常, 回退无工具模式:', geminiLoopErr);
                     try { emitProgress({ phase: 'session_done', summary: 'Gemini 循环异常, 回退' }); } catch (e) {}
                     return originalFetch.apply(this, arguments);

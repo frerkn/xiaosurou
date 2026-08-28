@@ -208,6 +208,7 @@ document.addEventListener('DOMContentLoaded', () => {
       inAppProactiveSleepEnabled: true,    // 默认启用睡眠跳过
       inAppProactiveSleepStartHour: 23,    // 23:00 开始睡眠
       inAppProactiveSleepEndHour: 8,       // 08:00 结束睡眠
+      live2dEnabled: true,                  // v0.2.0 重新启用 Live2D (PIXI v8 + untitled engine + Cubism 5)
     };
     state.globalSettings = {
       ...defaultGlobalSettings,
