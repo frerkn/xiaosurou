@@ -573,7 +573,7 @@
                         }
                     });
                 }
-                geminiBody.contents.push({ role: 'function', parts: functionResponseParts });
+                geminiBody.contents.push({ role: 'user', parts: functionResponseParts });
             } catch (err) {
                 clearTimeout(timer);
                 if (err && err.name === 'AbortError') {
