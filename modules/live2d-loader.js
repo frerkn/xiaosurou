@@ -111,6 +111,29 @@ async function mountLive2D(canvas, modelPath, options) {
     canvas._live2dApp = app;
     canvas._live2dModel = model;
 
+    // 渲染诊断: 1s/3s 后看 model 实际状态, 排查 race condition
+    setTimeout(() => {
+      const internal = model && model.internalModel;
+      const renderer = internal && internal.renderer;
+      const stage = app.stage;
+      const canvasRect = canvas.getBoundingClientRect();
+      const hasInStage = stage && stage.children && stage.children.indexOf(model) >= 0;
+      const texCount = (model.textures || []).length;
+      const texReady = (model.textures || []).filter((t) => t && t.source && !t.source.destroyed).length;
+      const m = model.internalModel && model.internalModel.coreModel;
+      const originalW = internal && internal.originalWidth;
+      const originalH = internal && internal.originalHeight;
+      const bounds = model.getBounds ? model.getBounds() : null;
+      _log('info', `1s 后: texReady ${texReady}/${texCount}, inStage=${hasInStage}, originalCanvas=${originalW}x${originalH}, bounds=${bounds ? `${Math.round(bounds.width)}x${Math.round(bounds.height)}` : 'null'}, canvasRect=${Math.round(canvasRect.width)}x${Math.round(canvasRect.height)}@${Math.round(canvasRect.top)},${Math.round(canvasRect.left)}, display=${getComputedStyle(canvas).display}, visibility=${getComputedStyle(canvas).visibility}, opacity=${getComputedStyle(canvas).opacity}, z=${getComputedStyle(canvas).zIndex}`);
+    }, 1000);
+    setTimeout(() => {
+      const stage = app.stage;
+      const hasInStage = stage && stage.children && stage.children.indexOf(model) >= 0;
+      const texReady = (model.textures || []).filter((t) => t && t.source && !t.source.destroyed).length;
+      const texCount = (model.textures || []).length;
+      _log(texReady > 0 ? 'ok' : 'err', `3s 后: texReady ${texReady}/${texCount}, inStage=${hasInStage}`);
+    }, 3000);
+
     console.log('[Live2D v0.2.0] mounted:', modelPath, 'size:', w, 'x', h, 'frames:', frameWait);
     _log('ok', `mounted: ${modelPath} (canvas ${w}x${h}, model ${Math.round(model.width)}x${Math.round(model.height)})`);
     return { success: true, app, model };
