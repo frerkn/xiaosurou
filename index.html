@@ -4523,6 +4523,8 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
 
     <!-- v0.3.9 Live2D 专区全屏页面 (跟糯米机 CallApp 主页一致, 点电话 → 进这个 page) -->
     <div id="live2d-hub-screen" class="screen live2d-hub-screen">
+      <!-- v0.3.10 浮动关闭按钮 (fixed 位置, 防止其他元素被推出视口时找不到退出) -->
+      <button type="button" id="live2d-hub-close-btn-fixed" class="live2d-hub-close-area" style="position:fixed;top:max(12px,env(safe-area-inset-top,0px));right:12px;z-index:10000;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.95);border:1px solid rgba(255,182,193,0.5);color:#ff5c8d;font-size:18px;font-weight:bold;cursor:pointer;box-shadow:0 4px 12px rgba(255,142,179,0.3);display:flex;align-items:center;justify-content:center;" aria-label="关闭">✕</button>
       <div class="live2d-hub-content">
         <header class="live2d-hub-header">
           <p class="live2d-hub-eyebrow">CHAT WITH</p>
@@ -4531,7 +4533,7 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
         </header>
 
         <div class="live2d-hub-character-card">
-          <img id="live2d-hub-avatar" class="live2d-hub-avatar" src="" alt="">
+          <img id="live2d-hub-avatar" class="live2d-hub-avatar" style="width:56px;height:56px;max-width:56px;" src="" alt="">
           <div class="live2d-hub-character-info">
             <div id="live2d-hub-character-name" class="live2d-hub-character-name">角色</div>
             <div id="live2d-hub-character-desc" class="live2d-hub-character-desc">视频通话准备</div>

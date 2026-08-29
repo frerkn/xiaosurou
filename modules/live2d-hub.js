@@ -333,6 +333,9 @@
     previewEl = document.getElementById('live2d-hub-preview');
 
     if (closeBtnEl) closeBtnEl.addEventListener('click', close);
+    // v0.3.10: 浮动 fixed 关闭按钮 (CSS sw 缓存时也能用)
+    const closeBtnFixed = document.getElementById('live2d-hub-close-btn-fixed');
+    if (closeBtnFixed) closeBtnFixed.addEventListener('click', close);
     if (callBtnEl) callBtnEl.addEventListener('click', function () {
       if (callBtnEl.disabled) return;
       const cb = onStartCallback;

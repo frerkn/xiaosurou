@@ -26233,17 +26233,53 @@ a.hot-news-title:hover {
 
 
 
-/* v0.3.9 Live2D 专区全屏页面 (粉白 + 美化装饰, 跟图 2 一样星形装饰但粉色调) */
-.live2d-hub-screen {
-    position: fixed;
-    inset: 0;
-    z-index: 50;
+/* v0.3.10 Live2D 专区全屏页面 (粉白 + 美化装饰, 跟图 2 一样星形装饰但粉色调) */
+#live2d-hub-screen.live2d-hub-screen {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 9999 !important;
     overflow-y: auto;
+    display: block;
     background:
         radial-gradient(circle at 8% 12%, rgba(255, 192, 203, 0.45) 0%, transparent 35%),
         radial-gradient(circle at 92% 85%, rgba(255, 182, 193, 0.35) 0%, transparent 40%),
         radial-gradient(circle at 75% 20%, rgba(255, 218, 224, 0.5) 0%, transparent 30%),
-        linear-gradient(180deg, #fff8fb 0%, #ffffff 50%, #fff5f9 100%);
+        linear-gradient(180deg, #fff8fb 0%, #ffffff 50%, #fff5f9 100%) !important;
+}
+#live2d-hub-screen .live2d-hub-avatar {
+    width: 56px !important;
+    height: 56px !important;
+    max-width: 56px !important;
+    max-height: 56px !important;
+    min-width: 56px !important;
+    border-radius: 50% !important;
+    object-fit: cover !important;
+    background: #ffe0eb;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(255, 142, 179, 0.3);
+}
+#live2d-hub-screen .live2d-hub-close-area {
+    position: fixed;
+    top: max(12px, env(safe-area-inset-top, 0px));
+    right: 12px;
+    z-index: 10000;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(255, 182, 193, 0.5);
+    color: #ff5c8d;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(255, 142, 179, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+}
+#live2d-hub-screen .live2d-hub-close-area:active {
+    transform: scale(0.92);
 }
 .live2d-hub-screen::before {
     content: "";
