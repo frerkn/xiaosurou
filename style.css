@@ -26231,364 +26231,332 @@ a.hot-news-title:hover {
 
 
 
-/* v0.3.8 Live2D 专区弹窗 — 底部 iOS sheet 风格 (跟糯米机 CallSetupGuide 一致) */
-#live2d-hub-modal {
+
+
+/* v0.3.9 Live2D 专区全屏页面 (粉白 + 美化装饰, 跟图 2 一样星形装饰但粉色调) */
+.live2d-hub-screen {
     position: fixed;
     inset: 0;
-    z-index: 99999;
-    background: rgba(8, 5, 15, 0.72);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
-    display: none;
-    align-items: flex-end;
-    justify-content: center;
+    z-index: 50;
+    overflow-y: auto;
+    background:
+        radial-gradient(circle at 8% 12%, rgba(255, 192, 203, 0.45) 0%, transparent 35%),
+        radial-gradient(circle at 92% 85%, rgba(255, 182, 193, 0.35) 0%, transparent 40%),
+        radial-gradient(circle at 75% 20%, rgba(255, 218, 224, 0.5) 0%, transparent 30%),
+        linear-gradient(180deg, #fff8fb 0%, #ffffff 50%, #fff5f9 100%);
 }
-#live2d-hub-modal.live2d-hub-open {
-    display: flex;
-}
-#live2d-hub-modal .live2d-hub-overlay {
+.live2d-hub-screen::before {
+    content: "";
     position: absolute;
-    inset: 0;
-    border: none;
-    background: transparent;
-    cursor: pointer;
+    top: 6%;
+    right: 5%;
+    font-size: 32px;
+    color: #ffb6c1;
+    opacity: 0.6;
+    pointer-events: none;
+    z-index: 0;
+    letter-spacing: 8px;
 }
-#live2d-hub-modal .live2d-hub-sheet {
+.live2d-hub-screen::after {
+    content: "";
+    position: absolute;
+    bottom: 8%;
+    left: 6%;
+    font-size: 28px;
+    color: #ffc0cb;
+    opacity: 0.55;
+    pointer-events: none;
+    z-index: 0;
+    letter-spacing: 12px;
+}
+.live2d-hub-content {
     position: relative;
-    width: 100%;
+    z-index: 1;
     max-width: 420px;
-    max-height: 88vh;
-    background: #fff8fb;
-    color: #2a2330;
-    border-top-left-radius: 28px;
-    border-top-right-radius: 28px;
-    border-top: 1px solid rgba(255, 142, 179, 0.25);
-    box-shadow: 0 -8px 32px rgba(255, 142, 179, 0.2);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
-    animation: live2d-hub-slide-up 0.28s ease-out;
+    margin: 0 auto;
+    padding: 24px 20px calc(20px + env(safe-area-inset-bottom, 0px));
 }
-@keyframes live2d-hub-slide-up {
-    from { transform: translateY(100%); }
-    to { transform: translateY(0); }
+.live2d-hub-header {
+    margin-bottom: 18px;
+    text-align: left;
 }
-#live2d-hub-modal .live2d-hub-handle {
-    width: 40px;
-    height: 4px;
-    background: rgba(42, 35, 48, 0.18);
-    border-radius: 999px;
-    margin: 8px auto 0;
-    flex-shrink: 0;
-}
-#live2d-hub-modal .live2d-hub-header {
-    padding: 14px 20px 12px;
-    flex-shrink: 0;
-}
-#live2d-hub-modal .live2d-hub-eyebrow {
-    font-size: 9px;
-    font-weight: 600;
-    letter-spacing: 0.28em;
-    color: rgba(42, 35, 48, 0.5);
+.live2d-hub-eyebrow {
     margin: 0;
-}
-#live2d-hub-modal .live2d-hub-title-row {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.32em;
+    color: #ff5c8d;
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-    margin-top: 6px;
-}
-#live2d-hub-modal .live2d-hub-title {
-    margin: 0;
-    font-size: 22px;
-    font-weight: 600;
-    line-height: 1.1;
-    color: #2a2330;
-}
-#live2d-hub-modal .live2d-hub-sub {
-    margin: 6px 0 0;
-    font-size: 12px;
-    line-height: 1.5;
-    color: rgba(42, 35, 48, 0.6);
-}
-#live2d-hub-modal .live2d-hub-close {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    border: 1px solid rgba(42, 35, 48, 0.13);
-    background: transparent;
-    color: #2a2330;
-    font-size: 16px;
-    cursor: pointer;
-    flex-shrink: 0;
-    -webkit-tap-highlight-color: transparent;
-}
-#live2d-hub-modal .live2d-hub-close:active {
-    transform: scale(0.92);
-}
-#live2d-hub-modal .live2d-hub-steps {
-    margin-top: 14px;
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
     align-items: center;
     gap: 8px;
+}
+.live2d-hub-eyebrow::before,
+.live2d-hub-eyebrow::after {
+    content: "✦";
     font-size: 10px;
-    font-weight: 500;
-    letter-spacing: 0.1em;
-    color: rgba(42, 35, 48, 0.45);
+    color: #ffb6c1;
 }
-#live2d-hub-modal .live2d-hub-step {
-    background: transparent;
-    border: none;
-    padding: 0;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    color: inherit;
-    font: inherit;
-    -webkit-tap-highlight-color: transparent;
+.live2d-hub-eyebrow::after {
+    margin-left: auto;
 }
-#live2d-hub-modal .live2d-hub-step-end {
-    justify-content: flex-end;
-    text-align: right;
+.live2d-hub-title {
+    margin: 6px 0 0;
+    font-size: 30px;
+    font-weight: 700;
+    line-height: 1.1;
+    color: #3a2a30;
+    text-shadow: 0 2px 8px rgba(255, 142, 179, 0.18);
 }
-#live2d-hub-modal .live2d-hub-step.active {
-    color: #ff5c8d;
-}
-#live2d-hub-modal .live2d-hub-step-num {
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    border: 1px solid currentColor;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 10px;
-    font-weight: 600;
-}
-#live2d-hub-modal .live2d-hub-step-line {
-    width: 32px;
-    height: 1px;
-    background: rgba(42, 35, 48, 0.18);
-}
-#live2d-hub-modal .live2d-hub-body {
-    flex: 1;
-    overflow-y: auto;
-    border-top: 1px solid rgba(42, 35, 48, 0.08);
-    border-bottom: 1px solid rgba(42, 35, 48, 0.08);
-}
-#live2d-hub-modal .live2d-hub-section-title {
-    padding: 12px 20px 6px;
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.18em;
-    color: rgba(42, 35, 48, 0.5);
-    margin: 0;
-}
-#live2d-hub-modal .live2d-hub-current {
-    padding: 4px 20px 12px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    border-bottom: 1px solid rgba(42, 35, 48, 0.08);
-}
-#live2d-hub-modal .live2d-hub-current-icon {
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    border: 1px solid rgba(255, 92, 141, 0.4);
-    background: rgba(255, 92, 141, 0.08);
-    color: #ff5c8d;
-    font-size: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-#live2d-hub-modal .live2d-hub-current-text {
-    flex: 1;
-    min-width: 0;
-}
-#live2d-hub-modal .live2d-hub-current-name {
-    font-size: 14px;
-    font-weight: 500;
-    color: #2a2330;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-#live2d-hub-modal .live2d-hub-current-meta {
-    margin-top: 2px;
-    font-size: 11px;
-    color: rgba(42, 35, 48, 0.5);
-}
-#live2d-hub-modal .live2d-hub-current-check {
-    color: #ff5c8d;
-    font-size: 18px;
-    font-weight: bold;
-    flex-shrink: 0;
-}
-#live2d-hub-modal .live2d-hub-list {
-    background: transparent;
-}
-#live2d-hub-modal .live2d-hub-row {
-    display: grid;
-    grid-template-columns: 40px 1fr auto;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 20px;
-    border-bottom: 1px solid rgba(42, 35, 48, 0.06);
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-    transition: background 0.15s;
-}
-#live2d-hub-modal .live2d-hub-row:active {
-    background: rgba(255, 92, 141, 0.04);
-}
-#live2d-hub-modal .live2d-hub-row-thumb {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-    background: rgba(255, 92, 141, 0.1);
-    color: #ff5c8d;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 22px;
-    flex-shrink: 0;
-}
-#live2d-hub-modal .live2d-hub-row-text {
-    min-width: 0;
-}
-#live2d-hub-modal .live2d-hub-row-name {
-    font-size: 14px;
-    font-weight: 500;
-    color: #2a2330;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-#live2d-hub-modal .live2d-hub-row-meta {
-    margin-top: 2px;
-    font-size: 11px;
-    color: rgba(42, 35, 48, 0.5);
-}
-#live2d-hub-modal .live2d-hub-row-actions {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-#live2d-hub-modal .live2d-hub-row-check {
-    color: #ff5c8d;
-    font-size: 18px;
-    font-weight: bold;
-}
-#live2d-hub-modal .live2d-hub-row-del {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    border: none;
-    background: rgba(42, 35, 48, 0.06);
-    color: rgba(42, 35, 48, 0.5);
-    font-size: 12px;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-}
-#live2d-hub-modal .live2d-hub-row-del:active {
-    background: rgba(42, 35, 48, 0.12);
-}
-#live2d-hub-modal .live2d-hub-empty {
-    padding: 14px 20px;
-    font-size: 12px;
-    color: rgba(42, 35, 48, 0.5);
-    border-bottom: 1px solid rgba(42, 35, 48, 0.06);
-}
-#live2d-hub-modal .live2d-hub-row-action {
-    display: grid;
-    grid-template-columns: 40px 1fr auto;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 20px;
-    border-bottom: 1px solid rgba(42, 35, 48, 0.06);
-    cursor: pointer;
-    background: transparent;
-    border-left: none;
-    border-right: none;
-    border-top: none;
-    width: 100%;
-    text-align: left;
-    font-family: inherit;
-    -webkit-tap-highlight-color: transparent;
-}
-#live2d-hub-modal .live2d-hub-row-action:active {
-    background: rgba(255, 92, 141, 0.04);
-}
-#live2d-hub-modal .live2d-hub-row-action-icon {
-    color: #ff5c8d;
-    font-size: 18px;
-    text-align: center;
-    width: 40px;
-}
-#live2d-hub-modal .live2d-hub-row-action-text {
-    min-width: 0;
-}
-#live2d-hub-modal .live2d-hub-row-action-name {
-    font-size: 14px;
-    font-weight: 500;
-    color: #2a2330;
-}
-#live2d-hub-modal .live2d-hub-row-action-meta {
-    margin-top: 2px;
-    font-size: 11px;
-    color: rgba(42, 35, 48, 0.5);
-}
-#live2d-hub-modal .live2d-hub-row-action-arrow {
-    color: rgba(42, 35, 48, 0.35);
-    font-size: 16px;
-}
-#live2d-hub-modal .live2d-hub-footer {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 10px;
-    padding: 12px 20px 8px;
-    flex-shrink: 0;
-}
-#live2d-hub-modal .live2d-hub-btn-secondary {
-    min-height: 48px;
-    border-radius: 16px;
-    border: 1px solid rgba(42, 35, 48, 0.13);
-    background: transparent;
-    color: rgba(42, 35, 48, 0.7);
+.live2d-hub-sub {
+    margin: 8px 0 0;
     font-size: 13px;
+    color: #b58a9a;
+    line-height: 1.5;
+}
+.live2d-hub-character-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    margin: 18px 0 16px;
+    background: linear-gradient(135deg, #ffffff 0%, #fff5f9 100%);
+    border-radius: 20px;
+    position: relative;
+    overflow: hidden;
+    box-shadow:
+        0 8px 20px rgba(255, 142, 179, 0.18),
+        inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+.live2d-hub-character-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 20px;
+    padding: 2px;
+    background: linear-gradient(135deg, #ff8eb3 0%, #ffb6c1 50%, #ffd6e4 100%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+}
+.live2d-hub-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #ffe0eb;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(255, 142, 179, 0.3);
+}
+.live2d-hub-character-info {
+    flex: 1;
+    min-width: 0;
+}
+.live2d-hub-character-name {
+    font-size: 17px;
+    font-weight: 600;
+    color: #3a2a30;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.live2d-hub-character-desc {
+    font-size: 12px;
+    color: #b58a9a;
+    margin-top: 2px;
+}
+.live2d-hub-character-spark {
+    font-size: 20px;
+    color: #ffb6c1;
+    text-shadow: 0 0 8px rgba(255, 142, 179, 0.5);
+    flex-shrink: 0;
+}
+.live2d-hub-preview {
+    height: 180px;
+    border-radius: 20px;
+    background:
+        radial-gradient(circle at 50% 50%, rgba(255, 218, 224, 0.5) 0%, rgba(255, 255, 255, 0.3) 70%),
+        linear-gradient(135deg, #fff5f9 0%, #ffffff 100%);
+    border: 1.5px dashed rgba(255, 142, 179, 0.4);
+    margin: 16px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+}
+.live2d-hub-preview::before {
+    content: "✦";
+    position: absolute;
+    top: 12px;
+    left: 16px;
+    font-size: 14px;
+    color: #ffb6c1;
+    opacity: 0.6;
+}
+.live2d-hub-preview::after {
+    content: "✦";
+    position: absolute;
+    bottom: 12px;
+    right: 16px;
+    font-size: 14px;
+    color: #ffb6c1;
+    opacity: 0.6;
+}
+.live2d-hub-preview-empty {
+    text-align: center;
+}
+.live2d-hub-preview-icon {
+    font-size: 48px;
+    margin-bottom: 8px;
+    filter: drop-shadow(0 4px 8px rgba(255, 142, 179, 0.3));
+}
+.live2d-hub-preview-text {
+    font-size: 13px;
+    color: #b58a9a;
+}
+.live2d-hub-block {
+    margin: 14px 0;
+    padding: 14px 16px;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 16px;
+    box-shadow: 0 4px 12px rgba(255, 142, 179, 0.12);
+    border: 1px solid rgba(255, 182, 193, 0.3);
+}
+.live2d-hub-block-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+.live2d-hub-block-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: #ff5c8d;
+}
+.live2d-hub-block-icon {
+    font-size: 16px;
+    filter: drop-shadow(0 1px 2px rgba(255, 142, 179, 0.4));
+}
+.live2d-hub-block-link {
+    background: transparent;
+    border: none;
+    color: #ff5c8d;
+    font-size: 12px;
     font-weight: 500;
-    padding: 0 18px;
+    padding: 4px 10px;
+    border-radius: 8px;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
 }
-#live2d-hub-modal .live2d-hub-btn-secondary:active {
-    transform: scale(0.97);
+.live2d-hub-block-link:active {
+    background: rgba(255, 92, 141, 0.1);
 }
-#live2d-hub-modal .live2d-hub-btn-primary {
-    min-height: 48px;
+.live2d-hub-block-current {
+    padding: 10px 12px;
+    background: linear-gradient(135deg, #fff0f5 0%, #ffffff 100%);
+    border-radius: 10px;
+    border: 1px solid rgba(255, 182, 193, 0.25);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.live2d-hub-block-current-thumb {
+    font-size: 20px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #ffe0eb;
+    border-radius: 8px;
+    flex-shrink: 0;
+}
+.live2d-hub-block-current-text {
+    flex: 1;
+    font-size: 13px;
+    color: #3a2a30;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.live2d-hub-block-current-check {
+    color: #ff5c8d;
+    font-size: 16px;
+    font-weight: bold;
+}
+.live2d-hub-call-btn {
+    width: 100%;
+    margin: 18px 0 8px;
+    padding: 16px 20px;
     border: none;
-    border-radius: 16px;
-    background: linear-gradient(100deg, #ff5c8d, #ff8eb3);
+    border-radius: 18px;
+    background: linear-gradient(135deg, #ff5c8d 0%, #ff8eb3 50%, #ffb6c1 100%);
     color: #fff;
-    font-size: 14px;
-    font-weight: 600;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
     cursor: pointer;
-    box-shadow: 0 8px 24px rgba(255, 92, 141, 0.3);
+    box-shadow:
+        0 10px 24px rgba(255, 92, 141, 0.35),
+        0 2px 0 rgba(255, 255, 255, 0.4) inset,
+        0 -2px 0 rgba(0, 0, 0, 0.05) inset;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
     -webkit-tap-highlight-color: transparent;
     transition: transform 0.15s;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
 }
-#live2d-hub-modal .live2d-hub-btn-primary:disabled {
-    background: #d4ccd2;
-    box-shadow: none;
+.live2d-hub-call-btn:active {
+    transform: scale(0.97);
+}
+.live2d-hub-call-btn:disabled {
+    background: linear-gradient(135deg, #d4ccd2 0%, #e8e0e3 100%);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
     cursor: not-allowed;
 }
-#live2d-hub-modal .live2d-hub-btn-primary:not(:disabled):active {
-    transform: scale(0.97);
+.live2d-hub-call-btn-spark {
+    font-size: 14px;
+    color: #fff;
+    text-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
+}
+.live2d-hub-bottom {
+    display: flex;
+    justify-content: center;
+    margin-top: 12px;
+}
+.live2d-hub-bottom-btn {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 182, 193, 0.4);
+    color: #ff5c8d;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 8px 20px;
+    border-radius: 999px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    -webkit-tap-highlight-color: transparent;
+    box-shadow: 0 2px 8px rgba(255, 142, 179, 0.15);
+}
+.live2d-hub-bottom-btn:active {
+    transform: scale(0.96);
+    background: rgba(255, 255, 255, 0.9);
+}
+.live2d-hub-bottom-icon {
+    font-size: 12px;
+    color: #ffb6c1;
 }

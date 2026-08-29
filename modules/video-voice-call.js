@@ -320,11 +320,11 @@
 
     const chat = state.chats[state.activeChatId];
 
-    // v0.3.7: 强制弹 Live2D 专区 (跟糯米机 CallSetupGuide 一致, 选完模型才能开始)
+    // v0.3.9: 跳 Live2D 专区全屏 page (跟糯米机 CallApp 主页一致, 选完模型 + 背景 → 视频接通)
     if (window.Live2DHub && typeof window.Live2DHub.open === 'function') {
       try {
-        window.Live2DHub.open(function () {
-          // user 点 "开始通话" 按钮 → 走原 outgoing-call 流程
+        window.Live2DHub.open(chat, function () {
+          // user 点 "视频接通 {name}" 按钮 → 走原 outgoing-call 流程
           doInitiateCall(chat);
         });
         return;
