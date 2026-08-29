@@ -122,7 +122,8 @@ self.addEventListener('fetch', event => {
      url.includes('/js/mcp-generic-client.js') ||
      url.includes('/js/mcp-tool-bridge.js') ||
      url.includes('/js/mcp-ui-list.js') ||
-     // v0.2.0 更新：Live2D 视频通话（loader + 视频通话主文件 + 模型目录）
+     // v0.3.0 更新：Live2D 视频通话（loader + 视频通话主文件 + 模型目录 + Cubism 4 core 本地）
+     url.includes('/lib/live2dcubismcore.min.js') ||
      url.includes('/modules/live2d-loader.js') ||
      url.includes('/modules/video-voice-call.js') ||
      url.includes('/assets/live2d/'));
@@ -134,10 +135,10 @@ self.addEventListener('fetch', event => {
     url.includes('phoebeboo.github.io/mewoooo/pp.js') ||
     url.includes('i.postimg.cc/') ||
     url.includes('img.baidu.re/') ||
-    // v0.2.0 更新：Live2D 引擎 (PIXI v8 + untitled-pixi-live2d-engine + Cubism Core 5/6)
-    url.includes('cdn.jsdelivr.net/npm/pixi.js@8.19.0') ||
-    url.includes('cdn.jsdelivr.net/npm/untitled-pixi-live2d-engine') ||
-    url.includes('cubism.live2d.com/sdk-web/core');
+    // v0.3.0 回退：Live2D 引擎 (PIXI v6 + pixi-live2d-display 0.4.0 + Cubism 4 core 本地, 330 v0.1.30 旧栈)
+    url.includes('cdn.jsdelivr.net/npm/pixi.js@6.5.0') ||
+    url.includes('cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0') ||
+    url.includes('cdn.jsdelivr.net/gh/dylanNew/live2d');
 
   if (isLocalAsset || isKnownCDN) {
     const isVersioned = url.includes('?v=');
