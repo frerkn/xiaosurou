@@ -4521,44 +4521,41 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
           class="control-btn join-btn" style="display: none;"></button> </div>
     </div>
 
-    <!-- v0.3.7 Live2D 专区弹窗 (跟糯米机 CallSetupGuide 一致, 视频通话前强制弹, 选完模型 + 背景才能开始通话) -->
-    <div id="live2d-hub-modal" class="live2d-hub-modal" style="display:none;">
-      <div class="live2d-hub-sheet">
-        <div class="live2d-hub-header">
-          <h2 class="live2d-hub-title">Live2D 专区</h2>
-          <button id="live2d-hub-close-btn" class="live2d-hub-close" title="关闭">✕</button>
+    <!-- v0.3.8 Live2D 专区弹窗 (底部 iOS sheet 风格, 跟糯米机 CallSetupGuide 一致) -->
+    <div id="live2d-hub-modal">
+      <button type="button" class="live2d-hub-overlay" id="live2d-hub-overlay-btn" aria-label="关闭"></button>
+      <div class="live2d-hub-sheet" role="dialog" aria-modal="true" aria-labelledby="live2d-hub-title">
+        <div class="live2d-hub-handle"></div>
+
+        <header class="live2d-hub-header">
+          <p class="live2d-hub-eyebrow">VIDEO LINK / PREPARATION</p>
+          <div class="live2d-hub-title-row">
+            <div>
+              <h2 id="live2d-hub-title" class="live2d-hub-title">选择对方的视频形象。</h2>
+              <p class="live2d-hub-sub">动态模型、静态图片都在这里切换, 桌面与视频通话共用同一选择。</p>
+            </div>
+            <button type="button" id="live2d-hub-close-btn" class="live2d-hub-close" aria-label="关闭">✕</button>
+          </div>
+
+          <div class="live2d-hub-steps">
+            <button type="button" class="live2d-hub-step active" data-step="model">
+              <span class="live2d-hub-step-num">01</span> 对方形象
+            </button>
+            <span class="live2d-hub-step-line"></span>
+            <button type="button" class="live2d-hub-step live2d-hub-step-end" data-step="background">
+              <span class="live2d-hub-step-num">02</span> 通话背景
+            </button>
+          </div>
+        </header>
+
+        <div class="live2d-hub-body" id="live2d-hub-body">
+          <!-- 内容由 live2d-hub.js 动态渲染 -->
         </div>
 
-        <div class="live2d-hub-body">
-          <section class="live2d-hub-section">
-            <div class="live2d-hub-section-title">模型 <span class="live2d-hub-hint">必选</span></div>
-            <div class="live2d-hub-actions">
-              <button class="live2d-hub-btn" id="live2d-hub-upload-zip-btn">📦 上传 ZIP</button>
-              <button class="live2d-hub-btn" id="live2d-hub-upload-folder-btn">📁 上传文件夹</button>
-              <input type="file" id="live2d-hub-upload-zip-input" accept=".zip" hidden>
-              <input type="file" id="live2d-hub-upload-folder-input" webkitdirectory directory multiple hidden>
-            </div>
-            <div class="live2d-hub-list" id="live2d-hub-model-list">
-              <div class="live2d-hub-empty">加载中…</div>
-            </div>
-          </section>
-
-          <section class="live2d-hub-section">
-            <div class="live2d-hub-section-title">背景 <span class="live2d-hub-hint">可选</span></div>
-            <div class="live2d-hub-actions">
-              <button class="live2d-hub-btn" id="live2d-hub-upload-bg-btn">🖼 上传背景</button>
-              <input type="file" id="live2d-hub-upload-bg-input" accept="image/*" hidden>
-            </div>
-            <div class="live2d-hub-list" id="live2d-hub-bg-list">
-              <div class="live2d-hub-empty">加载中…</div>
-            </div>
-          </section>
-        </div>
-
-        <div class="live2d-hub-footer">
-          <div id="live2d-hub-status" class="live2d-hub-status">请选择模型</div>
-          <button id="live2d-hub-start-btn" class="live2d-hub-start" disabled>开始通话</button>
-        </div>
+        <footer class="live2d-hub-footer">
+          <button type="button" id="live2d-hub-btn-secondary" class="live2d-hub-btn-secondary">稍后</button>
+          <button type="button" id="live2d-hub-btn-primary" class="live2d-hub-btn-primary" disabled>下一步: 选择背景 →</button>
+        </footer>
       </div>
     </div>
 
