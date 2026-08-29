@@ -79,6 +79,15 @@
     if (typeof JSZip === 'undefined') throw new Error('未加载 JSZip 库, 请检查 index.html');
     if (!/\.zip$/i.test(file.name)) throw new Error('文件不是 ZIP 格式');
 
+    // v0.3.4 hotfix: 防护 ZIP 解压 OOM (8192 纹理原版 35MB+35MB, 解压到内存 + Blob ×N 直接爆 tab)
+    const fileSizeMB = file.size / 1024 / 1024;
+    if (fileSizeMB > 200) {
+      throw new Error(`ZIP 太大 (${fileSizeMB.toFixed(1)}MB), 超过 200MB 防护线会崩浏览器. 请先缩图 (8192→2048 缩到 ~10MB 一张) 再打包上传`);
+    }
+    if (fileSizeMB > 100) {
+      console.warn(`[Live2D upload] 大 ZIP (${fileSizeMB.toFixed(1)}MB), 解压中可能慢, 建议缩图到 100MB 以内`);
+    }
+
     const zip = await JSZip.loadAsync(file);
     const files = new Map();  // path -> Blob
     for (const [filename, zipEntry] of Object.entries(zip.files)) {
