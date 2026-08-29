@@ -103,18 +103,9 @@
 
     const html = [];
     for (const m of models) {
-      let thumb = '';
-      try {
-        const data = await global.Live2DStorage.getModel(m.id);
-        if (data && data.files) {
-          const url = await makeModelThumbnail(data.files, m.modelPath);
-          if (url) {
-            containerEl._live2dUrls.push(url);
-            thumb = `<img class="live2d-card-thumb" src="${url}" alt="">`;
-          }
-        }
-      } catch (e) {}
-      if (!thumb) thumb = '<div class="live2d-card-thumb live2d-card-thumb-placeholder">🎭</div>';
+      // v0.3.5: 设置页不再读 model3.json + texture 转 blob URL 渲染缩略图 (2048x2048 PNG 在 iOS Safari 渲染崩 tab)
+      // 用 emoji 占位 🎭, 实际纹理由 PIXI 在视频通话画面里渲染 (那才是 Live2D 该出现的地方)
+      const thumb = '<div class="live2d-card-thumb live2d-card-thumb-placeholder">🎭</div>';
 
       const isActive = m.id === activeId;
       const activeClass = isActive ? ' live2d-card-active' : '';
@@ -192,14 +183,8 @@
 
     const html = [];
     for (const bg of sorted) {
-      let thumbUrl = null;
-      if (bg.blob) {
-        thumbUrl = URL.createObjectURL(bg.blob);
-        containerEl._live2dBgUrls.push(thumbUrl);
-      }
-      const thumb = thumbUrl
-        ? `<img class="live2d-card-thumb" src="${thumbUrl}" alt="">`
-        : '<div class="live2d-card-thumb live2d-card-thumb-placeholder">🖼</div>';
+      // v0.3.5: 跟模型卡片一致, 设置页不渲染背景缩略图 (保险, 大背景图也可能崩)
+      const thumb = '<div class="live2d-card-thumb live2d-card-thumb-placeholder">🖼</div>';
       const isActive = bg.id === activeId;
       const activeClass = isActive ? ' live2d-card-active' : '';
       const activeMark = isActive ? '<span class="live2d-card-mark">✓</span>' : '';
