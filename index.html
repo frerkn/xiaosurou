@@ -4736,48 +4736,7 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
                  </div>
             </div>
 
-            <!-- v0.3.1 Live2D 视频通话 - 模型管理 (粉白 iOS 卡片列表, 路径保留为自动同步字段) -->
-            <div class="settings-item-block" id="ai-live2d-model-group">
-                 <label>Live2D 模型</label>
-                 <div class="settings-right full-width">
-                    <input type="text" id="ai-live2d-model-input" placeholder="选中模型后自动填入路径 | 也可手动填 assets/live2d/...">
-                    <div class="settings-desc" style="margin-top:4px;">视频通话时用 Live2D 模型替代静态图。当前活跃模型路径同步到这里</div>
-                 </div>
-                 <div class="live2d-manager">
-                    <div class="live2d-manager-actions">
-                       <button class="live2d-btn live2d-btn-primary" id="live2d-upload-zip-btn">
-                          <span>📦</span> 上传 ZIP
-                       </button>
-                       <button class="live2d-btn live2d-btn-primary" id="live2d-upload-folder-btn">
-                          <span>📁</span> 上传文件夹
-                       </button>
-                       <input type="file" id="live2d-upload-zip-input" accept=".zip" hidden>
-                       <input type="file" id="live2d-upload-folder-input" webkitdirectory directory multiple hidden>
-                    </div>
-                    <div class="live2d-list" id="live2d-model-list">
-                       <div class="live2d-empty">加载中…</div>
-                    </div>
-                 </div>
-            </div>
-
-            <!-- 通话背景管理 (跟糯米机一样, 通话时可切换) -->
-            <div class="settings-item-block" id="ai-live2d-background-group">
-                 <label>通话背景</label>
-                 <div class="settings-right full-width">
-                    <div class="settings-desc">视频通话时角色背后的背景, 可上传图片</div>
-                 </div>
-                 <div class="live2d-manager">
-                    <div class="live2d-manager-actions">
-                       <button class="live2d-btn live2d-btn-primary" id="live2d-upload-bg-btn">
-                          <span>🖼</span> 上传背景
-                       </button>
-                       <input type="file" id="live2d-upload-bg-input" accept="image/*" hidden>
-                    </div>
-                    <div class="live2d-list" id="live2d-bg-list">
-                       <div class="live2d-empty">加载中…</div>
-                    </div>
-                 </div>
-            </div>
+            <!-- v0.3.6 删除 330 设置页 Live2D 区块 (跟糯米机一致, 改成独立的 Live2D 专区页面) -->
 
             <div class="settings-item" id="group-avatar-group">
                  <label>群头像</label>
