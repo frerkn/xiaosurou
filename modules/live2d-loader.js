@@ -91,6 +91,27 @@
         autoInteract: false,
       });
 
+      // bridge: 0.4.0 + 老 Cubism 4 moc3 v3 模型的 drawables.renderOrders 字段可能未初始化
+      // (导致 PIXI 渲染时 renderOrder[i] undefined 报错)
+      // 从糯米 utils/live2dCore.ts:106 bridgeCubism6RenderOrders 抄过来, PIXI v6 + 0.4.0 兼容版
+      try {
+        const internal = model && model.internalModel;
+        const rawModel = internal && internal.coreModel && internal.coreModel._model;
+        const drawables = rawModel && rawModel.drawables;
+        if (drawables && !drawables.renderOrders) {
+          const renderOrders = (rawModel.getRenderOrders && rawModel.getRenderOrders()) || rawModel.renderOrders;
+          if (renderOrders) {
+            const drawableCount = Number(drawables.count != null ? drawables.count : renderOrders.length);
+            drawables.renderOrders = typeof renderOrders.subarray === 'function'
+              ? renderOrders.subarray(0, drawableCount)
+              : renderOrders;
+            _log('info', `bridge: drawables.renderOrders 已补 (count=${drawableCount})`);
+          }
+        }
+      } catch (bridgeErr) {
+        _log('info', `bridge 跳过: ${bridgeErr && bridgeErr.message ? bridgeErr.message : bridgeErr}`);
+      }
+
       app.stage.addChild(model);
 
       // v0.1.4 行为: 等几帧让 internal model 完成 setup
