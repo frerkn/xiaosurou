@@ -213,6 +213,7 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
   <script src="modules/live2d-uploader.js?v=0.0.1" defer></script>
   <script src="modules/live2d-storage.js?v=0.0.1" defer></script>
   <script src="modules/live2d-ui.js?v=0.0.1" defer></script>
+  <script src="modules/live2d-hub.js?v=0.0.1" defer></script>
   <script src="modules/api-endpoint-presets.js?v=0.0.36" defer></script>
   <!-- 死锁状态修复（F5 启动时清残留 isGenerating 状态） -->
   <script src="modules/chat-stuck-state-repair.js?v=0.0.36" defer></script>
@@ -4519,7 +4520,48 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
       <div class="video-call-controls"> <button id="user-speak-btn" class="control-btn speak-btn"></button> <button id="hang-up-btn" class="control-btn hangup-btn"></button> <button id="regenerate-call-btn" class="control-btn regenerate-btn camera-switch-btn" title="切换前/后摄像头" aria-label="切换前/后摄像头"></button> <button id="join-call-btn"
           class="control-btn join-btn" style="display: none;"></button> </div>
     </div>
-    
+
+    <!-- v0.3.7 Live2D 专区弹窗 (跟糯米机 CallSetupGuide 一致, 视频通话前强制弹, 选完模型 + 背景才能开始通话) -->
+    <div id="live2d-hub-modal" class="live2d-hub-modal" style="display:none;">
+      <div class="live2d-hub-sheet">
+        <div class="live2d-hub-header">
+          <h2 class="live2d-hub-title">Live2D 专区</h2>
+          <button id="live2d-hub-close-btn" class="live2d-hub-close" title="关闭">✕</button>
+        </div>
+
+        <div class="live2d-hub-body">
+          <section class="live2d-hub-section">
+            <div class="live2d-hub-section-title">模型 <span class="live2d-hub-hint">必选</span></div>
+            <div class="live2d-hub-actions">
+              <button class="live2d-hub-btn" id="live2d-hub-upload-zip-btn">📦 上传 ZIP</button>
+              <button class="live2d-hub-btn" id="live2d-hub-upload-folder-btn">📁 上传文件夹</button>
+              <input type="file" id="live2d-hub-upload-zip-input" accept=".zip" hidden>
+              <input type="file" id="live2d-hub-upload-folder-input" webkitdirectory directory multiple hidden>
+            </div>
+            <div class="live2d-hub-list" id="live2d-hub-model-list">
+              <div class="live2d-hub-empty">加载中…</div>
+            </div>
+          </section>
+
+          <section class="live2d-hub-section">
+            <div class="live2d-hub-section-title">背景 <span class="live2d-hub-hint">可选</span></div>
+            <div class="live2d-hub-actions">
+              <button class="live2d-hub-btn" id="live2d-hub-upload-bg-btn">🖼 上传背景</button>
+              <input type="file" id="live2d-hub-upload-bg-input" accept="image/*" hidden>
+            </div>
+            <div class="live2d-hub-list" id="live2d-hub-bg-list">
+              <div class="live2d-hub-empty">加载中…</div>
+            </div>
+          </section>
+        </div>
+
+        <div class="live2d-hub-footer">
+          <div id="live2d-hub-status" class="live2d-hub-status">请选择模型</div>
+          <button id="live2d-hub-start-btn" class="live2d-hub-start" disabled>开始通话</button>
+        </div>
+      </div>
+    </div>
+
     <!-- 语音通话界面 -->
     <div id="voice-call-screen" class="screen">
       <!-- v0.2.30.28: 不再用独立光晕 div (会跑偏) — 改为 box-shadow 直接挂在按钮/头像上, 永远跟元素对齐 -->

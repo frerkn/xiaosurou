@@ -724,8 +724,10 @@ document.addEventListener('DOMContentLoaded', () => {
     
     showScreen('home-screen');
 
-    // v0.3.6: Live2D 专区页面 init 移到用户进专区时再调 (不再设置页直接渲染)
-    // Live2DUI.initUI 仍在, 改成 Live2DHub.open() 时调用
+    // v0.3.7: Live2D 专区弹窗 init (挂在 window.Live2DHub, 视频通话前弹)
+    if (typeof window.Live2DHub !== 'undefined' && typeof window.Live2DHub.init === 'function') {
+      try { window.Live2DHub.init(); } catch (e) { console.warn('Live2DHub init failed:', e); }
+    }
   }
 
   init();

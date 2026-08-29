@@ -319,6 +319,24 @@
     if (!state.activeChatId || videoCallState.isActive || videoCallState.isAwaitingResponse) return;
 
     const chat = state.chats[state.activeChatId];
+
+    // v0.3.7: 强制弹 Live2D 专区 (跟糯米机 CallSetupGuide 一致, 选完模型才能开始)
+    if (window.Live2DHub && typeof window.Live2DHub.open === 'function') {
+      try {
+        window.Live2DHub.open(function () {
+          // user 点 "开始通话" 按钮 → 走原 outgoing-call 流程
+          doInitiateCall(chat);
+        });
+        return;
+      } catch (e) { console.warn('Live2DHub open failed:', e); }
+    }
+
+    // fallback: Live2DHub 没加载直接走原流程
+    doInitiateCall(chat);
+  }
+
+  async function doInitiateCall(chat) {
+    if (!chat) return;
     videoCallState.isGroupCall = chat.isGroup;
     videoCallState.isAwaitingResponse = true;
     videoCallState.initiator = 'user';
