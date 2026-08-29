@@ -723,6 +723,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     showScreen('home-screen');
+
+    // P1.5 Live2D 模型/背景管理 UI 入口 (粉白 iOS 卡片列表)
+    if (typeof window.Live2DUI !== 'undefined' && typeof window.Live2DUI.initUI === 'function') {
+      try { window.Live2DUI.initUI(); } catch (e) { console.warn('Live2DUI init failed:', e); }
+    }
   }
 
   init();

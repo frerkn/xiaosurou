@@ -6,28 +6,6 @@
 (function (global) {
   'use strict';
 
-  // 诊断浮窗 (v0.2.1 加, 移动端 PWA 无 console 救星, 验证完可包 dev mode)
-  const _diag = (() => {
-    if (typeof document === 'undefined') return null;
-    const el = document.createElement('div');
-    el.dataset.live2dDiag = '1';
-    el.style.cssText = 'position:fixed;top:env(safe-area-inset-top,0);left:0;right:0;z-index:2147483647;padding:8px 12px;font:13px/1.4 -apple-system,system-ui,sans-serif;color:#fff;background:rgba(20,20,28,.92);border-bottom:1px solid rgba(255,255,255,.15);word-break:break-all;pointer-events:none;white-space:pre-wrap;max-height:30vh;overflow:auto;';
-    document.body.appendChild(el);
-    return el;
-  })();
-  function _log(level, msg) {
-    if (!_diag) return;
-    const colors = { ok: '#7ee787', err: '#ff7b72', info: '#d2a8ff', dim: '#8b949e' };
-    const icon = { ok: '✓', err: '✗', info: '·', dim: '·' };
-    const time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
-    const line = document.createElement('div');
-    line.style.cssText = `color:${colors[level] || '#fff'}`;
-    line.textContent = `${icon[level] || '·'} ${time}  ${msg}`;
-    _diag.appendChild(line);
-    while (_diag.children.length > 6) _diag.removeChild(_diag.firstChild);
-    if (level === 'err') console.warn('[Live2D-diag]', msg);
-  }
-
   function getPixi() {
     return global.PIXI || null;
   }
@@ -105,11 +83,11 @@
             drawables.renderOrders = typeof renderOrders.subarray === 'function'
               ? renderOrders.subarray(0, drawableCount)
               : renderOrders;
-            _log('info', `bridge: drawables.renderOrders 已补 (count=${drawableCount})`);
+            // bridge: drawables.renderOrders 已补
           }
         }
       } catch (bridgeErr) {
-        _log('info', `bridge 跳过: ${bridgeErr && bridgeErr.message ? bridgeErr.message : bridgeErr}`);
+        // bridge 跳过
       }
 
       app.stage.addChild(model);
@@ -154,11 +132,9 @@
       canvas._live2dModel = model;
 
       console.log('[Live2D v0.3.0] mounted:', modelPath, 'size:', w, 'x', h, 'frames:', frameWait);
-      _log('ok', `mounted: ${modelPath} (canvas ${w}x${h}, model ${Math.round(model.width)}x${Math.round(model.height)})`);
       return { success: true, app, model };
     } catch (err) {
       console.warn('[Live2D] mount failed:', err, 'path:', modelPath);
-      _log('err', `mount 失败: ${err && err.message ? err.message : String(err)}`);
       // 清理残留 PIXI Application
       if (canvas._live2dApp) {
         try { canvas._live2dApp.destroy(true, { children: true, texture: true }); } catch (e) {}
@@ -177,7 +153,11 @@
     }
     canvas._live2dApp = null;
     canvas._live2dModel = null;
-    _log('dim', 'disposed');
+    // P1.5 revoke IDB 模式创建的 blob URL
+    if (Array.isArray(canvas._live2dBlobUrls)) {
+      canvas._live2dBlobUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (e) {} });
+      canvas._live2dBlobUrls = null;
+    }
     return true;
   }
 
@@ -226,8 +206,95 @@
     return !!(canvas && canvas._live2dApp);
   }
 
+  // P1.5 从 IndexedDB 加载模型 — 内部把 files Map 改写为 blob URL, 调原 mountLive2D
+  // 依赖: window.Live2DStorage.getModel(modelId) 返回 { files: Map<path, Blob>, modelPath, ... }
+  // disposeLive2D 时会自动 revoke 跟这个 canvas 关联的所有 _live2dBlobUrls
+  async function mountLive2DFromIDB(canvas, modelId, options) {
+    if (!canvas) return { success: false, error: new Error('canvas is null') };
+    if (!modelId) return { success: false, error: new Error('modelId is empty') };
+    if (!global.Live2DStorage) return { success: false, error: new Error('Live2DStorage not loaded') };
+
+    let data;
+    try {
+      data = await global.Live2DStorage.getModel(modelId);
+    } catch (e) {
+      return { success: false, error: new Error('IDB read failed: ' + (e.message || e)) };
+    }
+    if (!data) return { success: false, error: new Error('model not found in IDB: ' + modelId) };
+    if (!data.files || data.files.size === 0) return { success: false, error: new Error('model has no files') };
+
+    // 1. 给每个 file 建 blob URL
+    const urlMap = new Map();
+    const blobUrls = [];
+    for (const [path, blob] of data.files.entries()) {
+      const u = URL.createObjectURL(blob);
+      urlMap.set(path, u);
+      blobUrls.push(u);
+    }
+
+    // 2. 读 + 改写 model3.json: file 引用全部变绝对 blob URL
+    let modelJson;
+    try {
+      const txt = await data.files.get(data.modelPath).text();
+      modelJson = JSON.parse(txt);
+    } catch (e) {
+      blobUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (e) {} });
+      return { success: false, error: new Error('model3.json parse failed: ' + (e.message || e)) };
+    }
+    const baseDir = data.modelPath.substring(0, data.modelPath.lastIndexOf('/') + 1);
+    const resolveBlob = (rel) => {
+      if (!rel) return rel;
+      // 如果本来就是 blob URL, 不动
+      if (rel.startsWith('blob:')) return rel;
+      const full = baseDir + rel;
+      return urlMap.get(full) || rel;
+    };
+    const refs = (modelJson.FileReferences || modelJson.fileReferences);
+    if (refs) {
+      if (refs.Moc) refs.Moc = resolveBlob(refs.Moc);
+      if (refs.DisplayInfo) refs.DisplayInfo = resolveBlob(refs.DisplayInfo);
+      if (refs.Physics) refs.Physics = resolveBlob(refs.Physics);
+      if (refs.Pose) refs.Pose = resolveBlob(refs.Pose);
+      if (Array.isArray(refs.Textures)) refs.Textures = refs.Textures.map(resolveBlob);
+      if (refs.Motions && typeof refs.Motions === 'object') {
+        for (const groupName of Object.keys(refs.Motions)) {
+          const list = refs.Motions[groupName];
+          if (Array.isArray(list)) {
+            for (const m of list) {
+              if (m && m.File) m.File = resolveBlob(m.File);
+            }
+          }
+        }
+      }
+      if (Array.isArray(refs.Expressions)) {
+        for (const e of refs.Expressions) {
+          if (e && e.File) e.File = resolveBlob(e.File);
+        }
+      }
+    }
+
+    // 3. 把改写后的 model3.json 转 blob URL
+    const rewrittenBlob = new Blob([JSON.stringify(modelJson)], { type: 'application/json' });
+    const rewrittenUrl = URL.createObjectURL(rewrittenBlob);
+    blobUrls.push(rewrittenUrl);
+
+    // 4. 挂到 canvas._live2dBlobUrls, dispose 时 revoke
+    canvas._live2dBlobUrls = blobUrls;
+
+    // 5. 调原 mountLive2D
+    const result = await mountLive2D(canvas, rewrittenUrl, options);
+
+    // 6. 如果 mount 失败, 立刻 revoke (成功后等 dispose 处理)
+    if (!result.success) {
+      canvas._live2dBlobUrls = null;
+      blobUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (e) {} });
+    }
+    return result;
+  }
+
   global.Live2DLoader = {
     mountLive2D,
+    mountLive2DFromIDB,
     disposeLive2D,
     playMotion,
     setExpression,

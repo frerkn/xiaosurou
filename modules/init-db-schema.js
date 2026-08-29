@@ -197,4 +197,12 @@ db.version(63).stores({
   hotNewsSnapshots: '&id, fetchedAt'
 });
 
+// P1.5 Live2D 用户上传模型 + 通话背景 (跟 330 现有 IDB 模式一致, 本地存, 不跨设备同步)
+// live2d_models.files 存 Blob 数组, 朋友 A 上传的角色只有 A 浏览器能看
+// live2d_backgrounds.files 存单个背景图片 Blob
+db.version(64).stores({
+  live2d_models: '&id, name, addedAt',
+  live2d_backgrounds: '&id, name, addedAt'
+});
+
 window.db = db;

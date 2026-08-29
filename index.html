@@ -208,7 +208,11 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
   <!-- 第八层：初始化（必须在所有模块之后） -->
   <!-- 数据定义（无依赖） -->
   <script src="modules/init-avatar-frames.js?v=0.0.36" defer></script>
-  <script src="modules/init-db-schema.js?v=0.0.36" defer></script>
+  <script src="modules/init-db-schema.js?v=0.0.37" defer></script>
+  <script src="modules/live2d-config.js?v=0.0.1" defer></script>
+  <script src="modules/live2d-uploader.js?v=0.0.1" defer></script>
+  <script src="modules/live2d-storage.js?v=0.0.1" defer></script>
+  <script src="modules/live2d-ui.js?v=0.0.1" defer></script>
   <script src="modules/api-endpoint-presets.js?v=0.0.36" defer></script>
   <!-- 死锁状态修复（F5 启动时清残留 isGenerating 状态） -->
   <script src="modules/chat-stuck-state-repair.js?v=0.0.36" defer></script>
@@ -4481,8 +4485,18 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
             <line x1="5" y1="12" x2="19" y2="12"></line>
         </svg>
     </button>
-    <span id="call-timer">00:00</span> 
+    <span id="call-timer">00:00</span>
 </div>
+
+<!-- P1.5 Live2D 通话浮动切背景按钮 (Live2D 挂上后才显示) -->
+<button id="live2d-switch-bg-btn" class="live2d-floating-btn" style="display:none;" title="切换背景">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+        <circle cx="8.5" cy="8.5" r="1.5"></circle>
+        <polyline points="21 15 16 10 5 21"></polyline>
+    </svg>
+</button>
+<div id="live2d-bg-picker" class="live2d-bg-picker" style="display:none;"></div>
 
       <!-- 视频画面显示区 (优化模式) -->
       <div id="video-display-area" style="display: none;">
@@ -4722,12 +4736,46 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
                  </div>
             </div>
 
-            <!-- v0.2.0 Live2D 视频通话模型路径 - 重新启用 (PIXI v8 + untitled engine 1.3.5 + Cubism 5 Core) -->
-            <div class="settings-item" id="ai-live2d-model-group">
+            <!-- v0.3.1 Live2D 视频通话 - 模型管理 (粉白 iOS 卡片列表, 路径保留为自动同步字段) -->
+            <div class="settings-item-block" id="ai-live2d-model-group">
                  <label>Live2D 模型</label>
                  <div class="settings-right full-width">
-                    <input type="text" id="ai-live2d-model-input" placeholder="留空 = 不启用 | 填路径如 assets/live2d/zhanghuaijin/小狼/小狼.model3.json">
-                    <div class="settings-desc" style="margin-top:4px;">视频通话时用 Live2D 模型替代静态图。需保证 model3.json / moc3 / 纹理 / 物理 / 表情文件齐全</div>
+                    <input type="text" id="ai-live2d-model-input" placeholder="选中模型后自动填入路径 | 也可手动填 assets/live2d/...">
+                    <div class="settings-desc" style="margin-top:4px;">视频通话时用 Live2D 模型替代静态图。当前活跃模型路径同步到这里</div>
+                 </div>
+                 <div class="live2d-manager">
+                    <div class="live2d-manager-actions">
+                       <button class="live2d-btn live2d-btn-primary" id="live2d-upload-zip-btn">
+                          <span>📦</span> 上传 ZIP
+                       </button>
+                       <button class="live2d-btn live2d-btn-primary" id="live2d-upload-folder-btn">
+                          <span>📁</span> 上传文件夹
+                       </button>
+                       <input type="file" id="live2d-upload-zip-input" accept=".zip" hidden>
+                       <input type="file" id="live2d-upload-folder-input" webkitdirectory directory multiple hidden>
+                    </div>
+                    <div class="live2d-list" id="live2d-model-list">
+                       <div class="live2d-empty">加载中…</div>
+                    </div>
+                 </div>
+            </div>
+
+            <!-- 通话背景管理 (跟糯米机一样, 通话时可切换) -->
+            <div class="settings-item-block" id="ai-live2d-background-group">
+                 <label>通话背景</label>
+                 <div class="settings-right full-width">
+                    <div class="settings-desc">视频通话时角色背后的背景, 可上传图片</div>
+                 </div>
+                 <div class="live2d-manager">
+                    <div class="live2d-manager-actions">
+                       <button class="live2d-btn live2d-btn-primary" id="live2d-upload-bg-btn">
+                          <span>🖼</span> 上传背景
+                       </button>
+                       <input type="file" id="live2d-upload-bg-input" accept="image/*" hidden>
+                    </div>
+                    <div class="live2d-list" id="live2d-bg-list">
+                       <div class="live2d-empty">加载中…</div>
+                    </div>
                  </div>
             </div>
 

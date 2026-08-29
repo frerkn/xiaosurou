@@ -26227,3 +26227,211 @@ a.hot-news-title:hover {
 .hot-news-chip:active {
     transform: scale(0.95);
 }
+
+/* Live2D 模型/背景管理 - 粉白 iOS 卡片风格 */
+.live2d-manager {
+    margin-top: 10px;
+    background: linear-gradient(180deg, #fff5f9 0%, #ffffff 100%);
+    border-radius: 14px;
+    padding: 12px;
+    box-shadow: 0 2px 8px rgba(255, 142, 179, 0.12);
+    border: 1px solid rgba(255, 182, 193, 0.35);
+}
+.live2d-manager-actions {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+.live2d-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 14px;
+    border-radius: 10px;
+    border: none;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    -webkit-tap-highlight-color: transparent;
+}
+.live2d-btn-primary {
+    background: linear-gradient(135deg, #ff8eb3 0%, #ffb6c1 100%);
+    color: #fff;
+    box-shadow: 0 2px 4px rgba(255, 142, 179, 0.3);
+}
+.live2d-btn-primary:active {
+    transform: scale(0.96);
+    box-shadow: 0 1px 2px rgba(255, 142, 179, 0.3);
+}
+.live2d-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 280px;
+    overflow-y: auto;
+}
+.live2d-empty {
+    text-align: center;
+    color: #b58a9a;
+    font-size: 13px;
+    padding: 16px 8px;
+    line-height: 1.5;
+}
+.live2d-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1.5px solid transparent;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+}
+.live2d-card:active {
+    transform: scale(0.98);
+}
+.live2d-card-active {
+    border-color: #ff8eb3;
+    background: linear-gradient(180deg, #fff0f5 0%, #ffffff 100%);
+    box-shadow: 0 2px 6px rgba(255, 142, 179, 0.18);
+}
+.live2d-card-thumb {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    object-fit: cover;
+    background: #f5f5f5;
+    flex-shrink: 0;
+}
+.live2d-card-thumb-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+}
+.live2d-card-info {
+    flex: 1;
+    min-width: 0;
+}
+.live2d-card-name {
+    font-size: 14px;
+    color: #3a2a30;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.live2d-card-meta {
+    font-size: 11px;
+    color: #b58a9a;
+    margin-top: 2px;
+}
+.live2d-card-mark {
+    color: #ff5c8d;
+    font-size: 18px;
+    font-weight: bold;
+    flex-shrink: 0;
+}
+.live2d-card-del {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255, 142, 179, 0.15);
+    color: #ff5c8d;
+    font-size: 14px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all 0.15s;
+    -webkit-tap-highlight-color: transparent;
+}
+.live2d-card-del:active {
+    background: rgba(255, 92, 141, 0.25);
+    transform: scale(0.9);
+}
+
+/* P1.5 视频通话浮动切背景按钮 + 背景选择器 */
+.live2d-floating-btn {
+    position: absolute;
+    top: calc(env(safe-area-inset-top, 0px) + 50px);
+    right: 12px;
+    z-index: 100;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255, 255, 255, 0.92);
+    color: #ff5c8d;
+    box-shadow: 0 2px 8px rgba(255, 142, 179, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.15s;
+}
+.live2d-floating-btn:active {
+    transform: scale(0.92);
+}
+.live2d-bg-picker {
+    position: absolute;
+    top: calc(env(safe-area-inset-top, 0px) + 100px);
+    right: 12px;
+    z-index: 101;
+    width: 240px;
+    max-height: 50vh;
+    overflow-y: auto;
+    background: linear-gradient(180deg, #fff5f9 0%, #ffffff 100%);
+    border-radius: 14px;
+    border: 1px solid rgba(255, 182, 193, 0.45);
+    box-shadow: 0 4px 16px rgba(255, 142, 179, 0.25);
+    padding: 10px;
+    box-sizing: border-box;
+}
+.live2d-bg-picker-title {
+    font-size: 12px;
+    color: #b58a9a;
+    margin: 0 4px 8px;
+    font-weight: 500;
+}
+.live2d-bg-picker-clear {
+    margin: 6px 4px 0;
+    padding: 8px;
+    text-align: center;
+    border-radius: 10px;
+    background: rgba(255, 142, 179, 0.1);
+    color: #ff5c8d;
+    font-size: 13px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.live2d-bg-picker-clear:active {
+    background: rgba(255, 142, 179, 0.2);
+}
+.live2d-bg-picker-item {
+    width: 100%;
+    height: 56px;
+    border-radius: 10px;
+    margin-bottom: 6px;
+    background-size: cover;
+    background-position: center;
+    border: 1.5px solid transparent;
+    cursor: pointer;
+    position: relative;
+}
+.live2d-bg-picker-item-active {
+    border-color: #ff8eb3;
+    box-shadow: 0 0 0 2px rgba(255, 142, 179, 0.25);
+}
+.live2d-bg-picker-empty {
+    font-size: 12px;
+    color: #b58a9a;
+    text-align: center;
+    padding: 12px 4px;
+    line-height: 1.5;
+}

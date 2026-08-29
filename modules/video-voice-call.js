@@ -71,16 +71,18 @@
     // 1. 先清理残留 (旧 canvas)
     unmountLive2DForCall();
 
-    // 2. 检查是否配了 live2dModelPath
-    const modelPath = chat.settings && chat.settings.live2dModelPath;
-    if (!modelPath) {
-      console.log('[Live2D] no modelPath configured, skip (use original video area)');
-      return;
-    }
+    // 2. 加载模型来源 — P1.5 优先 IDB (用户上传的模型), fallback 路径式 (assets/ 内置)
     if (!window.Live2DLoader) {
       console.warn('[Live2D] window.Live2DLoader not loaded, skip');
       return;
     }
+    let result;
+    let activeId = '';
+    try {
+      if (window.Live2DStorage) {
+        activeId = await window.Live2DStorage.getActiveModelId();
+      }
+    } catch (e) { activeId = ''; }
 
     // v0.1.6: 彻底隐藏所有可能遮挡的"对面画面区"元素
     // - #video-display-area 整个隐藏 (applyVideoOptimizationToCall 设的 block 会被覆盖)
@@ -101,11 +103,28 @@
     canvas.id = 'live2d-canvas';
     screen.appendChild(canvas);
 
-    // 4. 加载模型
-    const result = await window.Live2DLoader.mountLive2D(canvas, modelPath, {
-      scale: 0.4,
-      autoStartIdle: true,
-    });
+    if (activeId) {
+      // 走 IDB (P1.5 用户上传的模型)
+      console.log('[Live2D] load from IDB, activeModelId:', activeId);
+      result = await window.Live2DLoader.mountLive2DFromIDB(canvas, activeId, {
+        scale: 0.4,
+        autoStartIdle: true,
+      });
+    } else {
+      // fallback 路径式 (P1 assets/ 内置测试模型)
+      const modelPath = chat.settings && chat.settings.live2dModelPath;
+      if (!modelPath) {
+        console.log('[Live2D] no active IDB model and no path configured, skip (use original video area)');
+        canvas.remove();
+        restoreVideoCallOriginalDisplay();
+        return;
+      }
+      console.log('[Live2D] load from path:', modelPath);
+      result = await window.Live2DLoader.mountLive2D(canvas, modelPath, {
+        scale: 0.4,
+        autoStartIdle: true,
+      });
+    }
 
     if (!result.success) {
       console.warn('[Live2D] mount failed:', result.error, '— restoring original video area');
@@ -115,6 +134,11 @@
       restoreVideoCallOriginalDisplay();
     } else {
       console.log('[Live2D] mount success');
+      // P1.5 通话套用 active 背景 + 显示浮动切背景按钮
+      if (window.Live2DUI) {
+        try { window.Live2DUI.applyActiveBackground(); } catch (e) {}
+        try { window.Live2DUI.showBackgroundSwitchBtn(); } catch (e) {}
+      }
     }
     } catch (e) {
       console.error('[Live2D] mountLive2DForCall threw:', e);
@@ -151,6 +175,11 @@
     }
     // 恢复原图显示 — 让下次视频通话 / Live2D 失败时能正常显示对面
     restoreVideoCallOriginalDisplay();
+    // P1.5 卸载时清掉背景 + 隐藏浮动切背景按钮
+    if (window.Live2DUI) {
+      try { window.Live2DUI.applyBackgroundToCallScreen(''); } catch (e) {}
+      try { window.Live2DUI.hideBackgroundSwitchBtn(); } catch (e) {}
+    }
   }
 
   let videoCallMicStream = null;
