@@ -122,11 +122,10 @@ self.addEventListener('fetch', event => {
      url.includes('/js/mcp-generic-client.js') ||
      url.includes('/js/mcp-tool-bridge.js') ||
      url.includes('/js/mcp-ui-list.js') ||
-     // v0.3.0 更新：Live2D 视频通话（loader + 视频通话主文件 + 模型目录 + Cubism 4 core 本地）
+     // v0.3.2 更新：Live2D 视频通话（loader + 视频通话主文件 + Cubism 4 core 本地；模型走 IDB 不再 fetch assets/）
      url.includes('/lib/live2dcubismcore.min.js') ||
      url.includes('/modules/live2d-loader.js') ||
-     url.includes('/modules/video-voice-call.js') ||
-     url.includes('/assets/live2d/'));
+     url.includes('/modules/video-voice-call.js'));
 
   const isKnownCDN =
     url.includes('unpkg.com/dexie') ||
