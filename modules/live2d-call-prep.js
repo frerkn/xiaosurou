@@ -213,13 +213,18 @@
   function close() {
     if (screenEl) screenEl.style.display = 'none';
     onStartCallback = null;
-    // v0.5.0 P1.7: 返回到聊天详情 (user 反馈准备页没退出键, 之前只 display:none 卡在原地)
-    // 兜底: showScreen 不存在就保持 display:none (老行为, 配合老系统可能手动切)
+    // v0.5.0 P2.3: 退回当前聊天框 (user 反馈 P1.7 退到 chat-detail/chat-list 不对, 应该是 chat-interface)
+    // 兜底: 没 active chat 时退 chat-list; showScreen 不存在就保持 display:none
     try {
       if (global.showScreen) {
-        // 优先回 chat-detail, 兜底回 chat-list
-        const target = document.getElementById('chat-detail-screen') ? 'chat-detail-screen' : 'chat-list-screen';
-        global.showScreen(target);
+        const hasActive = state && state.activeChatId && document.getElementById('chat-interface-screen');
+        if (hasActive) {
+          global.showScreen('chat-interface-screen');
+        } else if (document.getElementById('chat-list-screen')) {
+          global.showScreen('chat-list-screen');
+        } else if (document.getElementById('chat-interface-screen')) {
+          global.showScreen('chat-interface-screen');
+        }
       }
     } catch (e) { console.warn('[Live2DCallPrep] close showScreen failed:', e); }
   }
