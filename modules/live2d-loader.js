@@ -238,6 +238,8 @@
     const blobUrls = [];
     for (const [path, blob] of data.files.entries()) {
       const u = URL.createObjectURL(blob);
+      // [TEMPORARY_DIAG] iOS 显示 blob:https// 排查 — createObjectURL 原始返回值
+      console.warn('[DIAG][createObjectURL] path=' + path + ' | typeof=' + (typeof u) + ' | value=' + u + ' | location.origin=' + location.origin + ' | location.href=' + location.href);
       urlMap.set(path, u);
       blobUrls.push(u);
     }
@@ -262,6 +264,8 @@
     const refs = (modelJson.FileReferences || modelJson.fileReferences);
     if (refs) {
       if (refs.Moc) refs.Moc = resolveBlob(refs.Moc);
+      // [TEMPORARY_DIAG] 进入 Live2DLoader 前 model3.json 的 Moc 引用(实际 URL)
+      console.warn('[DIAG][refs.Moc]=' + refs.Moc);
       if (refs.DisplayInfo) refs.DisplayInfo = resolveBlob(refs.DisplayInfo);
       if (refs.Physics) refs.Physics = resolveBlob(refs.Physics);
       if (refs.Pose) refs.Pose = resolveBlob(refs.Pose);
@@ -327,6 +331,8 @@
         ? payload.settings.resolveURL(payload.url)
         : payload.url;
       if (!url) { return next(); }
+      // [TEMPORARY_DIAG] middleware 收到的 payload.url 与 fetch 实际使用的 URL
+      console.warn('[DIAG][payload.url]=' + payload.url + ' | fetch.url=' + url + ' | settings.url=' + (payload.settings && payload.settings.url) + ' | typeof=' + (typeof url));
       return fetch(url).then(function (resp) {
         // 原 XHRLoader 在 load 时接受 status 0 或 200, 这里保持一致, 避免误判.
         if (!resp.ok && resp.status !== 0) {
