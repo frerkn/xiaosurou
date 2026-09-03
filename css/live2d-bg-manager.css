@@ -1,0 +1,307 @@
+/* Live2D 背景管理页 (v0.5.0 P11) — 粉白 iOS 风格, 镜像 live2d-manager.css */
+
+#live2d-bg-manager-screen.live2d-bg-manager-screen {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 9998 !important;
+    display: flex;
+    flex-direction: column;
+    background: url('../assets/live2d-call/prep-background.png') center / cover no-repeat, #fff8fb;
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: #3a2a30;
+    overflow: hidden;
+    padding-top: env(safe-area-inset-top, 0);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+/* ===== 头部 ===== */
+.live2d-bg-manager-header {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255, 142, 179, 0.18);
+}
+.live2d-bg-manager-back-btn {
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 50%;
+    font-size: 22px;
+    line-height: 1;
+    color: #b06a82;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    box-shadow: 0 1px 3px rgba(255, 142, 179, 0.15);
+    transition: background 0.15s, transform 0.1s;
+}
+.live2d-bg-manager-back-btn:active {
+    background: rgba(255, 200, 220, 0.8);
+    transform: scale(0.94);
+}
+.live2d-bg-manager-title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: #3a2a30;
+    letter-spacing: 0.02em;
+}
+.live2d-bg-manager-header-spacer {
+    width: 36px;
+}
+
+/* ===== 主体 ===== */
+.live2d-bg-manager-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 12px 16px 16px;
+    gap: 12px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.live2d-bg-manager-section-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #b06a82;
+    margin: 0 4px 8px;
+    letter-spacing: 0.05em;
+}
+
+/* ===== 列表 ===== */
+.live2d-bg-manager-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.live2d-bg-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(255, 255, 255, 0.75);
+    border: 1.5px solid rgba(255, 182, 193, 0.35);
+    border-radius: 12px;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+    box-shadow: 0 1px 3px rgba(255, 142, 179, 0.08);
+}
+/* v0.5.0 P11.3: 删 transform: scale(0.98) — 整卡缩放让 ✕ 按钮位置在按下瞬间偏移 1-2px, 手指松开时 ev.target 算的位置可能不在 ✕ 按钮上, 走"绑定 chat"分支 */
+.live2d-bg-card:active {
+    background: rgba(255, 240, 245, 0.9);
+}
+.live2d-bg-card-active {
+    background: linear-gradient(135deg, #fff0f5 0%, #ffe4ec 100%);
+    border-color: rgba(255, 105, 135, 0.55);
+    box-shadow: 0 2px 6px rgba(255, 105, 135, 0.18);
+}
+
+/* ===== 缩略图 ===== */
+.live2d-bg-card-thumb {
+    flex-shrink: 0;
+    width: 64px;
+    height: 64px;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #ffeef4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.live2d-bg-card-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.live2d-bg-card-thumb-placeholder {
+    font-size: 26px;
+    color: #d49ab0;
+    background: linear-gradient(135deg, #fff5f9 0%, #ffe4ec 100%);
+}
+
+/* ===== 卡片信息 ===== */
+.live2d-bg-card-info {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.live2d-bg-card-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #3a2a30;
+    margin-bottom: 3px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.live2d-bg-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    font-size: 11px;
+    color: #a08a98;
+}
+
+/* ===== ✓ 当前标记 ===== */
+.live2d-bg-card-mark {
+    flex-shrink: 0;
+    font-size: 10px;
+    color: #fff;
+    background: linear-gradient(135deg, #ff8fb7 0%, #ff6b9d 100%);
+    padding: 4px 8px;
+    border-radius: 999px;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+
+/* ===== 删除按钮 ===== */
+/* v0.5.0 P11.3: hit area 28x28 → 44x44 (iOS 推荐 hit area, 28px 在 iOS PWA 上太小 + :active 缩放会让点偏) */
+.live2d-bg-card-del {
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    border: none;
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 50%;
+    font-size: 14px;
+    color: #b06a82;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    margin-left: 2px;
+    transition: background 0.15s;
+    /* iOS Safari: 防止 tap 误识别为 swipe (P0 白屏教训同源) */
+    touch-action: manipulation;
+}
+.live2d-bg-card-del:active {
+    background: rgba(255, 200, 220, 0.8);
+}
+
+/* ===== v0.5.0 P11.2: 删除确认弹窗 (自建 modal 替代 window.confirm) =====
+   绕开 iOS PWA standalone 模式下 confirm() 静默返回 false 的 bug */
+.live2d-bg-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10001;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    box-sizing: border-box;
+    /* 入场动画 */
+    animation: live2d-bg-modal-fade 0.18s ease-out;
+}
+.live2d-bg-modal {
+    width: 100%;
+    max-width: 320px;
+    background: #fff;
+    border-radius: 16px;
+    padding: 24px 20px 18px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+    text-align: center;
+    /* 弹跳入场 */
+    animation: live2d-bg-modal-pop 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.live2d-bg-modal-icon {
+    font-size: 44px;
+    line-height: 1;
+    margin-bottom: 12px;
+}
+.live2d-bg-modal-title {
+    font-size: 17px;
+    font-weight: 600;
+    color: #3a2a30;
+    margin-bottom: 8px;
+    letter-spacing: 0.02em;
+}
+.live2d-bg-modal-desc {
+    font-size: 13px;
+    color: #8a6a7a;
+    line-height: 1.55;
+    margin-bottom: 20px;
+    word-break: break-all;
+}
+.live2d-bg-modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+.live2d-bg-modal-btn {
+    flex: 1 1 0;
+    min-height: 44px;
+    border: none;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0 16px;
+    transition: transform 0.1s, background 0.15s;
+    touch-action: manipulation;
+}
+.live2d-bg-modal-btn:active {
+    transform: scale(0.96);
+}
+.live2d-bg-modal-btn-cancel {
+    background: rgba(255, 182, 193, 0.25);
+    color: #b06a82;
+}
+.live2d-bg-modal-btn-cancel:active {
+    background: rgba(255, 182, 193, 0.45);
+}
+.live2d-bg-modal-btn-confirm {
+    background: linear-gradient(135deg, #ff4d6d 0%, #c9184a 100%);
+    color: #fff;
+    box-shadow: 0 2px 6px rgba(255, 77, 109, 0.3);
+}
+.live2d-bg-modal-btn-confirm:active {
+    background: linear-gradient(135deg, #c9184a 0%, #800f2f 100%);
+}
+@keyframes live2d-bg-modal-fade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+@keyframes live2d-bg-modal-pop {
+    from { opacity: 0; transform: scale(0.85); }
+    to   { opacity: 1; transform: scale(1); }
+}
+
+/* ===== 状态/空/错误 ===== */
+.live2d-bg-manager-list-error {
+    background: rgba(255, 230, 230, 0.9);
+    border: 1px solid rgba(220, 100, 100, 0.4);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 12px;
+    color: #a33;
+}
+.live2d-bg-manager-empty {
+    background: rgba(255, 255, 255, 0.6);
+    border: 1.5px dashed rgba(255, 142, 179, 0.35);
+    border-radius: 12px;
+    padding: 20px 16px;
+    font-size: 12px;
+    color: #b58a9a;
+    text-align: center;
+    line-height: 1.6;
+}
+.live2d-bg-manager-hint {
+    font-size: 11px;
+    color: #b58a9a;
+    text-align: center;
+    margin: 8px 0 0;
+    letter-spacing: 0.03em;
+}

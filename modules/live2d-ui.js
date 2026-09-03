@@ -253,10 +253,33 @@
     }
   }
 
-  // 应用当前 active 背景到视频通话画面
-  async function applyActiveBackground() {
+  // v0.4.3: per-chat 背景绑定 (key = live2d.activeBackgroundId.<chatId>)
+  // fallback 到旧全局 activeBackgroundId (兼容老数据)
+  function getActiveBackgroundIdForChat(chatId) {
+    if (!chatId || typeof chatId !== 'string') return '';
+    try {
+      const per = localStorage.getItem('live2d.activeBackgroundId.' + chatId);
+      if (per) return per;
+      const glob = localStorage.getItem('live2d.activeBackgroundId');
+      return glob || '';
+    } catch (e) { return ''; }
+  }
+
+  function setActiveBackgroundIdForChat(chatId, bgId) {
+    if (!chatId || typeof chatId !== 'string') return;
+    try { localStorage.setItem('live2d.activeBackgroundId.' + chatId, bgId || ''); } catch (e) {}
+  }
+
+  // v0.4.3: 应用当前 active 背景到视频通话画面
+  // 兼容旧调用: applyActiveBackground() 不传 chat → 全局共享
+  // 新调用: applyActiveBackground(chat) → 该 chat 专属背景
+  async function applyActiveBackground(chat) {
     let activeId = '';
-    try { activeId = localStorage.getItem('live2d.activeBackgroundId') || ''; } catch (e) {}
+    if (chat && chat.id) {
+      activeId = getActiveBackgroundIdForChat(chat.id);
+    } else {
+      try { activeId = localStorage.getItem('live2d.activeBackgroundId') || ''; } catch (e) {}
+    }
     if (!activeId || !global.db) return;
     const bg = await global.db.live2d_backgrounds.get(activeId);
     if (bg && bg.blob) {
@@ -477,6 +500,8 @@
     handleBackgroundUpload,
     applyBackgroundToCallScreen,
     applyActiveBackground,
+    getActiveBackgroundIdForChat,
+    setActiveBackgroundIdForChat,
     syncActiveModelToChat,
     showBackgroundSwitchBtn,
     hideBackgroundSwitchBtn,

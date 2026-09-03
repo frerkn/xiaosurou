@@ -26233,226 +26233,142 @@ a.hot-news-title:hover {
 
 
 
-/* v0.3.10 Live2D 专区全屏页面 (粉白 + 美化装饰, 跟图 2 一样星形装饰但粉色调) */
-#live2d-hub-screen.live2d-hub-screen {
+
+
+/* v0.4.0 视频通话准备页 (Live2D) — 基础结构, 不接功能, 后续替换美术素材 */
+/* v0.4.1: 第一轮美术素材接入, 背景换成 prep-background.png */
+#live2d-call-prep-screen.live2d-call-prep {
     position: fixed !important;
     inset: 0 !important;
     z-index: 9999 !important;
-    overflow-y: auto;
     display: block;
-    background:
-        radial-gradient(circle at 8% 12%, rgba(255, 192, 203, 0.45) 0%, transparent 35%),
-        radial-gradient(circle at 92% 85%, rgba(255, 182, 193, 0.35) 0%, transparent 40%),
-        radial-gradient(circle at 75% 20%, rgba(255, 218, 224, 0.5) 0%, transparent 30%),
-        linear-gradient(180deg, #fff8fb 0%, #ffffff 50%, #fff5f9 100%) !important;
+    overflow-y: auto;
+    background: url('assets/live2d-call/prep-background.png') center / cover no-repeat, #fff8fb;
+    padding: 24px 20px calc(20px + env(safe-area-inset-bottom, 0px));
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: #3a2a30;
 }
-#live2d-hub-screen .live2d-hub-avatar {
-    width: 56px !important;
-    height: 56px !important;
-    max-width: 56px !important;
-    max-height: 56px !important;
-    min-width: 56px !important;
-    border-radius: 50% !important;
-    object-fit: cover !important;
-    background: #ffe0eb;
-    flex-shrink: 0;
-    box-shadow: 0 4px 12px rgba(255, 142, 179, 0.3);
-}
-#live2d-hub-screen .live2d-hub-close-area {
-    position: fixed;
-    top: max(12px, env(safe-area-inset-top, 0px));
-    right: 12px;
-    z-index: 10000;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.95);
-    border: 1px solid rgba(255, 182, 193, 0.5);
-    color: #ff5c8d;
-    font-size: 18px;
-    font-weight: bold;
-    cursor: pointer;
-    box-shadow: 0 4px 12px rgba(255, 142, 179, 0.3);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    -webkit-tap-highlight-color: transparent;
-}
-#live2d-hub-screen .live2d-hub-close-area:active {
-    transform: scale(0.92);
-}
-.live2d-hub-screen::before {
-    content: "";
+.live2d-call-prep-deco {
     position: absolute;
-    top: 6%;
-    right: 5%;
-    font-size: 32px;
-    color: #ffb6c1;
-    opacity: 0.6;
+    inset: 0;
     pointer-events: none;
     z-index: 0;
-    letter-spacing: 8px;
+    overflow: hidden;
 }
-.live2d-hub-screen::after {
-    content: "";
+/* v0.4.1: 第一轮美术素材 — 蝴蝶结装饰 (右上角, 标题附近) */
+.live2d-call-prep-bow {
     position: absolute;
-    bottom: 8%;
-    left: 6%;
-    font-size: 28px;
-    color: #ffc0cb;
-    opacity: 0.55;
+    top: max(48px, calc(env(safe-area-inset-top, 0px) + 32px));
+    right: 14px;
+    width: clamp(60px, 18vw, 96px);
+    height: auto;
+    max-width: 96px;
+    object-fit: contain;
     pointer-events: none;
-    z-index: 0;
-    letter-spacing: 12px;
+    user-select: none;
+    z-index: 1;
 }
-.live2d-hub-content {
+/* v0.4.1: 第一轮美术素材 — 蕾丝装饰 (底部, 视频接通按钮上方) */
+.live2d-call-prep-lace {
+    position: absolute;
+    bottom: calc(110px + env(safe-area-inset-bottom, 0px));
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100% - 24px);
+    max-width: 412px;
+    height: auto;
+    object-fit: contain;
+    pointer-events: none;
+    user-select: none;
+    z-index: 1;
+    opacity: 0.95;
+}
+.live2d-call-prep-header {
     position: relative;
     z-index: 1;
-    max-width: 420px;
-    margin: 0 auto;
-    padding: 24px 20px calc(20px + env(safe-area-inset-bottom, 0px));
+    text-align: center;
+    margin-bottom: 20px;
 }
-.live2d-hub-header {
-    margin-bottom: 18px;
-    text-align: left;
-}
-.live2d-hub-eyebrow {
+.live2d-call-prep-eyebrow {
     margin: 0;
     font-size: 11px;
     font-weight: 700;
-    letter-spacing: 0.32em;
+    letter-spacing: 0.4em;
     color: #ff5c8d;
-    display: flex;
-    align-items: center;
-    gap: 8px;
 }
-.live2d-hub-eyebrow::before,
-.live2d-hub-eyebrow::after {
-    content: "✦";
-    font-size: 10px;
-    color: #ffb6c1;
-}
-.live2d-hub-eyebrow::after {
-    margin-left: auto;
-}
-.live2d-hub-title {
+.live2d-call-prep-title {
     margin: 6px 0 0;
-    font-size: 30px;
+    font-size: 26px;
     font-weight: 700;
-    line-height: 1.1;
     color: #3a2a30;
-    text-shadow: 0 2px 8px rgba(255, 142, 179, 0.18);
+    letter-spacing: 0.05em;
 }
-.live2d-hub-sub {
+.live2d-call-prep-hint {
     margin: 8px 0 0;
+    font-size: 14px;
+    color: #b58a9a;
+    line-height: 1.5;
+}
+.live2d-call-prep-hint-sub {
+    margin: 2px 0 0;
     font-size: 13px;
     color: #b58a9a;
     line-height: 1.5;
 }
-.live2d-hub-character-card {
+.live2d-call-prep-character {
+    position: relative;
+    z-index: 1;
     display: flex;
     align-items: center;
     gap: 14px;
     padding: 14px 16px;
-    margin: 18px 0 16px;
+    margin: 0 0 16px;
     background: linear-gradient(135deg, #ffffff 0%, #fff5f9 100%);
-    border-radius: 20px;
-    position: relative;
-    overflow: hidden;
-    box-shadow:
-        0 8px 20px rgba(255, 142, 179, 0.18),
-        inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    border-radius: 18px;
+    box-shadow: 0 4px 12px rgba(255, 142, 179, 0.12);
+    max-width: 420px;
+    margin-left: auto;
+    margin-right: auto;
 }
-.live2d-hub-character-card::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: 20px;
-    padding: 2px;
-    background: linear-gradient(135deg, #ff8eb3 0%, #ffb6c1 50%, #ffd6e4 100%);
-    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
-    pointer-events: none;
-}
-.live2d-hub-avatar {
-    width: 56px;
-    height: 56px;
+.live2d-call-prep-avatar {
+    width: 64px;
+    height: 64px;
     border-radius: 50%;
-    object-fit: cover;
-    background: #ffe0eb;
+    background: linear-gradient(135deg, #ffe0eb 0%, #ffd6e4 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     flex-shrink: 0;
-    box-shadow: 0 4px 12px rgba(255, 142, 179, 0.3);
+    box-shadow: 0 2px 8px rgba(255, 142, 179, 0.2);
+    overflow: hidden;
 }
-.live2d-hub-character-info {
+.live2d-call-prep-avatar-placeholder {
+    font-size: 11px;
+    color: #b58a9a;
+    font-weight: 500;
+}
+.live2d-call-prep-character-info {
     flex: 1;
     min-width: 0;
 }
-.live2d-hub-character-name {
-    font-size: 17px;
+.live2d-call-prep-character-name {
+    font-size: 18px;
     font-weight: 600;
     color: #3a2a30;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-.live2d-hub-character-desc {
+.live2d-call-prep-character-desc {
     font-size: 12px;
     color: #b58a9a;
     margin-top: 2px;
 }
-.live2d-hub-character-spark {
-    font-size: 20px;
-    color: #ffb6c1;
-    text-shadow: 0 0 8px rgba(255, 142, 179, 0.5);
-    flex-shrink: 0;
-}
-.live2d-hub-preview {
-    height: 180px;
-    border-radius: 20px;
-    background:
-        radial-gradient(circle at 50% 50%, rgba(255, 218, 224, 0.5) 0%, rgba(255, 255, 255, 0.3) 70%),
-        linear-gradient(135deg, #fff5f9 0%, #ffffff 100%);
-    border: 1.5px dashed rgba(255, 142, 179, 0.4);
-    margin: 16px 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+.live2d-call-prep-card {
     position: relative;
-    overflow: hidden;
-}
-.live2d-hub-preview::before {
-    content: "✦";
-    position: absolute;
-    top: 12px;
-    left: 16px;
-    font-size: 14px;
-    color: #ffb6c1;
-    opacity: 0.6;
-}
-.live2d-hub-preview::after {
-    content: "✦";
-    position: absolute;
-    bottom: 12px;
-    right: 16px;
-    font-size: 14px;
-    color: #ffb6c1;
-    opacity: 0.6;
-}
-.live2d-hub-preview-empty {
-    text-align: center;
-}
-.live2d-hub-preview-icon {
-    font-size: 48px;
-    margin-bottom: 8px;
-    filter: drop-shadow(0 4px 8px rgba(255, 142, 179, 0.3));
-}
-.live2d-hub-preview-text {
-    font-size: 13px;
-    color: #b58a9a;
-}
-.live2d-hub-block {
-    margin: 14px 0;
+    z-index: 1;
+    margin: 0 0 14px;
     padding: 14px 16px;
     background: rgba(255, 255, 255, 0.85);
     backdrop-filter: blur(8px);
@@ -26460,27 +26376,30 @@ a.hot-news-title:hover {
     border-radius: 16px;
     box-shadow: 0 4px 12px rgba(255, 142, 179, 0.12);
     border: 1px solid rgba(255, 182, 193, 0.3);
+    max-width: 420px;
+    margin-left: auto;
+    margin-right: auto;
 }
-.live2d-hub-block-header {
+.live2d-call-prep-card-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
 }
-.live2d-hub-block-title {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
+.live2d-call-prep-card-title {
+    margin: 0;
+    font-size: 13px;
     font-weight: 700;
     letter-spacing: 0.12em;
     color: #ff5c8d;
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
-.live2d-hub-block-icon {
+.live2d-call-prep-card-icon {
     font-size: 16px;
-    filter: drop-shadow(0 1px 2px rgba(255, 142, 179, 0.4));
 }
-.live2d-hub-block-link {
+.live2d-call-prep-card-link {
     background: transparent;
     border: none;
     color: #ff5c8d;
@@ -26491,108 +26410,97 @@ a.hot-news-title:hover {
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
 }
-.live2d-hub-block-link:active {
+.live2d-call-prep-card-link:active {
     background: rgba(255, 92, 141, 0.1);
 }
-.live2d-hub-block-current {
-    padding: 10px 12px;
-    background: linear-gradient(135deg, #fff0f5 0%, #ffffff 100%);
-    border-radius: 10px;
-    border: 1px solid rgba(255, 182, 193, 0.25);
+.live2d-call-prep-card-body {
     display: flex;
-    align-items: center;
+    flex-direction: column;
     gap: 10px;
 }
-.live2d-hub-block-current-thumb {
-    font-size: 20px;
-    width: 32px;
-    height: 32px;
+.live2d-call-prep-preview {
+    height: 120px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #fff5f9 0%, #ffffff 100%);
+    border: 1.5px dashed rgba(255, 142, 179, 0.35);
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #ffe0eb;
-    border-radius: 8px;
-    flex-shrink: 0;
+    overflow: hidden;
 }
-.live2d-hub-block-current-text {
-    flex: 1;
+.live2d-call-prep-preview-placeholder {
+    font-size: 12px;
+    color: #b58a9a;
+}
+.live2d-call-prep-status {
     font-size: 13px;
     color: #3a2a30;
-    font-weight: 500;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    padding: 8px 12px;
+    background: linear-gradient(135deg, #fff0f5 0%, #ffffff 100%);
+    border-radius: 10px;
+    border: 1px solid rgba(255, 182, 193, 0.25);
 }
-.live2d-hub-block-current-check {
+.live2d-call-prep-card-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 16px;
+    border-radius: 12px;
+    border: 1.5px solid rgba(255, 142, 179, 0.4);
+    background: #ffffff;
     color: #ff5c8d;
-    font-size: 16px;
-    font-weight: bold;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
 }
-.live2d-hub-call-btn {
+.live2d-call-prep-card-action:active {
+    background: rgba(255, 92, 141, 0.05);
+    transform: scale(0.98);
+}
+.live2d-call-prep-card-action-icon {
+    font-size: 16px;
+    color: #ff5c8d;
+}
+.live2d-call-prep-footer {
+    position: relative;
+    z-index: 1;
+    margin-top: 20px;
+    max-width: 420px;
+    margin-left: auto;
+    margin-right: auto;
+}
+.live2d-call-prep-call-btn {
     width: 100%;
-    margin: 18px 0 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
     padding: 16px 20px;
     border: none;
     border-radius: 18px;
     background: linear-gradient(135deg, #ff5c8d 0%, #ff8eb3 50%, #ffb6c1 100%);
-    color: #fff;
+    color: #ffffff;
     font-size: 16px;
     font-weight: 700;
     letter-spacing: 0.04em;
     cursor: pointer;
-    box-shadow:
-        0 10px 24px rgba(255, 92, 141, 0.35),
-        0 2px 0 rgba(255, 255, 255, 0.4) inset,
-        0 -2px 0 rgba(0, 0, 0, 0.05) inset;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
+    box-shadow: 0 8px 20px rgba(255, 92, 141, 0.3);
     -webkit-tap-highlight-color: transparent;
     transition: transform 0.15s;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
 }
-.live2d-hub-call-btn:active {
+.live2d-call-prep-call-btn:active {
     transform: scale(0.97);
 }
-.live2d-hub-call-btn:disabled {
-    background: linear-gradient(135deg, #d4ccd2 0%, #e8e0e3 100%);
-    color: #fff;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+.live2d-call-prep-call-btn:disabled {
+    background: #d4ccd2;
+    color: #ffffff;
+    box-shadow: none;
     cursor: not-allowed;
 }
-.live2d-hub-call-btn-spark {
+.live2d-call-prep-call-btn-deco {
     font-size: 14px;
-    color: #fff;
-    text-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
-}
-.live2d-hub-bottom {
-    display: flex;
-    justify-content: center;
-    margin-top: 12px;
-}
-.live2d-hub-bottom-btn {
-    background: rgba(255, 255, 255, 0.7);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 182, 193, 0.4);
-    color: #ff5c8d;
-    font-size: 13px;
-    font-weight: 500;
-    padding: 8px 20px;
-    border-radius: 999px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    -webkit-tap-highlight-color: transparent;
-    box-shadow: 0 2px 8px rgba(255, 142, 179, 0.15);
-}
-.live2d-hub-bottom-btn:active {
-    transform: scale(0.96);
-    background: rgba(255, 255, 255, 0.9);
-}
-.live2d-hub-bottom-icon {
-    font-size: 12px;
-    color: #ffb6c1;
+    color: #ffffff;
 }

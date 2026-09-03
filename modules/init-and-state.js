@@ -723,11 +723,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     showScreen('home-screen');
-
-    // v0.3.7: Live2D 专区弹窗 init (挂在 window.Live2DHub, 视频通话前弹)
-    if (typeof window.Live2DHub !== 'undefined' && typeof window.Live2DHub.init === 'function') {
-      try { window.Live2DHub.init(); } catch (e) { console.warn('Live2DHub init failed:', e); }
-    }
   }
 
   init();

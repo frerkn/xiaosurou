@@ -161,7 +161,7 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
   <script src="modules/qzone.js?v=0.0.36" defer></script>
   <script src="modules/sticker-manager.js?v=0.0.36" defer></script>
   <script src="modules/memory-summary.js?v=0.0.40" defer></script>
-  <script src="modules/live2d-loader.js?v=0.3.1" defer></script>
+  <script src="modules/live2d-loader.js?v=0.3.2" defer></script>
   <script src="modules/video-voice-call.js?v=0.0.51" defer></script>
   <script src="modules/message-actions.js?v=0.0.36" defer></script>
   <script src="modules/nai-imagen.js?v=0.0.36" defer></script>
@@ -213,7 +213,11 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
   <script src="modules/live2d-uploader.js?v=0.0.1" defer></script>
   <script src="modules/live2d-storage.js?v=0.0.1" defer></script>
   <script src="modules/live2d-ui.js?v=0.0.1" defer></script>
-  <script src="modules/live2d-hub.js?v=0.0.1" defer></script>
+  <script src="modules/live2d-call-prep.js?v=0.0.1" defer></script>
+  <script src="modules/live2d-model-picker.js?v=0.0.1" defer></script>
+  <script src="modules/live2d-manager.js?v=0.0.5" defer></script>
+  <!-- v0.5.0 P11: 通话舞台背景管理页 (依赖 live2d-call-prep.js / live2d-ui.js) -->
+  <script src="modules/live2d-bg-manager.js?v=0.0.1" defer></script>
   <script src="modules/api-endpoint-presets.js?v=0.0.36" defer></script>
   <!-- 死锁状态修复（F5 启动时清残留 isGenerating 状态） -->
   <script src="modules/chat-stuck-state-repair.js?v=0.0.36" defer></script>
@@ -249,6 +253,12 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
   <link rel="stylesheet" href="css/music-player-theme-blue.css?v=0.0.38">
   <!-- 【新增 0.0.37】网易云音乐 App · 粉红+嫩黄主题 -->
   <link rel="stylesheet" href="css/netease-music-app-pink.css?v=0.0.38">
+  <!-- v0.4.2 视频通话准备页 (Live2D) 独立 CSS, 从 style.css 末尾迁移 -->
+  <link rel="stylesheet" href="css/live2d-call-prep.css?v=0.0.1">
+  <!-- v0.5.0 Live2D 模型管理页 CSS -->
+  <link rel="stylesheet" href="css/live2d-manager.css?v=0.0.2">
+  <!-- v0.5.0 P11: 通话舞台背景管理页 CSS -->
+  <link rel="stylesheet" href="css/live2d-bg-manager.css?v=0.0.1">
 </head>
 <body>
   <div id="phone-screen">
@@ -4521,78 +4531,83 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
           class="control-btn join-btn" style="display: none;"></button> </div>
     </div>
 
-    <!-- v0.3.9 Live2D 专区全屏页面 (跟糯米机 CallApp 主页一致, 点电话 → 进这个 page) -->
-    <div id="live2d-hub-screen" class="screen live2d-hub-screen">
-      <!-- v0.3.10 浮动关闭按钮 (fixed 位置, 防止其他元素被推出视口时找不到退出) -->
-      <button type="button" id="live2d-hub-close-btn-fixed" class="live2d-hub-close-area" style="position:fixed;top:max(12px,env(safe-area-inset-top,0px));right:12px;z-index:10000;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.95);border:1px solid rgba(255,182,193,0.5);color:#ff5c8d;font-size:18px;font-weight:bold;cursor:pointer;box-shadow:0 4px 12px rgba(255,142,179,0.3);display:flex;align-items:center;justify-content:center;" aria-label="关闭">✕</button>
-      <div class="live2d-hub-content">
-        <header class="live2d-hub-header">
-          <p class="live2d-hub-eyebrow">CHAT WITH</p>
-          <h1 id="live2d-hub-title" class="live2d-hub-title">想找谁聊聊?</h1>
-          <p class="live2d-hub-sub">选一个人, 拨过去吧。</p>
-        </header>
+    <!-- 视频通话准备页 (Live2D) — 唯一入口, 旧 #live2d-hub-screen 已废弃删除 -->
+    <div id="live2d-call-prep-screen" class="screen live2d-call-prep">
+      <!-- 装饰层 (v0.4.5: 蝴蝶结从页面级移到 character 卡内, 这里只剩蕾丝) -->
+      <div class="live2d-call-prep-deco">
+        <img class="live2d-call-prep-lace" src="assets/live2d-call/prep-lace.png" alt="" aria-hidden="true">
+      </div>
 
-        <div class="live2d-hub-character-card">
-          <img id="live2d-hub-avatar" class="live2d-hub-avatar" style="width:56px;height:56px;max-width:56px;" src="" alt="">
-          <div class="live2d-hub-character-info">
-            <div id="live2d-hub-character-name" class="live2d-hub-character-name">角色</div>
-            <div id="live2d-hub-character-desc" class="live2d-hub-character-desc">视频通话准备</div>
-          </div>
-          <div class="live2d-hub-character-spark">✦</div>
+      <!-- 顶部: 页面标题 + 英文副标题 + 提示语 -->
+      <header class="live2d-call-prep-header">
+        <p class="live2d-call-prep-eyebrow">VIDEO CALL</p>
+        <h1 class="live2d-call-prep-title">视频通话</h1>
+        <p class="live2d-call-prep-hint">想找谁聊聊?</p>
+        <p class="live2d-call-prep-hint-sub">选一个人, 拨过去吧。</p>
+      </header>
+
+      <!-- 角色信息区域 (v0.4.3: 名字/头像/描述由 JS 根据 chat 动态填充) -->
+      <section class="live2d-call-prep-character">
+        <!-- v0.4.5: 蝴蝶结作为角色卡内部装饰 (右下角, 部分溢出卡片边缘) -->
+        <img class="live2d-call-prep-character-bow" src="assets/live2d-call/prep-bow.png" alt="" aria-hidden="true">
+        <div class="live2d-call-prep-avatar" data-role="avatar"></div>
+        <div class="live2d-call-prep-character-info">
+          <div class="live2d-call-prep-character-name" data-role="character-name"></div>
+          <div class="live2d-call-prep-character-desc" data-role="character-desc"></div>
         </div>
+      </section>
 
-        <div class="live2d-hub-preview" id="live2d-hub-preview">
-          <div class="live2d-hub-preview-empty" id="live2d-hub-preview-empty">
-            <div class="live2d-hub-preview-icon">🎭</div>
-            <div class="live2d-hub-preview-text">选择下方模型挂上 Live2D</div>
-          </div>
+      <!-- Live2D 配置卡 -->
+      <section class="live2d-call-prep-card">
+        <div class="live2d-call-prep-card-header">
+          <h2 class="live2d-call-prep-card-title">
+            角色形象 · LIVE2D
+          </h2>
+          <button type="button" class="live2d-call-prep-card-link" data-role="manage-model">管理</button>
         </div>
-
-        <section class="live2d-hub-block">
-          <div class="live2d-hub-block-header">
-            <div class="live2d-hub-block-title">
-              <span class="live2d-hub-block-icon">🎭</span>
-              <span>角色形象 · LIVE2D</span>
-            </div>
-            <button type="button" class="live2d-hub-block-link" id="live2d-hub-manage-model-btn">管理</button>
+        <div class="live2d-call-prep-card-body">
+          <div class="live2d-call-prep-preview" data-role="model-preview">
+            <span class="live2d-call-prep-preview-placeholder">尚未绑定动态模型</span>
           </div>
-          <div class="live2d-hub-block-current" id="live2d-hub-current-model">
-            <div class="live2d-hub-block-current-text">尚未绑定动态模型</div>
-          </div>
-        </section>
-
-        <section class="live2d-hub-block">
-          <div class="live2d-hub-block-header">
-            <div class="live2d-hub-block-title">
-              <span class="live2d-hub-block-icon">🖼</span>
-              <span>通话背景</span>
-            </div>
-            <button type="button" class="live2d-hub-block-link" id="live2d-hub-manage-bg-btn">管理</button>
-          </div>
-          <div class="live2d-hub-block-current" id="live2d-hub-current-bg">
-            <div class="live2d-hub-block-current-text">未设置 (用原视频画面)</div>
-          </div>
-        </section>
-
-        <button type="button" class="live2d-hub-call-btn" id="live2d-hub-call-btn">
-          <span class="live2d-hub-call-btn-spark">✦</span>
-          视频接通 <span id="live2d-hub-call-btn-name">TA</span>
-          <span class="live2d-hub-call-btn-spark">✦</span>
-        </button>
-
-        <div class="live2d-hub-bottom">
-          <button type="button" class="live2d-hub-bottom-btn" id="live2d-hub-close-btn" aria-label="关闭">
-            <span class="live2d-hub-bottom-icon">✦</span>
-            <span>关闭</span>
+          <button type="button" class="live2d-call-prep-card-action" data-role="upload-select-model">
+            <span class="live2d-call-prep-card-action-icon">＋</span>
+            上传 / 选择 Live2D
           </button>
         </div>
-      </div>
+      </section>
+
+      <!-- 通话舞台背景配置卡 -->
+      <section class="live2d-call-prep-card">
+        <div class="live2d-call-prep-card-header">
+          <h2 class="live2d-call-prep-card-title">
+            通话舞台背景
+          </h2>
+          <button type="button" class="live2d-call-prep-card-link" data-role="manage-bg">管理</button>
+        </div>
+        <div class="live2d-call-prep-card-body">
+          <div class="live2d-call-prep-preview" data-role="bg-preview">
+            <span class="live2d-call-prep-preview-placeholder">背景预览</span>
+          </div>
+          <div class="live2d-call-prep-status" data-role="bg-status">尚未设置</div>
+          <button type="button" class="live2d-call-prep-card-action" data-role="upload-bg">
+            <span class="live2d-call-prep-card-action-icon">＋</span>
+            上传舞台背景
+          </button>
+        </div>
+      </section>
+
+      <!-- 底部: 大型主按钮 -->
+      <footer class="live2d-call-prep-footer">
+        <button type="button" class="live2d-call-prep-call-btn" data-role="call">
+          <span class="live2d-call-prep-call-btn-deco">♡</span>
+          <span>视频接通 <span data-role="call-btn-name"></span></span>
+          <span class="live2d-call-prep-call-btn-deco">♡</span>
+        </button>
+      </footer>
     </div>
 
-    <!-- v0.3.9 隐藏 file inputs (Live2D 专区用) -->
-    <input type="file" id="live2d-hub-upload-zip-input" accept=".zip" hidden>
-    <input type="file" id="live2d-hub-upload-folder-input" webkitdirectory directory multiple hidden>
-    <input type="file" id="live2d-hub-upload-bg-input" accept="image/*" hidden>
+    <!-- v0.5.0 P11: 通话舞台背景上传 input (隐藏, 由准备页 upload-bg 按钮 click() 触发) -->
+    <input type="file" id="live2d-bg-upload-input" accept="image/*" hidden>
 
     <!-- 语音通话界面 -->
     <div id="voice-call-screen" class="screen">
@@ -9085,6 +9100,29 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
 <script src="js/mcp-pay-card.js?v=1.0.0"></script>
 <script src="js/mcp-tool-call-log.js?v=1.0.0"></script>
 <script src="js/mcp-tool-progress.js?v=1.0.0"></script>
+
+<!-- v0.4.6 Live2D 模型选择/管理 Picker (轻量 UI, 复用核心 API) -->
+<div id="live2d-model-picker">
+  <button type="button" class="live2d-model-picker-overlay" aria-label="关闭"></button>
+  <div class="live2d-model-picker-sheet" role="dialog" aria-modal="true">
+    <div class="live2d-model-picker-handle"></div>
+    <header class="live2d-model-picker-header">
+      <h3>选择 Live2D 模型</h3>
+      <button type="button" id="live2d-model-picker-close-btn" class="live2d-model-picker-close" aria-label="关闭">✕</button>
+    </header>
+    <div class="live2d-model-picker-body">
+      <div class="live2d-model-picker-list" id="live2d-model-picker-list">
+        <div class="live2d-model-picker-empty">加载中…</div>
+      </div>
+    </div>
+    <footer class="live2d-model-picker-footer">
+      <button type="button" class="live2d-model-picker-upload-btn" id="live2d-model-picker-upload-zip-btn">＋ 上传 ZIP</button>
+      <button type="button" class="live2d-model-picker-upload-btn" id="live2d-model-picker-upload-folder-btn">＋ 上传文件夹</button>
+    </footer>
+  </div>
+  <input type="file" id="live2d-model-picker-zip-input" accept=".zip" hidden>
+  <input type="file" id="live2d-model-picker-folder-input" webkitdirectory directory multiple hidden>
+</div>
 
 </body>
 </html>

@@ -85,6 +85,23 @@
     try { localStorage.setItem('live2d.activeModelId', id || ''); } catch (e) {}
   }
 
+  // v0.4.3: per-chat 模型绑定 (key = live2d.activeModelId.<chatId>)
+  // fallback 到旧全局 activeModelId (兼容老数据)
+  async function getActiveModelIdForChat(chatId) {
+    if (!chatId || typeof chatId !== 'string') return null;
+    try {
+      const per = localStorage.getItem('live2d.activeModelId.' + chatId);
+      if (per) return per;
+      const glob = localStorage.getItem('live2d.activeModelId');
+      return glob || null;
+    } catch (e) { return null; }
+  }
+
+  async function setActiveModelIdForChat(chatId, modelId) {
+    if (!chatId || typeof chatId !== 'string') return;
+    try { localStorage.setItem('live2d.activeModelId.' + chatId, modelId || ''); } catch (e) {}
+  }
+
   global.Live2DStorage = {
     saveModel,
     listModels,
@@ -92,5 +109,7 @@
     deleteModel,
     getActiveModelId,
     setActiveModelId,
+    getActiveModelIdForChat,
+    setActiveModelIdForChat,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

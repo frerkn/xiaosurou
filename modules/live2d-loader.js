@@ -147,7 +147,11 @@
   function disposeLive2D(canvas) {
     if (!canvas || !canvas._live2dApp) return false;
     try {
-      canvas._live2dApp.destroy(true, { children: true, texture: true });
+      // v0.5.0 P1.4: destroy(false, ...) 第一个参数 removeView=false, 不从 DOM 移除 canvas 元素
+      // 之前 destroy(true, ...) 会在切模型时把 canvas 从 DOM detach, 下次 selectModel 时
+      // screenEl.querySelector('[data-role="canvas"]') 找不到 (元素已从 DOM 移除)
+      // user 报 "删除模型后立即上传新模型预览报 canvas DOM 元素找不到" 真凶就是这个
+      canvas._live2dApp.destroy(false, { children: true, texture: true });
     } catch (e) {
       console.warn('[Live2D] dispose error:', e);
     }

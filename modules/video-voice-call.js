@@ -80,7 +80,8 @@
     let activeId = '';
     try {
       if (window.Live2DStorage) {
-        activeId = await window.Live2DStorage.getActiveModelId();
+        // v0.4.3: per-chat 模型绑定 (chat 专属 modelId, fallback 全局)
+        activeId = await window.Live2DStorage.getActiveModelIdForChat(chat.id);
       }
     } catch (e) { activeId = ''; }
 
@@ -125,8 +126,9 @@
     } else {
       console.log('[Live2D] mount success');
       // P1.5 通话套用 active 背景 + 显示浮动切背景按钮
+      // v0.4.3: 改用 per-chat 背景 (chat 专属 bg, fallback 全局)
       if (window.Live2DUI) {
-        try { window.Live2DUI.applyActiveBackground(); } catch (e) {}
+        try { window.Live2DUI.applyActiveBackground(chat); } catch (e) {}
         try { window.Live2DUI.showBackgroundSwitchBtn(); } catch (e) {}
       }
     }
@@ -320,18 +322,18 @@
 
     const chat = state.chats[state.activeChatId];
 
-    // v0.3.9: 跳 Live2D 专区全屏 page (跟糯米机 CallApp 主页一致, 选完模型 + 背景 → 视频接通)
-    if (window.Live2DHub && typeof window.Live2DHub.open === 'function') {
+    // v0.4.0: 跳新的 #live2d-call-prep-screen 视频通话准备页 (旧 #live2d-hub-screen 已废弃删除)
+    if (window.Live2DCallPrep && typeof window.Live2DCallPrep.open === 'function') {
       try {
-        window.Live2DHub.open(chat, function () {
+        window.Live2DCallPrep.open(chat, function () {
           // user 点 "视频接通 {name}" 按钮 → 走原 outgoing-call 流程
           doInitiateCall(chat);
         });
         return;
-      } catch (e) { console.warn('Live2DHub open failed:', e); }
+      } catch (e) { console.warn('Live2DCallPrep open failed:', e); }
     }
 
-    // fallback: Live2DHub 没加载直接走原流程
+    // fallback: Live2DCallPrep 没加载直接走原流程
     doInitiateCall(chat);
   }
 
