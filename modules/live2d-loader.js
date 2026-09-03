@@ -6,41 +6,6 @@
 (function (global) {
   'use strict';
 
-  // [TEMPORARY_DIAG] iPhone Safari / PWA 无 console, 把诊断日志直接渲染到屏幕
-  // 不用 video-voice-call 的 showLive2DDebugPanel (它锁在视频通话 IIFE 内, 没暴露)
-  // 这里是独立最小实现, 仅 3 行用, 用完删除
-  function __live2dDiagLog(tag, msg) {
-    try { console.warn('[DIAG]' + tag + ' ' + msg); } catch (e) {}
-    try {
-      var KEY = '__live2d_diag_panel_v1__';
-      var panel = document.getElementById(KEY);
-      if (!panel) {
-        panel = document.createElement('div');
-        panel.id = KEY;
-        panel.style.cssText = 'position:fixed;top:8px;left:8px;right:8px;z-index:2147483647;max-height:42vh;overflow:hidden;padding:6px 8px;background:rgba(0,0,0,.88);color:#fff;font:11px/1.4 ui-monospace,Menlo,Consolas,monospace;border-radius:6px;border:1px solid #666;box-sizing:border-box;-webkit-overflow-scrolling:touch;word-break:break-all;white-space:pre-wrap';
-        var hdr = document.createElement('div');
-        hdr.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding-bottom:4px;margin-bottom:4px;border-bottom:1px solid #444';
-        var t = document.createElement('strong'); t.textContent = 'LIVE2D DIAG'; t.style.cssText = 'color:#ffeb3b;font-size:11px';
-        hdr.appendChild(t);
-        var btn = document.createElement('button');
-        btn.textContent = '×'; btn.style.cssText = 'background:#333;color:#fff;border:1px solid #555;border-radius:4px;padding:0 8px;font:12px/1.4 inherit;cursor:pointer';
-        btn.onclick = function () { try { panel.remove(); } catch (e) {} };
-        hdr.appendChild(btn);
-        var log = document.createElement('div');
-        log.id = '__live2d_diag_log_v1__';
-        log.style.cssText = 'overflow-y:auto;max-height:36vh;white-space:pre-wrap;word-break:break-all';
-        panel.appendChild(hdr); panel.appendChild(log);
-        (document.body || document.documentElement).appendChild(panel);
-      }
-      var logEl = document.getElementById('__live2d_diag_log_v1__');
-      var line = document.createElement('div');
-      line.textContent = tag + ' ' + msg;
-      line.style.cssText = 'padding:1px 0;color:#fff';
-      logEl.appendChild(line);
-      logEl.scrollTop = logEl.scrollHeight;
-    } catch (e) {}
-  }
-
   function getPixi() {
     return global.PIXI || null;
   }
@@ -272,23 +237,7 @@
     const urlMap = new Map();
     const blobUrls = [];
     for (const [path, blob] of data.files.entries()) {
-      // [TEMPORARY_DIAG] 在 URL.createObjectURL 之前测原始 Blob:
-      //   size / type / arrayBuffer() 是否成功
-      // 不改正式逻辑, 仅诊断. 看完删除.
-      var __size = -1, __type = '<no .size>', __abResult = 'PENDING', __abErr = '';
-      try { __size = blob.size; } catch (e) { __size = 'ERR:' + (e && e.message || e); }
-      try { __type = blob.type; } catch (e) { __type = 'ERR:' + (e && e.message || e); }
-      var __isMoc = /\.moc3(\.|$)/i.test(path);
-      // 异步测试 arrayBuffer(), 不 await (不阻塞正式加载)
-      blob.arrayBuffer().then(function () { __abResult = 'SUCCESS'; })
-        .catch(function (e) { __abResult = 'FAILED'; __abErr = (e && e.message) || String(e); })
-        .then(function () {
-          __live2dDiagLog(__isMoc ? '[MOC_RAW_BLOB]' : '[RAW_BLOB]',
-            'path=' + path + ' | size=' + __size + ' | type=' + JSON.stringify(__type) + ' | arrayBuffer=' + __abResult + (__abErr ? ' | err=' + __abErr : ''));
-        });
-      var u = URL.createObjectURL(blob);
-      // [TEMPORARY_DIAG] iOS 显示 blob:https// 排查 — createObjectURL 原始返回值
-      __live2dDiagLog('[createObjectURL]', 'path=' + path + ' | typeof=' + (typeof u) + ' | value=' + u + ' | location.origin=' + location.origin + ' | location.href=' + location.href);
+      const u = URL.createObjectURL(blob);
       urlMap.set(path, u);
       blobUrls.push(u);
     }
@@ -313,8 +262,6 @@
     const refs = (modelJson.FileReferences || modelJson.fileReferences);
     if (refs) {
       if (refs.Moc) refs.Moc = resolveBlob(refs.Moc);
-      // [TEMPORARY_DIAG] 进入 Live2DLoader 前 model3.json 的 Moc 引用(实际 URL)
-      __live2dDiagLog('[refs.Moc]', String(refs.Moc));
       if (refs.DisplayInfo) refs.DisplayInfo = resolveBlob(refs.DisplayInfo);
       if (refs.Physics) refs.Physics = resolveBlob(refs.Physics);
       if (refs.Pose) refs.Pose = resolveBlob(refs.Pose);
@@ -374,14 +321,18 @@
 
     var fetchLoader = function (payload, next) {
       if (!payload || !payload.url) { return next(); }
-      // (9) 保留原 URL resolve 逻辑: 沿用库自身的 settings.resolveURL,
-      //     相对路径 / 绝对路径 / blob URL 的解析行为完全不变.
-      var url = (payload.settings && typeof payload.settings.resolveURL === 'function')
-        ? payload.settings.resolveURL(payload.url)
-        : payload.url;
+      // 关键修复: 库的 settings.resolveURL 会把 blob:https://... 错误转成 blob:https//...
+      // (库内部把 blob: 后的整段当 origin, URL 解析器把"://"的冒号规范化掉了).
+      // 对 blob: URL 必须原样用 payload.url, 不走 resolveURL.
+      var url;
+      if (typeof payload.url === 'string' && payload.url.indexOf('blob:') === 0) {
+        url = payload.url;
+      } else if (payload.settings && typeof payload.settings.resolveURL === 'function') {
+        url = payload.settings.resolveURL(payload.url);
+      } else {
+        url = payload.url;
+      }
       if (!url) { return next(); }
-      // [TEMPORARY_DIAG] middleware 收到的 payload.url 与 fetch 实际使用的 URL
-      __live2dDiagLog('[fetch]', 'payload.url=' + payload.url + ' | fetch.url=' + url + ' | settings.url=' + (payload.settings && payload.settings.url) + ' | typeof=' + (typeof url));
       return fetch(url).then(function (resp) {
         // 原 XHRLoader 在 load 时接受 status 0 或 200, 这里保持一致, 避免误判.
         if (!resp.ok && resp.status !== 0) {
