@@ -52,6 +52,9 @@
         console.log('[Live2D] WebGL context RESTORED');
       }, false);
 
+      // v0.5.0 P1.6: iOS PWA mode 切到管理页时 canvas 还是 0x0 (clientWidth=0), 等 1 帧让 layout 完成
+      // 否则 PIXI.Application init 时 createElement('canvas') 0x0 + iOS PWA WebGL 限制 -> "Network error"
+      await new Promise(r => requestAnimationFrame(r));
       // PIXI v6 Application init 是同步的 (v8 才改异步)
       var app = new PIXI.Application({
         view: canvas,
