@@ -16,6 +16,9 @@
     screenEl = document.getElementById('live2d-call-prep-screen');
     if (!screenEl) return;
     callBtnEl = screenEl.querySelector('[data-role="call"]');
+    // v0.5.0 P1.7: 返回按钮绑 close (user 反馈"准备页没有退出键")
+    const backBtn = screenEl.querySelector('[data-role="back"]');
+    if (backBtn) backBtn.onclick = close;
     if (callBtnEl) {
       callBtnEl.addEventListener('click', function () {
         if (callBtnEl.disabled) return;
@@ -210,6 +213,15 @@
   function close() {
     if (screenEl) screenEl.style.display = 'none';
     onStartCallback = null;
+    // v0.5.0 P1.7: 返回到聊天详情 (user 反馈准备页没退出键, 之前只 display:none 卡在原地)
+    // 兜底: showScreen 不存在就保持 display:none (老行为, 配合老系统可能手动切)
+    try {
+      if (global.showScreen) {
+        // 优先回 chat-detail, 兜底回 chat-list
+        const target = document.getElementById('chat-detail-screen') ? 'chat-detail-screen' : 'chat-list-screen';
+        global.showScreen(target);
+      }
+    } catch (e) { console.warn('[Live2DCallPrep] close showScreen failed:', e); }
   }
 
   global.Live2DCallPrep = { init, open, close, render };

@@ -213,7 +213,7 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
   <script src="modules/live2d-uploader.js?v=0.0.1" defer></script>
   <script src="modules/live2d-storage.js?v=0.0.1" defer></script>
   <script src="modules/live2d-ui.js?v=0.0.1" defer></script>
-  <script src="modules/live2d-call-prep.js?v=0.0.1" defer></script>
+  <script src="modules/live2d-call-prep.js?v=0.0.2" defer></script>
   <script src="modules/live2d-model-picker.js?v=0.0.1" defer></script>
   <script src="modules/live2d-manager.js?v=0.0.5" defer></script>
   <!-- v0.5.0 P11: 通话舞台背景管理页 (依赖 live2d-call-prep.js / live2d-ui.js) -->
@@ -4540,6 +4540,7 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
 
       <!-- 顶部: 页面标题 + 英文副标题 + 提示语 -->
       <header class="live2d-call-prep-header">
+        <button type="button" class="live2d-call-prep-back-btn" data-role="back" aria-label="返回">‹</button>
         <p class="live2d-call-prep-eyebrow">VIDEO CALL</p>
         <h1 class="live2d-call-prep-title">视频通话</h1>
         <p class="live2d-call-prep-hint">想找谁聊聊?</p>
