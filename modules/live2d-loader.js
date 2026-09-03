@@ -272,7 +272,21 @@
     const urlMap = new Map();
     const blobUrls = [];
     for (const [path, blob] of data.files.entries()) {
-      const u = URL.createObjectURL(blob);
+      // [TEMPORARY_DIAG] 在 URL.createObjectURL 之前测原始 Blob:
+      //   size / type / arrayBuffer() 是否成功
+      // 不改正式逻辑, 仅诊断. 看完删除.
+      var __size = -1, __type = '<no .size>', __abResult = 'PENDING', __abErr = '';
+      try { __size = blob.size; } catch (e) { __size = 'ERR:' + (e && e.message || e); }
+      try { __type = blob.type; } catch (e) { __type = 'ERR:' + (e && e.message || e); }
+      var __isMoc = /\.moc3(\.|$)/i.test(path);
+      // 异步测试 arrayBuffer(), 不 await (不阻塞正式加载)
+      blob.arrayBuffer().then(function () { __abResult = 'SUCCESS'; })
+        .catch(function (e) { __abResult = 'FAILED'; __abErr = (e && e.message) || String(e); })
+        .then(function () {
+          __live2dDiagLog(__isMoc ? '[MOC_RAW_BLOB]' : '[RAW_BLOB]',
+            'path=' + path + ' | size=' + __size + ' | type=' + JSON.stringify(__type) + ' | arrayBuffer=' + __abResult + (__abErr ? ' | err=' + __abErr : ''));
+        });
+      var u = URL.createObjectURL(blob);
       // [TEMPORARY_DIAG] iOS 显示 blob:https// 排查 — createObjectURL 原始返回值
       __live2dDiagLog('[createObjectURL]', 'path=' + path + ' | typeof=' + (typeof u) + ' | value=' + u + ' | location.origin=' + location.origin + ' | location.href=' + location.href);
       urlMap.set(path, u);
