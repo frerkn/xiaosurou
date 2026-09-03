@@ -419,6 +419,38 @@
     activeModel = null;
   }
 
+  // v0.5.0: 每次重新初始化前换一个全新 canvas, 不复用旧 WebGL context.
+  // 管理页 [data-role="canvas"] 是模板里创建一次、永久复用的静态元素: 第一次 init 后,
+  // 这个 canvas 上挂着旧 PIXI / WebGL context, 而 loader.disposeLive2D 用 app.destroy(false),
+  // PIXI v6 不会调 WEBGL_lose_context 真正释放它 (bundle 里 loseContext 只出现在 isWebGLSupported 探测).
+  // 于是下一次 mountLive2DFromIDB 复用同一个 canvas -> 拿到失效 context ->
+  // PIXI BatchRenderer 的 gl.getParameter(MAX_TEXTURE_IMAGE_UNITS)=0 ->
+  // 抛 "Invalid value of `0` passed to `checkMaxIfStatementsInShader`" (删除→再上传→第二次 init 必现,
+  // 大退重进 = 新 canvas + 新 context 就好).
+  // 这里用全新 <canvas data-role="canvas"> 替换旧的并同步回模块变量: 旧 canvas 从 DOM 摘除后其
+  // context 可被回收, 新 canvas 无 context, 供 mountLive2DFromIDB 建全新 context, 等价"大退重进".
+  function freshCanvasElement() {
+    if (!canvasWrapEl || !canvasEl) return canvasEl;
+    const fresh = document.createElement('canvas');
+    fresh.setAttribute('data-role', 'canvas');
+    // 给个合理默认尺寸 (后续 mountLive2D 会按 wrap 实际尺寸重设, 避免 0×0)
+    try {
+      fresh.width = canvasEl.width || 300;
+      fresh.height = canvasEl.height || 150;
+    } catch (e) { /* 读旧尺寸失败不阻塞 */ }
+    try {
+      canvasEl.replaceWith(fresh);
+    } catch (e) {
+      // 兜底: replaceWith 不支持时手插
+      if (canvasEl && canvasEl.parentNode) {
+        canvasEl.parentNode.insertBefore(fresh, canvasEl.nextSibling);
+        canvasEl.parentNode.removeChild(canvasEl);
+      }
+    }
+    canvasEl = fresh;
+    return fresh;
+  }
+
   function setLoadingText(text) {
     if (!loadingEl) return;
     const t = loadingEl.querySelector('[data-role="loading-text"]');
@@ -519,6 +551,9 @@
     canvasEl = canvas;  // 同步回模块变量 (后续 disposeCurrentPreview / playMotion 用)
     // 切换时先完整 dispose 旧的
     disposeCurrentPreview();
+    // v0.5.0: dispose 后换全新 canvas, 不复用旧 WebGL context (旧 canvas 残留失效 context
+    // 会导致"删除→再上传→第二次 init"报 checkMaxIfStatementsInShader; 换成新 canvas 等价大退重进)
+    freshCanvasElement();
     activeModelId = modelId;
     updateCardHighlight();
     // 隐藏信息 + 删除按钮 (避免旧数据残留)
