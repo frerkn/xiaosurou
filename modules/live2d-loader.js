@@ -236,8 +236,32 @@
     // 1. 给每个 file 建 blob URL
     const urlMap = new Map();
     const blobUrls = [];
+    // v0.5.0 P2.6: 纹理 Blob MIME 兜底 (抄自糯米机 createLive2DRuntimeTextureUrl/sniffImageMime)
+    // uploader 用 JSZip.async('blob') 取 PNG/JPG/WebP 时 type 是空串, blob URL 也无 MIME,
+    // iOS PWA 给 <img> 解码延迟/失败 → 模型全黑剪影. 这里按文件头嗅探真实 MIME 并 re-type.
+    // 只对纹理后缀做, moc3/json 不需要 (走 fetchLoader, 不靠 MIME).
+    const isTexturePath = (p) => /\.(png|jpe?g|webp)$/i.test(p || '');
+    async function ensureTextureMime(blob) {
+      // 已有正确 MIME 直接放行
+      if (blob && (blob.type === 'image/png' || blob.type === 'image/jpeg' || blob.type === 'image/webp')) return blob;
+      try {
+        const sniff = await blob.slice(0, 16).arrayBuffer();
+        const u8 = new Uint8Array(sniff);
+        let mime = '';
+        // PNG: 89 50 4E 47
+        if (u8.length >= 4 && u8[0] === 0x89 && u8[1] === 0x50 && u8[2] === 0x4E && u8[3] === 0x47) mime = 'image/png';
+        // JPEG: FF D8
+        else if (u8.length >= 2 && u8[0] === 0xFF && u8[1] === 0xD8) mime = 'image/jpeg';
+        // WebP: RIFF....WEBP
+        else if (u8.length >= 12 && u8[0] === 0x52 && u8[1] === 0x49 && u8[2] === 0x46 && u8[3] === 0x46
+                 && u8[8] === 0x57 && u8[9] === 0x45 && u8[10] === 0x42 && u8[11] === 0x50) mime = 'image/webp';
+        if (mime) return blob.slice(0, blob.size, mime);
+      } catch (e) { /* sniff 失败保留原 blob */ }
+      return blob;
+    }
     for (const [path, blob] of data.files.entries()) {
-      const u = URL.createObjectURL(blob);
+      const finalBlob = isTexturePath(path) ? await ensureTextureMime(blob) : blob;
+      const u = URL.createObjectURL(finalBlob);
       urlMap.set(path, u);
       blobUrls.push(u);
     }
