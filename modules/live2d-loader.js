@@ -6,76 +6,6 @@
 (function (global) {
   'use strict';
 
-  // [TEMPORARY_DIAG] iPhone Safari / PWA 无 console, 把诊断日志直接渲染到屏幕 (纹理全黑定位 v2)
-  function __live2dDiagLog(tag, msg) {
-    try { console.warn('[DIAG]' + tag + ' ' + msg); } catch (e) {}
-    try {
-      var KEY = '__live2d_diag_panel_v2__';
-      var panel = document.getElementById(KEY);
-      if (!panel) {
-        panel = document.createElement('div');
-        panel.id = KEY;
-        panel.style.cssText = 'position:fixed;top:8px;left:8px;right:8px;z-index:2147483647;max-height:50vh;overflow:hidden;padding:6px 8px;background:rgba(0,0,0,.88);color:#fff;font:11px/1.4 ui-monospace,Menlo,Consolas,monospace;border-radius:6px;border:1px solid #666;box-sizing:border-box;-webkit-overflow-scrolling:touch;word-break:break-all;white-space:pre-wrap';
-        var hdr = document.createElement('div');
-        hdr.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding-bottom:4px;margin-bottom:4px;border-bottom:1px solid #444;gap:6px';
-        var t = document.createElement('strong'); t.textContent = 'LIVE2D DIAG v2'; t.style.cssText = 'color:#ffeb3b;font-size:11px;flex:1 1 auto';
-        var closeBtn = document.createElement('button');
-        closeBtn.textContent = '×';
-        closeBtn.style.cssText = 'background:#333;color:#fff;border:1px solid #555;border-radius:4px;padding:0 8px;font:14px/1.4 inherit;cursor:pointer;flex:0 0 auto;min-width:28px;min-height:28px';
-        closeBtn.onclick = function () { try { panel.remove(); } catch (e) {} };
-        hdr.appendChild(t); hdr.appendChild(closeBtn);
-        var log = document.createElement('div');
-        log.id = '__live2d_diag_log_v2__';
-        log.style.cssText = 'overflow-y:auto;max-height:40vh;white-space:pre-wrap;word-break:break-all';
-        // 底部工具条: 复制按钮 + 滚顶
-        var footer = document.createElement('div');
-        footer.style.cssText = 'display:flex;gap:6px;padding-top:6px;margin-top:6px;border-top:1px solid #444';
-        var copyBtn = document.createElement('button');
-        copyBtn.textContent = '📋 复制全部';
-        copyBtn.style.cssText = 'background:#1e7d34;color:#fff;border:1px solid #2ea64a;border-radius:4px;padding:6px 10px;font:12px/1.4 inherit;cursor:pointer;flex:1 1 auto;min-height:32px';
-        copyBtn.onclick = function (ev) {
-          ev && ev.preventDefault && ev.preventDefault();
-          ev && ev.stopPropagation && ev.stopPropagation();
-          try {
-            var logEl2 = document.getElementById('__live2d_diag_log_v2__');
-            var text = logEl2 ? (logEl2.innerText || logEl2.textContent || '') : '';
-            var ok = false;
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-              navigator.clipboard.writeText(text).then(function () { copyBtn.textContent = '✓ 已复制'; }).catch(function () { fallbackCopy(text, copyBtn); });
-              ok = true;
-            }
-            if (!ok) fallbackCopy(text, copyBtn);
-          } catch (e) { copyBtn.textContent = '复制失败'; }
-        };
-        function fallbackCopy(text, btn) {
-          try {
-            var ta = document.createElement('textarea');
-            ta.value = text;
-            ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
-            document.body.appendChild(ta);
-            ta.focus(); ta.select();
-            var succ = document.execCommand && document.execCommand('copy');
-            document.body.removeChild(ta);
-            btn.textContent = succ ? '✓ 已复制' : '复制失败,请长按文本';
-          } catch (e) { btn.textContent = '复制失败'; }
-        }
-        var topBtn = document.createElement('button');
-        topBtn.textContent = '↑ 顶';
-        topBtn.style.cssText = 'background:#444;color:#fff;border:1px solid #666;border-radius:4px;padding:6px 10px;font:12px/1.4 inherit;cursor:pointer;flex:0 0 auto;min-height:32px';
-        topBtn.onclick = function () { try { log.scrollTop = 0; } catch (e) {} };
-        footer.appendChild(copyBtn); footer.appendChild(topBtn);
-        panel.appendChild(hdr); panel.appendChild(log); panel.appendChild(footer);
-        (document.body || document.documentElement).appendChild(panel);
-      }
-      var logEl = document.getElementById('__live2d_diag_log_v2__');
-      var line = document.createElement('div');
-      line.textContent = tag + ' ' + msg;
-      line.style.cssText = 'padding:1px 0;color:#fff';
-      logEl.appendChild(line);
-      logEl.scrollTop = logEl.scrollHeight;
-    } catch (e) {}
-  }
-
   function getPixi() {
     return global.PIXI || null;
   }
@@ -141,48 +71,9 @@
       });
 
       // 0.4.0 用 autoInteract: false 避免它自己接管鼠标
-      // [TEMPORARY_DIAG] 在 Live2DModel.from 调用之前包一层 PIXI.Texture.fromURL + model.internalModel.settings.resolveURL
-      //   - PIXI.Texture.fromURL: 库 0.4.0 内部用它加载 texture, 包它能拿到"传给 PIXI 的最终 URL"
-      //   - model 内 settings.resolveURL 是在 model 创建后再包 (见下)
-      // 用完删除.
-      try {
-        var PIXI2 = global.PIXI;
-        var Tex = PIXI2 && PIXI2.Texture;
-        if (Tex && typeof Tex.fromURL === 'function' && !Tex.__mavisFromURLHooked) {
-          var origFromURL = Tex.fromURL;
-          Tex.fromURL = function (u, options) {
-            var inUrl = String(u);
-            var ret;
-            try { ret = origFromURL.apply(this, arguments); } catch (e) { throw e; }
-            try { __live2dDiagLog('[TEXFROMURL]', 'in=' + inUrl.substring(0, 120) + ' | hasColon=' + (/^blob:https:\/\//.test(inUrl) ? 'OK' : 'BROKEN')); } catch (e) {}
-            return ret;
-          };
-          Tex.__mavisFromURLHooked = true;
-        }
-      } catch (e) { try { __live2dDiagLog('[TEXFROMURL]', 'hook err=' + (e && e.message || e)); } catch (_) {} }
       const model = await Live2DModel.from(modelPath, {
         autoInteract: false,
       });
-
-      // [TEMPORARY_DIAG] 拿到 model 后, 立即包 model.internalModel.settings.resolveURL
-      //   - 库 0.4.0 用 settings.resolveURL(textureRelPath) 解析相对路径
-      //   - 我们已经在 fetchLoader 绕过 blob URL, 但 textures 路径不走 fetchLoader
-      //   - 直接 hook 它的 resolveURL, 看入库前 URL 是否已被破坏
-      try {
-        var im = model && model.internalModel;
-        var settings = im && im.settings;
-        if (settings && typeof settings.resolveURL === 'function' && !settings.__mavisResolveURLHooked) {
-          var origResolveURL = settings.resolveURL;
-          settings.resolveURL = function (rel) {
-            var inRel = String(rel);
-            var out;
-            try { out = origResolveURL.call(this, rel); } catch (e) { throw e; }
-            try { __live2dDiagLog('[SETTINGS_RESOLVEURL]', 'in=' + inRel.substring(0, 120) + ' | out=' + String(out).substring(0, 120) + ' | hasColon=' + (/^blob:https:\/\//.test(String(out)) ? 'OK' : 'BROKEN')); } catch (e) {}
-            return out;
-          };
-          settings.__mavisResolveURLHooked = true;
-        }
-      } catch (e) { try { __live2dDiagLog('[SETTINGS_RESOLVEURL]', 'hook err=' + (e && e.message || e)); } catch (_) {} }
 
       // bridge: 0.4.0 + 老 Cubism 4 moc3 v3 模型的 drawables.renderOrders 字段可能未初始化
       // (导致 PIXI 渲染时 renderOrder[i] undefined 报错)
@@ -206,75 +97,6 @@
       }
 
       app.stage.addChild(model);
-
-      // [TEMPORARY_DIAG] 纹理全黑定位 v2:
-      // 立刻/100ms/500ms/1500ms 4 个时刻读 model.textures[i].baseTexture 状态
-      // + 同一 texture blob URL 独立 Image 解码 + WebGL texImage2D 测试
-      // + GL context / getError / isContextLost
-      // 只读, 不动 PIXI/库, 用完删除.
-      (function () {
-        try {
-          var ts = (model && model.textures) || [];
-          var refs = (model && model.internalModel && model.internalModel.settings &&
-                     (model.internalModel.settings.fileReferences || model.internalModel.settings.FileReferences)) || null;
-          var texArr = (refs && (refs.Textures || refs.textures)) || [];
-          __live2dDiagLog('[INIT]', 'textures=' + ts.length + ' | texArr=' + texArr.length + ' | model.anchorX=' + (model.anchor && model.anchor.x) + ' | w=' + model.width + ' | h=' + model.height);
-          // 立即
-          for (var ti = 0; ti < ts.length; ti++) {
-            var t = ts[ti];
-            var bt = t && t.baseTexture;
-            var r = bt && bt.resource;
-            __live2dDiagLog('[BTX_T0]', 'i=' + ti + ' | valid=' + (bt && bt.valid) + ' | w=' + (bt && bt.width) + ' | h=' + (bt && bt.height) + ' | loaded=' + (bt && bt._isLoading) + ' | src=' + (r && r.url ? String(r.url).substring(0, 60) : (r && r.source && r.source.tagName ? '<' + r.source.tagName + '>' : (r && r.source ? String(r.source).substring(0, 60) : 'null'))) + ' | crossOrigin=' + (r && r.crossOrigin));
-          }
-          // GL context / 错误
-          try {
-            var gl = (canvas.getContext && (canvas.getContext('webgl2') || canvas.getContext('webgl'))) || null;
-            __live2dDiagLog('[GL]', 'got=' + !!gl + ' | lost=' + (gl && gl.isContextLost()) + ' | err=' + (gl ? gl.getError() : -1));
-          } catch (e) { __live2dDiagLog('[GL]', 'err=' + (e && e.message || e)); }
-          // 100/500/1500ms 后再读一次
-          [100, 500, 1500].forEach(function (delay) {
-            setTimeout(function () {
-              try {
-                for (var ti = 0; ti < ts.length; ti++) {
-                  var t = ts[ti];
-                  var bt = t && t.baseTexture;
-                  var r = bt && bt.resource;
-                  __live2dDiagLog('[BTX_T' + delay + ']', 'i=' + ti + ' | valid=' + (bt && bt.valid) + ' | w=' + (bt && bt.width) + ' | h=' + (bt && bt.height) + ' | loaded=' + (bt && bt._isLoading) + ' | hasSource=' + !!(r && r.source));
-                }
-                var gl2 = (canvas.getContext && (canvas.getContext('webgl2') || canvas.getContext('webgl'))) || null;
-                if (gl2) __live2dDiagLog('[GL_T' + delay + ']', 'lost=' + gl2.isContextLost() + ' | err=' + gl2.getError());
-              } catch (e) { __live2dDiagLog('[BTX_T' + delay + ']', 'err=' + (e && e.message || e)); }
-            }, delay);
-          });
-          // 独立 Image + WebGL texImage2D (绕开 PIXI)
-          for (var ri = 0; ri < texArr.length; ri++) {
-            (function (u, idx) {
-              var img = new Image();
-              var done = false;
-              var t0 = Date.now();
-              img.onload = function () {
-                done = true;
-                __live2dDiagLog('[IMG]', 'i=' + idx + ' | nw=' + img.naturalWidth + ' | nh=' + img.naturalHeight + ' | dw=' + img.width + ' | dh=' + img.height + ' | ms=' + (Date.now() - t0));
-                try {
-                  var c = document.createElement('canvas');
-                  var gl = c.getContext('webgl2') || c.getContext('webgl') || c.getContext('experimental-webgl');
-                  if (gl) {
-                    var tex = gl.createTexture();
-                    gl.bindTexture(gl.TEXTURE_2D, tex);
-                    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-                    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
-                    __live2dDiagLog('[GLT]', 'i=' + idx + ' | err=' + gl.getError() + ' | lost=' + gl.isContextLost());
-                    gl.deleteTexture(tex);
-                  } else { __live2dDiagLog('[GLT]', 'i=' + idx + ' | no-webgl'); }
-                } catch (e) { __live2dDiagLog('[GLT]', 'i=' + idx + ' | err=' + (e && e.message || e)); }
-              };
-              img.onerror = function () { __live2dDiagLog('[IMG]', 'i=' + idx + ' | FAILED | url=' + String(u).substring(0, 60)); };
-              setTimeout(function () { if (!done) __live2dDiagLog('[IMG]', 'i=' + idx + ' | TIMEOUT 8s'); }, 8000);
-              img.src = u;
-            })(texArr[ri], ri);
-          }
-        } catch (e) { __live2dDiagLog('[DIAG]', 'outer err=' + (e && e.message || e)); }
-      })();
 
       // v0.1.4 行为: 等几帧让 internal model 完成 setup
       let frameWait = 0;
@@ -421,9 +243,7 @@
     const isTexturePath = (p) => /\.(png|jpe?g|webp)$/i.test(p || '');
     async function ensureTextureMime(blob) {
       // 已有正确 MIME 直接放行
-      if (blob && (blob.type === 'image/png' || blob.type === 'image/jpeg' || blob.type === 'image/webp')) {
-        return blob;
-      }
+      if (blob && (blob.type === 'image/png' || blob.type === 'image/jpeg' || blob.type === 'image/webp')) return blob;
       try {
         const sniff = await blob.slice(0, 16).arrayBuffer();
         const u8 = new Uint8Array(sniff);
@@ -435,30 +255,13 @@
         // WebP: RIFF....WEBP
         else if (u8.length >= 12 && u8[0] === 0x52 && u8[1] === 0x49 && u8[2] === 0x46 && u8[3] === 0x46
                  && u8[8] === 0x57 && u8[9] === 0x45 && u8[10] === 0x42 && u8[11] === 0x50) mime = 'image/webp';
-        if (mime) {
-          const ret = blob.slice(0, blob.size, mime);
-          // [TEMPORARY_DIAG] 记录 re-type 后的实际 MIME
-          try { __live2dDiagLog('[BLOB_OUT]', 'size=' + (blob && blob.size) + ' | sniffed=' + mime + ' | out.type=' + ret.type); } catch (e) {}
-          return ret;
-        }
+        if (mime) return blob.slice(0, blob.size, mime);
       } catch (e) { /* sniff 失败保留原 blob */ }
       return blob;
     }
     for (const [path, blob] of data.files.entries()) {
-      // [TEMPORARY_DIAG] 纹理路径: 记录原 Blob type/size/头字节 (看是不是 type="")
-      if (isTexturePath(path)) {
-        try {
-          const head = await blob.slice(0, 8).arrayBuffer();
-          const hu8 = new Uint8Array(head);
-          const hex = Array.prototype.map.call(hu8, function (b) { return b.toString(16).padStart(2, '0'); }).join(' ');
-          __live2dDiagLog('[BLOB_IN]', 'path=' + path + ' | size=' + blob.size + ' | type=' + JSON.stringify(blob.type) + ' | head=' + hex);
-        } catch (e) { __live2dDiagLog('[BLOB_IN]', 'path=' + path + ' | err=' + (e && e.message || e)); }
-      }
       const finalBlob = isTexturePath(path) ? await ensureTextureMime(blob) : blob;
       const u = URL.createObjectURL(finalBlob);
-      if (isTexturePath(path)) {
-        __live2dDiagLog('[CREATE]', 'path=' + path + ' | blobURL.prefix=' + u.substring(0, 40) + ' | finalBlob.type=' + JSON.stringify(finalBlob.type));
-      }
       urlMap.set(path, u);
       blobUrls.push(u);
     }
@@ -525,52 +328,33 @@
     return result;
   }
 
-  // [TEMPORARY_DIAG] URL 变换追踪: 找出 blob:https:// → blob:https// 这一步
-  // 库 0.4.0 内部走 settings.resolveURL(blobURL) → 最终 PIXI.Texture.fromURL
-  // 用完删除. 不修任何逻辑.
-  function __live2dInstallUrlHook() {
+  // ── v0.5.0 修复: PIXI.utils.url.resolve blob: URL 短路 ──
+  // 库 0.4.0 走 PIXI.utils.url.resolve(blobURL) 解析 blob:https://... 时,
+  // 库内部把 blob: 后整段当 origin, url-toolkit 把 "://" 第二个冒号规范化掉,
+  // 输出 blob:https//... → PIXI.Texture.fromURL 拿到的 URL 损坏,
+  // 纹理 0×0, Live2D 全黑剪影. 这里对 blob: 开头的 URL 直接原样返回,
+  // http/https/相对路径仍走 PIXI.utils.url.resolve 原有逻辑.
+  function installPixiUrlBlobShortcut() {
     var PIXIu = global.PIXI && global.PIXI.utils;
-    var candidates = [];
-    if (PIXIu) {
-      if (PIXIu.Url) candidates.push(['PIXI.utils.Url', PIXIu.Url]);
-      if (PIXIu.url) candidates.push(['PIXI.utils.url', PIXIu.url]);
-    }
-    if (candidates.length === 0) return false;
-    candidates.forEach(function (c) {
-      var name = c[0], obj = c[1];
-      if (!obj) return;
-      try {
-        if (obj.prototype && obj.prototype.resolve && !obj.prototype.__mavisUrlResolveHooked) {
-          var origP = obj.prototype.resolve;
-          obj.prototype.resolve = function (base) {
-            var inUrl = String(base);
-            var out;
-            try { out = origP.apply(this, arguments); } catch (e) { throw e; }
-            try { __live2dDiagLog('[URLRES_PROTO]', name + ' | in=' + inUrl.substring(0, 120) + ' | out=' + String(out).substring(0, 120) + ' | hasColon=' + (/^blob:https:\/\//.test(String(out)) ? 'OK' : 'BROKEN')); } catch (e) {}
-            return out;
-          };
-          obj.prototype.__mavisUrlResolveHooked = true;
-        }
-        if (typeof obj.resolve === 'function' && !obj.__mavisUrlResolveStaticHooked) {
-          var origS = obj.resolve;
-          obj.resolve = function (base) {
-            var inUrl = String(base);
-            var out;
-            try { out = origS.apply(this, arguments); } catch (e) { throw e; }
-            try { __live2dDiagLog('[URLRES_STATIC]', name + ' | in=' + inUrl.substring(0, 120) + ' | out=' + String(out).substring(0, 120) + ' | hasColon=' + (/^blob:https:\/\//.test(String(out)) ? 'OK' : 'BROKEN')); } catch (e) {}
-            return out;
-          };
-          obj.__mavisUrlResolveStaticHooked = true;
-        }
-      } catch (e) {}
-    });
+    if (!PIXIu) return false;
+    var u = PIXIu.url;
+    if (!u || typeof u.resolve !== 'function') return false;
+    if (u.__mavisBlobShortcutInstalled) return true;
+    var orig = u.resolve;
+    u.resolve = function (base) {
+      if (typeof base === 'string' && base.indexOf('blob:') === 0) return base;
+      return orig.apply(this, arguments);
+    };
+    u.__mavisBlobShortcutInstalled = true;
     return true;
   }
-  if (!__live2dInstallUrlHook()) {
-    var __urlHookRetries = 0;
-    var __urlHookTimer = setInterval(function () {
-      __urlHookRetries += 1;
-      if (__live2dInstallUrlHook() || __urlHookRetries >= 60) clearInterval(__urlHookTimer);
+  if (installPixiUrlBlobShortcut()) {
+    // ok
+  } else {
+    var __urlRetries = 0;
+    var __urlTimer = setInterval(function () {
+      __urlRetries += 1;
+      if (installPixiUrlBlobShortcut() || __urlRetries >= 60) clearInterval(__urlTimer);
     }, 100);
   }
 
