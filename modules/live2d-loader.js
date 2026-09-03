@@ -15,13 +15,24 @@
       if (!panel) {
         panel = document.createElement('div');
         panel.id = KEY;
-        panel.style.cssText = 'position:fixed;top:8px;left:8px;right:8px;z-index:2147483647;max-height:46vh;overflow:hidden;padding:6px 8px;background:rgba(0,0,0,.88);color:#fff;font:11px/1.4 ui-monospace,Menlo,Consolas,monospace;border-radius:6px;border:1px solid #666;box-sizing:border-box;-webkit-overflow-scrolling:touch;word-break:break-all;white-space:pre-wrap';
+        panel.style.cssText = 'position:fixed;top:8px;left:8px;right:8px;z-index:2147483647;max-height:50vh;overflow:hidden;padding:6px 8px;background:rgba(0,0,0,.88);color:#fff;font:11px/1.4 ui-monospace,Menlo,Consolas,monospace;border-radius:6px;border:1px solid #666;box-sizing:border-box;-webkit-overflow-scrolling:touch;word-break:break-all;white-space:pre-wrap';
         var hdr = document.createElement('div');
         hdr.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding-bottom:4px;margin-bottom:4px;border-bottom:1px solid #444;gap:6px';
-        var t = document.createElement('strong'); t.textContent = 'LIVE2D DIAG v2'; t.style.cssText = 'color:#ffeb3b;font-size:11px;flex:0 0 auto';
+        var t = document.createElement('strong'); t.textContent = 'LIVE2D DIAG v2'; t.style.cssText = 'color:#ffeb3b;font-size:11px;flex:1 1 auto';
+        var closeBtn = document.createElement('button');
+        closeBtn.textContent = '×';
+        closeBtn.style.cssText = 'background:#333;color:#fff;border:1px solid #555;border-radius:4px;padding:0 8px;font:14px/1.4 inherit;cursor:pointer;flex:0 0 auto;min-width:28px;min-height:28px';
+        closeBtn.onclick = function () { try { panel.remove(); } catch (e) {} };
+        hdr.appendChild(t); hdr.appendChild(closeBtn);
+        var log = document.createElement('div');
+        log.id = '__live2d_diag_log_v2__';
+        log.style.cssText = 'overflow-y:auto;max-height:40vh;white-space:pre-wrap;word-break:break-all';
+        // 底部工具条: 复制按钮 + 滚顶
+        var footer = document.createElement('div');
+        footer.style.cssText = 'display:flex;gap:6px;padding-top:6px;margin-top:6px;border-top:1px solid #444';
         var copyBtn = document.createElement('button');
         copyBtn.textContent = '📋 复制全部';
-        copyBtn.style.cssText = 'background:#1e7d34;color:#fff;border:1px solid #2ea64a;border-radius:4px;padding:2px 8px;font:11px/1.4 inherit;cursor:pointer;flex:0 0 auto';
+        copyBtn.style.cssText = 'background:#1e7d34;color:#fff;border:1px solid #2ea64a;border-radius:4px;padding:6px 10px;font:12px/1.4 inherit;cursor:pointer;flex:1 1 auto;min-height:32px';
         copyBtn.onclick = function (ev) {
           ev && ev.preventDefault && ev.preventDefault();
           ev && ev.stopPropagation && ev.stopPropagation();
@@ -48,15 +59,12 @@
             btn.textContent = succ ? '✓ 已复制' : '复制失败,请长按文本';
           } catch (e) { btn.textContent = '复制失败'; }
         }
-        var closeBtn = document.createElement('button');
-        closeBtn.textContent = '×';
-        closeBtn.style.cssText = 'background:#333;color:#fff;border:1px solid #555;border-radius:4px;padding:0 8px;font:12px/1.4 inherit;cursor:pointer;flex:0 0 auto';
-        closeBtn.onclick = function () { try { panel.remove(); } catch (e) {} };
-        hdr.appendChild(t); hdr.appendChild(copyBtn); hdr.appendChild(closeBtn);
-        var log = document.createElement('div');
-        log.id = '__live2d_diag_log_v2__';
-        log.style.cssText = 'overflow-y:auto;max-height:40vh;white-space:pre-wrap;word-break:break-all';
-        panel.appendChild(hdr); panel.appendChild(log);
+        var topBtn = document.createElement('button');
+        topBtn.textContent = '↑ 顶';
+        topBtn.style.cssText = 'background:#444;color:#fff;border:1px solid #666;border-radius:4px;padding:6px 10px;font:12px/1.4 inherit;cursor:pointer;flex:0 0 auto;min-height:32px';
+        topBtn.onclick = function () { try { log.scrollTop = 0; } catch (e) {} };
+        footer.appendChild(copyBtn); footer.appendChild(topBtn);
+        panel.appendChild(hdr); panel.appendChild(log); panel.appendChild(footer);
         (document.body || document.documentElement).appendChild(panel);
       }
       var logEl = document.getElementById('__live2d_diag_log_v2__');
@@ -133,9 +141,48 @@
       });
 
       // 0.4.0 用 autoInteract: false 避免它自己接管鼠标
+      // [TEMPORARY_DIAG] 在 Live2DModel.from 调用之前包一层 PIXI.Texture.fromURL + model.internalModel.settings.resolveURL
+      //   - PIXI.Texture.fromURL: 库 0.4.0 内部用它加载 texture, 包它能拿到"传给 PIXI 的最终 URL"
+      //   - model 内 settings.resolveURL 是在 model 创建后再包 (见下)
+      // 用完删除.
+      try {
+        var PIXI2 = global.PIXI;
+        var Tex = PIXI2 && PIXI2.Texture;
+        if (Tex && typeof Tex.fromURL === 'function' && !Tex.__mavisFromURLHooked) {
+          var origFromURL = Tex.fromURL;
+          Tex.fromURL = function (u, options) {
+            var inUrl = String(u);
+            var ret;
+            try { ret = origFromURL.apply(this, arguments); } catch (e) { throw e; }
+            try { __live2dDiagLog('[TEXFROMURL]', 'in=' + inUrl.substring(0, 120) + ' | hasColon=' + (/^blob:https:\/\//.test(inUrl) ? 'OK' : 'BROKEN')); } catch (e) {}
+            return ret;
+          };
+          Tex.__mavisFromURLHooked = true;
+        }
+      } catch (e) { try { __live2dDiagLog('[TEXFROMURL]', 'hook err=' + (e && e.message || e)); } catch (_) {} }
       const model = await Live2DModel.from(modelPath, {
         autoInteract: false,
       });
+
+      // [TEMPORARY_DIAG] 拿到 model 后, 立即包 model.internalModel.settings.resolveURL
+      //   - 库 0.4.0 用 settings.resolveURL(textureRelPath) 解析相对路径
+      //   - 我们已经在 fetchLoader 绕过 blob URL, 但 textures 路径不走 fetchLoader
+      //   - 直接 hook 它的 resolveURL, 看入库前 URL 是否已被破坏
+      try {
+        var im = model && model.internalModel;
+        var settings = im && im.settings;
+        if (settings && typeof settings.resolveURL === 'function' && !settings.__mavisResolveURLHooked) {
+          var origResolveURL = settings.resolveURL;
+          settings.resolveURL = function (rel) {
+            var inRel = String(rel);
+            var out;
+            try { out = origResolveURL.call(this, rel); } catch (e) { throw e; }
+            try { __live2dDiagLog('[SETTINGS_RESOLVEURL]', 'in=' + inRel.substring(0, 120) + ' | out=' + String(out).substring(0, 120) + ' | hasColon=' + (/^blob:https:\/\//.test(String(out)) ? 'OK' : 'BROKEN')); } catch (e) {}
+            return out;
+          };
+          settings.__mavisResolveURLHooked = true;
+        }
+      } catch (e) { try { __live2dDiagLog('[SETTINGS_RESOLVEURL]', 'hook err=' + (e && e.message || e)); } catch (_) {} }
 
       // bridge: 0.4.0 + 老 Cubism 4 moc3 v3 模型的 drawables.renderOrders 字段可能未初始化
       // (导致 PIXI 渲染时 renderOrder[i] undefined 报错)
@@ -476,6 +523,55 @@
       blobUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (e) {} });
     }
     return result;
+  }
+
+  // [TEMPORARY_DIAG] URL 变换追踪: 找出 blob:https:// → blob:https// 这一步
+  // 库 0.4.0 内部走 settings.resolveURL(blobURL) → 最终 PIXI.Texture.fromURL
+  // 用完删除. 不修任何逻辑.
+  function __live2dInstallUrlHook() {
+    var PIXIu = global.PIXI && global.PIXI.utils;
+    var candidates = [];
+    if (PIXIu) {
+      if (PIXIu.Url) candidates.push(['PIXI.utils.Url', PIXIu.Url]);
+      if (PIXIu.url) candidates.push(['PIXI.utils.url', PIXIu.url]);
+    }
+    if (candidates.length === 0) return false;
+    candidates.forEach(function (c) {
+      var name = c[0], obj = c[1];
+      if (!obj) return;
+      try {
+        if (obj.prototype && obj.prototype.resolve && !obj.prototype.__mavisUrlResolveHooked) {
+          var origP = obj.prototype.resolve;
+          obj.prototype.resolve = function (base) {
+            var inUrl = String(base);
+            var out;
+            try { out = origP.apply(this, arguments); } catch (e) { throw e; }
+            try { __live2dDiagLog('[URLRES_PROTO]', name + ' | in=' + inUrl.substring(0, 120) + ' | out=' + String(out).substring(0, 120) + ' | hasColon=' + (/^blob:https:\/\//.test(String(out)) ? 'OK' : 'BROKEN')); } catch (e) {}
+            return out;
+          };
+          obj.prototype.__mavisUrlResolveHooked = true;
+        }
+        if (typeof obj.resolve === 'function' && !obj.__mavisUrlResolveStaticHooked) {
+          var origS = obj.resolve;
+          obj.resolve = function (base) {
+            var inUrl = String(base);
+            var out;
+            try { out = origS.apply(this, arguments); } catch (e) { throw e; }
+            try { __live2dDiagLog('[URLRES_STATIC]', name + ' | in=' + inUrl.substring(0, 120) + ' | out=' + String(out).substring(0, 120) + ' | hasColon=' + (/^blob:https:\/\//.test(String(out)) ? 'OK' : 'BROKEN')); } catch (e) {}
+            return out;
+          };
+          obj.__mavisUrlResolveStaticHooked = true;
+        }
+      } catch (e) {}
+    });
+    return true;
+  }
+  if (!__live2dInstallUrlHook()) {
+    var __urlHookRetries = 0;
+    var __urlHookTimer = setInterval(function () {
+      __urlHookRetries += 1;
+      if (__live2dInstallUrlHook() || __urlHookRetries >= 60) clearInterval(__urlHookTimer);
+    }, 100);
   }
 
   // ── v0.5.0 修复: iOS Safari 「blob URL + XMLHttpRequest」不可用 ──
