@@ -18,7 +18,10 @@
   async function mountLive2D(canvas, modelPath, options) {
     options = options || {};
     if (!canvas) return { success: false, error: new Error('canvas is null') };
-    if (!modelPath) return { success: false, error: new Error('modelPath is empty') };
+    // v0.5.0 P2.4: 接受 string (URL) 或 object (改写后的 model3.json JS 对象, 走糯米粉做法跳过 transient blob)
+    if (!modelPath || (typeof modelPath !== 'string' && typeof modelPath !== 'object')) {
+      return { success: false, error: new Error('modelPath is empty') };
+    }
 
     try {
       var PIXI = getPixi();
@@ -280,16 +283,18 @@
       }
     }
 
-    // 3. 把改写后的 model3.json 转 blob URL
-    const rewrittenBlob = new Blob([JSON.stringify(modelJson)], { type: 'application/json' });
-    const rewrittenUrl = URL.createObjectURL(rewrittenBlob);
-    blobUrls.push(rewrittenUrl);
+    // 3. v0.5.0 P2.4: 不再把改写后的 model3.json 包成 transient Blob + URL.createObjectURL
+    //    (transient blob URL + iOS Safari XMLHttpRequest 已知有 NetworkError quirk, 见报告)
+    //    改为: 补库 ModelSettings 构造需要的 .url 字段, 然后直接把 JS 对象喂给 Live2DModel.from()
+    //    库内部 urlToJSON middleware 看到 source 是 object → 跳过 XHR fetch model3.json
+    //    后续 setupEssentials/createInternalModel 还是会用 XHRLoader 抓 moc3/textures, 但这些都是 IDB 长期存的 Blob (well-tested)
+    modelJson.url = 'live2d-package/model.model3.json';
 
-    // 4. 挂到 canvas._live2dBlobUrls, dispose 时 revoke
+    // 4. 挂到 canvas._live2dBlobUrls, dispose 时 revoke (只含 IDB 散文件 blob URL, 不再含 rewrittenUrl)
     canvas._live2dBlobUrls = blobUrls;
 
-    // 5. 调原 mountLive2D
-    const result = await mountLive2D(canvas, rewrittenUrl, options);
+    // 5. 调原 mountLive2D (传改写后的 JS 对象, 不再传 blob URL 字符串)
+    const result = await mountLive2D(canvas, modelJson, options);
 
     // 6. 如果 mount 失败, 立刻 revoke (成功后等 dispose 处理)
     if (!result.success) {
