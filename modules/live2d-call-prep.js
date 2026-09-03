@@ -201,6 +201,10 @@
     if (!screenEl) return;
     currentChat = chat || null;
     onStartCallback = onStart || null;
+    // v0.5.0: 清掉 close() 留下的 inline display:none. .screen 靠 opacity+visibility+.active 显隐,
+    // 但 inline display:none 会覆盖 .screen 的 display:flex, 导致第二次 open() 一片空白.
+    // (管理页 Live2DManager.open() 已同样处理, 见 live2d-manager.js)
+    if (screenEl) screenEl.style.display = '';
     if (global.showScreen) {
       global.showScreen('live2d-call-prep-screen');
     } else {
