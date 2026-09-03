@@ -301,10 +301,143 @@
       dbg.log('  Live2DModel.from NOT REACHED (loader 在准备 IDB 数据 + 改写 JSON)');
       dbg.log('STEP 7 Live2DModel.from CALLED 触发时机: XHR open 抓 moc3 / texture 时 (库内部 urlToJSON 跳过, 之后 createInternalModel 抓 moc3)');
 
-      result = await window.Live2DLoader.mountLive2DFromIDB(canvas, activeId, {
-        scale: 0.4,
-        autoStartIdle: true,
-      });
+      // === v0.5.0 P2.6: 现场读 IDB + 文件指纹 + Blob URL 路径映射 ===
+      // 不改 loader, 不改 XHR, 只观察. 目的: 把失败的 blob URL 跟实际文件路径对上号
+      // BEFORE getModel
+      dbg.log('======================================');
+      dbg.log('BEFORE getModel: 准备调 Live2DStorage.getModel(activeId) (诊断读, 跟 loader 内部是同一份 IDB)');
+      let dataDiag = null;
+      try {
+        dataDiag = await window.Live2DStorage.getModel(activeId);
+        // AFTER getModel
+        if (dataDiag) {
+          dbg.log('AFTER getModel: MODEL FOUND');
+          dbg.log('  data.name = ' + JSON.stringify(dataDiag.name));
+          dbg.log('  data.modelPath = ' + JSON.stringify(dataDiag.modelPath));
+          dbg.log('  data.config.refs keys = ' + (dataDiag.config && dataDiag.config.refs ? JSON.stringify(Object.keys(dataDiag.config.refs)) : 'null'));
+          // files count
+          const fc = (dataDiag.files ? dataDiag.files.size : 0);
+          dbg.log('files count: ' + fc);
+          if (dataDiag.files) {
+            const fileList = [];
+            for (const p of dataDiag.files.keys()) fileList.push(p);
+            fileList.sort();
+            dbg.log('files 列表 (' + fileList.length + '):');
+            for (const p of fileList) {
+              const b = dataDiag.files.get(p);
+              dbg.log('  - ' + p + ' (size=' + (b && b.size) + ' type=' + JSON.stringify(b && b.type) + ')');
+            }
+          }
+          // 指纹表 (size|type → paths[])
+          const fpToPath = new Map();
+          if (dataDiag.files) {
+            for (const [path, blob] of dataDiag.files.entries()) {
+              const fp = (blob.size || 0) + '|' + (blob.type || '');
+              if (!fpToPath.has(fp)) fpToPath.set(fp, []);
+              fpToPath.get(fp).push(path);
+            }
+          }
+          dbg.log('===== FILE FINGERPRINTS (size|type → paths[]) =====');
+          for (const [fp, paths] of fpToPath.entries()) {
+            dbg.log('  ' + fp + ' → ' + JSON.stringify(paths));
+          }
+
+          // Wrap URL.createObjectURL (不改变行为, 只记录 url → fingerprint)
+          const origCreate = URL.createObjectURL.bind(URL);
+          const urlToFp = new Map();
+          URL.createObjectURL = function (blob) {
+            const url = origCreate(blob);
+            const fp = (blob.size || 0) + '|' + (blob.type || '');
+            urlToFp.set(url, fp);
+            const paths = fpToPath.get(fp) || [];
+            try {
+              dbg.log('BLOB CREATED originalPath=' + JSON.stringify(paths) + ' fp=' + fp + ' blobUrl=' + url.substring(0, 100));
+            } catch (e) {}
+            return url;
+          };
+
+          // Wrap addEventListener (不改变 XHR 行为, 只在 error 事件触发时追写文件路径)
+          // 这样 XHR ERROR 那行下面会多一行 "→ XHR ERROR FILE PATH: ... path=xxx"
+          const origAEL = XMLHttpRequest.prototype.addEventListener;
+          XMLHttpRequest.prototype.addEventListener = function (type, listener, options) {
+            if (type === 'error' && typeof listener === 'function') {
+              const self = this;
+              const wrapped = function (ev) {
+                try { listener.call(self, ev); } catch (e) {}
+                try {
+                  const u = self.__dbgUrl || (self.responseURL || '');
+                  const fp = urlToFp.get(u);
+                  if (fp) {
+                    const ps = fpToPath.get(fp) || [];
+                    dbg.log('  → XHR ERROR FILE PATH: url=' + u.substring(0, 100) + ' fp=' + fp + ' path=' + JSON.stringify(ps), '#ff5252');
+                  }
+                } catch (e) {}
+              };
+              return origAEL.call(this, type, wrapped, options);
+            }
+            return origAEL.call(this, type, listener, options);
+          };
+
+          try {
+            // BEFORE Live2DModel.from
+            dbg.log('======================================');
+            dbg.log('BEFORE Live2DModel.from: 即将调 Live2DLoader.mountLive2DFromIDB');
+            dbg.log('  接下来 BLOB CREATED / XHR / XHR ERROR FILE PATH 日志都来自这个调用');
+
+            result = await window.Live2DLoader.mountLive2DFromIDB(canvas, activeId, {
+              scale: 0.4,
+              autoStartIdle: true,
+            });
+
+            // Live2DModel.from ERROR (如果 result 表示失败)
+            if (!result || !result.success) {
+              const err = result && result.error;
+              dbg.log('======================================');
+              dbg.log('Live2DModel.from ERROR (via result.success=false)');
+              if (err) {
+                dbg.log('  name: ' + err.name);
+                dbg.log('  message: ' + (err.message || String(err)));
+                if (err.stack) {
+                  dbg.log('  stack (前 5 行):');
+                  const sl = String(err.stack).split('\n').slice(0, 5);
+                  for (let si = 0; si < sl.length; si++) dbg.log('    ' + sl[si]);
+                }
+                if (err.message && /network/i.test(err.message)) {
+                  dbg.log('  ⚠ NetworkError detected');
+                  dbg.log('    上面 XHR ERROR 行 + → XHR ERROR FILE PATH 行 就是失败文件');
+                  dbg.log('    找 path=xxx 那个 xxx 就是该 blob URL 对应的原始文件');
+                }
+              } else {
+                dbg.log('  (no error object)');
+              }
+            }
+          } finally {
+            // 恢复 URL.createObjectURL 和 addEventListener
+            try { URL.createObjectURL = origCreate; } catch (e) {}
+            try { XMLHttpRequest.prototype.addEventListener = origAEL; } catch (e) {}
+            dbg.log('已恢复 URL.createObjectURL 和 addEventListener');
+          }
+        } else {
+          dbg.log('AFTER getModel: MODEL NOT FOUND (dataDiag is null)');
+          // 还是按原样调 loader, 看看 loader 内部怎么报错
+          result = await window.Live2DLoader.mountLive2DFromIDB(canvas, activeId, {
+            scale: 0.4,
+            autoStartIdle: true,
+          });
+        }
+      } catch (e) {
+        dbg.log('AFTER getModel: ERROR: ' + (e && (e.message || String(e))));
+        // 继续调 loader, 不中断流程
+        try {
+          result = await window.Live2DLoader.mountLive2DFromIDB(canvas, activeId, {
+            scale: 0.4,
+            autoStartIdle: true,
+          });
+        } catch (e2) {
+          dbg.log('Live2DModel.from ERROR (loader itself threw): ' + (e2 && (e2.message || String(e2))));
+        }
+      }
+      dbg.log('======================================');
 
       // [STEP 8] Live2DModel.from 已返回 (不管成功失败, 库都走完了)
       dbg.step(8, 'Live2DModel.from 已返回 (隐含: 库走完 urlToJSON → jsonToSettings → setupEssentials → createInternalModel)');
