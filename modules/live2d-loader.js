@@ -304,6 +304,87 @@
     return result;
   }
 
+  // ── v0.5.0 修复: iOS Safari 「blob URL + XMLHttpRequest」不可用 ──
+  // pixi-live2d-display 0.4.0 用自带 XHRLoader (XMLHttpRequest) 读取
+  // moc3 / physics / pose / motion / expression, 而 iOS Safari 对 blob: URL 的 XHR
+  // 返回 status=0 且 response 为空, 导致用户上传模型在 iPhone Safari 上加载失败.
+  // 这里用库官方暴露的 Live2DLoader.middlewares 扩展点, 把真正承担"网络读取"的那一层
+  // 从 XHR 换成 fetch (iOS Safari 的 fetch 能正常读 blob: URL).
+  // 不改库版本 / 不改存储 / 不改 UI / 不做全局 XMLHttpRequest monkey patch.
+  function installFetchLive2DResourceLoader() {
+    // (1) PIXI / PIXI.live2d 尚未初始化时静默返回, 不报错
+    var l2d = global.PIXI && global.PIXI.live2d;
+    var L2D = l2d && l2d.Live2DLoader;
+    if (!L2D || !Array.isArray(L2D.middlewares)) return false;
+    // (2) 不重复安装
+    if (L2D.__mavisFetchLoaderInstalled) return true;
+
+    var fetchLoader = function (payload, next) {
+      if (!payload || !payload.url) { return next(); }
+      // (9) 保留原 URL resolve 逻辑: 沿用库自身的 settings.resolveURL,
+      //     相对路径 / 绝对路径 / blob URL 的解析行为完全不变.
+      var url = (payload.settings && typeof payload.settings.resolveURL === 'function')
+        ? payload.settings.resolveURL(payload.url)
+        : payload.url;
+      if (!url) { return next(); }
+      return fetch(url).then(function (resp) {
+        // 原 XHRLoader 在 load 时接受 status 0 或 200, 这里保持一致, 避免误判.
+        if (!resp.ok && resp.status !== 0) {
+          throw new Error('资源加载失败 (HTTP ' + resp.status + '): ' + url);
+        }
+        // (8) 正确处理 json / blob / arraybuffer
+        if (payload.type === 'json') {
+          return resp.json().then(function (j) { payload.result = j; return next(); });
+        }
+        if (payload.type === 'blob') {
+          return resp.blob().then(function (b) { payload.result = b; return next(); });
+        }
+        // 默认按 arraybuffer 二进制处理 (moc3 / 其他二进制资源)
+        return resp.arrayBuffer().then(function (buf) { payload.result = buf; return next(); });
+      }).catch(function (err) {
+        throw new Error('资源加载失败: ' + url + ' (' + ((err && err.message) || err) + ')');
+      });
+    };
+
+    // (11) 不粗暴覆盖: Live2DLoader.middlewares 本质是"资源读取链",
+    //      其承担网络读取的那一项就是 XHRLoader.loader (0.4.0 中即第 1 项).
+    //      这里逐项仅替换"网络读取"函数项, 其余 middleware 一律保留.
+    //      优先精确匹配 XHRLoader.loader, 找不到时才退回"替换首个函数 middleware".
+    var XHRLoaderFn = (l2d.XHRLoader && typeof l2d.XHRLoader.loader === 'function')
+      ? l2d.XHRLoader.loader
+      : null;
+    var replaced = false;
+    var newMiddlewares = L2D.middlewares.map(function (mw) {
+      var isNetworkLoader = (mw === XHRLoaderFn) || (!XHRLoaderFn && typeof mw === 'function' && !replaced);
+      if (!replaced && isNetworkLoader) {
+        replaced = true;
+        return fetchLoader;
+      }
+      return mw;
+    });
+    // 兜底: 理论上 Live2DLoader.middlewares 至少含 XHRLoader.loader; 万一为空则整体设为 fetchLoader
+    if (!replaced) newMiddlewares = [fetchLoader];
+
+    // (10) 只作用于 Live2DLoader 的资源加载链, 不修改全局 fetch, 不影响页面其他 fetch
+    L2D.middlewares = newMiddlewares;
+    L2D.__mavisFetchLoaderInstalled = true;
+    console.info('[Live2D v0.5.0] 资源加载已由 XHR 切换为 fetch (绕开 iOS Safari blob+XHR 不可用)');
+    return true;
+  }
+
+  // (10) 安全安装: PIXI.live2d 就绪则立即生效; 未就绪则静默重试, 不报错, 不重复安装
+  if (installFetchLive2DResourceLoader()) {
+    // 已安装
+  } else {
+    var _live2dRetries = 0;
+    var _live2dTimer = setInterval(function () {
+      _live2dRetries += 1;
+      if (installFetchLive2DResourceLoader() || _live2dRetries >= 60) {
+        clearInterval(_live2dTimer);
+      }
+    }, 100);
+  }
+
   global.Live2DLoader = {
     mountLive2D,
     mountLive2DFromIDB,
