@@ -6,6 +6,41 @@
 (function (global) {
   'use strict';
 
+  // [TEMPORARY_DIAG] iPhone Safari / PWA 无 console, 把诊断日志直接渲染到屏幕
+  // 不用 video-voice-call 的 showLive2DDebugPanel (它锁在视频通话 IIFE 内, 没暴露)
+  // 这里是独立最小实现, 仅 3 行用, 用完删除
+  function __live2dDiagLog(tag, msg) {
+    try { console.warn('[DIAG]' + tag + ' ' + msg); } catch (e) {}
+    try {
+      var KEY = '__live2d_diag_panel_v1__';
+      var panel = document.getElementById(KEY);
+      if (!panel) {
+        panel = document.createElement('div');
+        panel.id = KEY;
+        panel.style.cssText = 'position:fixed;top:8px;left:8px;right:8px;z-index:2147483647;max-height:42vh;overflow:hidden;padding:6px 8px;background:rgba(0,0,0,.88);color:#fff;font:11px/1.4 ui-monospace,Menlo,Consolas,monospace;border-radius:6px;border:1px solid #666;box-sizing:border-box;-webkit-overflow-scrolling:touch;word-break:break-all;white-space:pre-wrap';
+        var hdr = document.createElement('div');
+        hdr.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding-bottom:4px;margin-bottom:4px;border-bottom:1px solid #444';
+        var t = document.createElement('strong'); t.textContent = 'LIVE2D DIAG'; t.style.cssText = 'color:#ffeb3b;font-size:11px';
+        hdr.appendChild(t);
+        var btn = document.createElement('button');
+        btn.textContent = '×'; btn.style.cssText = 'background:#333;color:#fff;border:1px solid #555;border-radius:4px;padding:0 8px;font:12px/1.4 inherit;cursor:pointer';
+        btn.onclick = function () { try { panel.remove(); } catch (e) {} };
+        hdr.appendChild(btn);
+        var log = document.createElement('div');
+        log.id = '__live2d_diag_log_v1__';
+        log.style.cssText = 'overflow-y:auto;max-height:36vh;white-space:pre-wrap;word-break:break-all';
+        panel.appendChild(hdr); panel.appendChild(log);
+        (document.body || document.documentElement).appendChild(panel);
+      }
+      var logEl = document.getElementById('__live2d_diag_log_v1__');
+      var line = document.createElement('div');
+      line.textContent = tag + ' ' + msg;
+      line.style.cssText = 'padding:1px 0;color:#fff';
+      logEl.appendChild(line);
+      logEl.scrollTop = logEl.scrollHeight;
+    } catch (e) {}
+  }
+
   function getPixi() {
     return global.PIXI || null;
   }
@@ -239,7 +274,7 @@
     for (const [path, blob] of data.files.entries()) {
       const u = URL.createObjectURL(blob);
       // [TEMPORARY_DIAG] iOS 显示 blob:https// 排查 — createObjectURL 原始返回值
-      console.warn('[DIAG][createObjectURL] path=' + path + ' | typeof=' + (typeof u) + ' | value=' + u + ' | location.origin=' + location.origin + ' | location.href=' + location.href);
+      __live2dDiagLog('[createObjectURL]', 'path=' + path + ' | typeof=' + (typeof u) + ' | value=' + u + ' | location.origin=' + location.origin + ' | location.href=' + location.href);
       urlMap.set(path, u);
       blobUrls.push(u);
     }
@@ -265,7 +300,7 @@
     if (refs) {
       if (refs.Moc) refs.Moc = resolveBlob(refs.Moc);
       // [TEMPORARY_DIAG] 进入 Live2DLoader 前 model3.json 的 Moc 引用(实际 URL)
-      console.warn('[DIAG][refs.Moc]=' + refs.Moc);
+      __live2dDiagLog('[refs.Moc]', String(refs.Moc));
       if (refs.DisplayInfo) refs.DisplayInfo = resolveBlob(refs.DisplayInfo);
       if (refs.Physics) refs.Physics = resolveBlob(refs.Physics);
       if (refs.Pose) refs.Pose = resolveBlob(refs.Pose);
@@ -332,7 +367,7 @@
         : payload.url;
       if (!url) { return next(); }
       // [TEMPORARY_DIAG] middleware 收到的 payload.url 与 fetch 实际使用的 URL
-      console.warn('[DIAG][payload.url]=' + payload.url + ' | fetch.url=' + url + ' | settings.url=' + (payload.settings && payload.settings.url) + ' | typeof=' + (typeof url));
+      __live2dDiagLog('[fetch]', 'payload.url=' + payload.url + ' | fetch.url=' + url + ' | settings.url=' + (payload.settings && payload.settings.url) + ' | typeof=' + (typeof url));
       return fetch(url).then(function (resp) {
         // 原 XHRLoader 在 load 时接受 status 0 或 200, 这里保持一致, 避免误判.
         if (!resp.ok && resp.status !== 0) {
