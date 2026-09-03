@@ -329,10 +329,11 @@
   }
 
   // ── v0.5.0 修复: PIXI.utils.url.resolve blob: URL 短路 ──
-  // 库 0.4.0 走 PIXI.utils.url.resolve(blobURL) 解析 blob:https://... 时,
-  // 库内部把 blob: 后整段当 origin, url-toolkit 把 "://" 第二个冒号规范化掉,
-  // 输出 blob:https//... → PIXI.Texture.fromURL 拿到的 URL 损坏,
-  // 纹理 0×0, Live2D 全黑剪影. 这里对 blob: 开头的 URL 直接原样返回,
+  // @pixi/utils 的 url.resolve 是 Node 的 url.resolve(from, to): from=基准, to=被解析的 URL.
+  // 库 0.4.0 纹理加载走 settings.resolveURL(tex) → utils.url.resolve(this.url, tex),
+  // 即 blob:https://... 作为第二参(to)传入, url-toolkit/Node 把 "://" 第二个冒号规范化掉,
+  // 输出 blob:https//... → createTexture → PIXI.Texture.fromURL 拿到的 URL 损坏,
+  // 纹理 0×0, Live2D 全黑剪影. 这里对 to(第二参) 为 blob: 的 URL 直接原样返回,
   // http/https/相对路径仍走 PIXI.utils.url.resolve 原有逻辑.
   function installPixiUrlBlobShortcut() {
     var PIXIu = global.PIXI && global.PIXI.utils;
@@ -341,8 +342,8 @@
     if (!u || typeof u.resolve !== 'function') return false;
     if (u.__mavisBlobShortcutInstalled) return true;
     var orig = u.resolve;
-    u.resolve = function (base) {
-      if (typeof base === 'string' && base.indexOf('blob:') === 0) return base;
+    u.resolve = function (from, to) {
+      if (typeof to === 'string' && to.indexOf('blob:') === 0) return to;
       return orig.apply(this, arguments);
     };
     u.__mavisBlobShortcutInstalled = true;
