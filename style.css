@@ -26306,13 +26306,15 @@ a.hot-news-title:hover {
 }
 .live2d-call-prep-hint {
     margin: 8px 0 0;
-    font-size: 14px;
+    font-size: 24px;
+    font-family: 'Zhi Mang Xing', cursive;
     color: #b58a9a;
     line-height: 1.5;
 }
 .live2d-call-prep-hint-sub {
     margin: 2px 0 0;
-    font-size: 13px;
+    font-size: 22px;
+    font-family: 'Zhi Mang Xing', cursive;
     color: #b58a9a;
     line-height: 1.5;
 }
