@@ -45,6 +45,14 @@
   let voiceCallTimerInterval = null;
   let videoCallAiTurnSeq = 0;
 
+  // 正式视频通话页 Live2D 手势交互状态 (单指拖拽 + 双指捏合)
+  // 边界跟 live2d-manager.js 保持一致 (ZOOM_STEP=1.15, MIN=0.1, MAX=8.0)
+  // 通话挂断时清理, 不写回 setVideoCallAppearance
+  let live2dCallGestureCanvas = null;     // 当前绑定手势的 canvas
+  let live2dCallGestureActiveModel = null; // 当前手势操作的 PIXI Live2D Model
+  let live2dCallGestureInitial = null;     // 本次通话初始 { scale, x, y } (安全复位用)
+  let live2dCallGestureDetach = null;      // 解绑函数 (由 attach 时生成)
+
   // ============================================================
   // v0.2.0 Live2D 视频通话 - 挂载/卸载/fallback 辅助函数
   // 设计: 配了 live2dModelPath 就挂 Live2D, 失败回退静态图, 没配保持原样
@@ -178,9 +186,237 @@
             console.warn('[Live2D] setExpression failed for defaultExpression:', e);
           }
         }
+
+        // 正式视频通话页 Live2D 手势: 单指拖拽 + 双指捏合缩放
+        // 初始 transform 用本次通话 mountOptions 里读到的 scale/x/y (来自 videoCallAppearance)
+        // 不写回 setVideoCallAppearance — 通话结束时调整自动丢弃
+        if (result && result.model) {
+          const initialTransform = {
+            scale: (typeof mountOptions.scale === 'number' && isFinite(mountOptions.scale) && mountOptions.scale > 0)
+              ? mountOptions.scale
+              : (result.model.scale && typeof result.model.scale.x === 'number' ? result.model.scale.x : 1),
+            x: (typeof mountOptions.x === 'number' && isFinite(mountOptions.x))
+              ? mountOptions.x
+              : (typeof result.model.x === 'number' ? result.model.x : 0),
+            y: (typeof mountOptions.y === 'number' && isFinite(mountOptions.y))
+              ? mountOptions.y
+              : (typeof result.model.y === 'number' ? result.model.y : 0)
+          };
+          try {
+            attachLive2DCallGestures(canvas, result.model, initialTransform);
+          } catch (e) {
+            console.warn('[Live2D] attach gestures failed:', e);
+          }
+        }
       }
     } catch (e) {
       console.error('[Live2D] mountLive2DForCall threw:', e);
+    }
+  }
+
+  /**
+   * 给正式视频通话页的 Live2D canvas 绑定手势: 单指拖拽 + 双指捏合缩放
+   * - 单指: 跟随手指平移 (activeModel.x/y)
+   * - 双指: 实时缩放 (activeModel.scale.set(s, s)), 跟 live2d-manager.js scaleModel 同一套 ZOOM_MIN/MAX
+   * - 只动当前 PIXI Live2D Model 视觉变换, 不动 TTS/ASR/AI/摄像头/动画
+   * - 不写 setVideoCallAppearance, 不动 localStorage 中保存的默认 scale/positionX/positionY
+   * - 通话挂断时由 detachLive2DCallGestures 解绑
+   * @param {HTMLCanvasElement} canvas - Live2D canvas 元素
+   * @param {Object} activeModel - PIXI Live2D Model (有 .x / .y / .scale)
+   * @param {Object} initialTransform - 本次通话初始 { scale, x, y }
+   */
+  function attachLive2DCallGestures(canvas, activeModel, initialTransform) {
+    if (!canvas || !activeModel) return;
+    // 避免重复绑定 (例如 setExpression 之后误调)
+    if (live2dCallGestureCanvas === canvas && live2dCallGestureDetach) return;
+
+    // 旧实例还在就先清掉
+    if (live2dCallGestureDetach) {
+      try { live2dCallGestureDetach(); } catch (e) { /* ignore */ }
+    }
+
+    live2dCallGestureCanvas = canvas;
+    live2dCallGestureActiveModel = activeModel;
+    live2dCallGestureInitial = {
+      scale: (initialTransform && typeof initialTransform.scale === 'number' && isFinite(initialTransform.scale) && initialTransform.scale > 0)
+        ? initialTransform.scale
+        : (activeModel.scale && typeof activeModel.scale.x === 'number' ? activeModel.scale.x : 1),
+      x: (initialTransform && typeof initialTransform.x === 'number' && isFinite(initialTransform.x))
+        ? initialTransform.x
+        : (typeof activeModel.x === 'number' ? activeModel.x : 0),
+      y: (initialTransform && typeof initialTransform.y === 'number' && isFinite(initialTransform.y))
+        ? initialTransform.y
+        : (typeof activeModel.y === 'number' ? activeModel.y : 0)
+    };
+
+    // 仅作用于 canvas: 阻止浏览器双指缩放 / 双指平移 / 整页 pinch
+    // 不影响视频通话页其他区域的触摸行为
+    const prevTouchAction = canvas.style.touchAction;
+    canvas.style.touchAction = 'none';
+    // 关键修复: live2d-loader.js mountLive2D 会把 canvas 设成 pointer-events: none
+    // (为了让 Live2D 不挡底下界面), 但这样 canvas 收不到任何鼠标/触摸事件, 手势永不触发.
+    // 这里对 canvas 覆盖回 auto, 让 pointer 事件能到我绑的监听上; detach 时恢复.
+    const prevPointerEvents = canvas.style.pointerEvents;
+    canvas.style.pointerEvents = 'auto';
+
+    // 回归修复: canvas 现在 pointer-events:auto 且 z-index 99999 (loader 设), 会盖住整个控制条,
+    // 挂断/静音/切镜头/重新生成按钮全被拦, 点不到. 把控制条临时提到 canvas 之上恢复可点,
+    // 通话挂断 detach 时还原. 只在挂 Live2D 时执行, 未挂载时不影响原生通话.
+    const callControls = document.querySelector('#video-call-screen .video-call-controls');
+    const prevControlsZIndex = callControls ? callControls.style.zIndex : '';
+    if (callControls) callControls.style.zIndex = '100000';
+
+    // 状态机: idle / drag (单指) / pinch (双指)
+    // - drag: 1 个 active pointer, 跟随 clientX/Y delta 平移
+    // - pinch: 2 个 active pointers, 跟踪距离比缩放, 跟踪中点 delta 平移
+    const ZOOM_MIN = 0.1;
+    const ZOOM_MAX = 8.0;
+    const state = {
+      mode: 'idle',         // 'idle' | 'drag' | 'pinch'
+      pointers: new Map(),  // pointerId -> { clientX, clientY }
+      dragStart: null,      // { modelX, modelY, clientX, clientY }
+      pinchStart: null      // { distance, midClientX, midClientY, modelX, modelY, scale }
+    };
+
+    const getTwoPointerDistance = (p1, p2) => {
+      const dx = p1.clientX - p2.clientX;
+      const dy = p1.clientY - p2.clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    };
+    const getTwoPointerMid = (p1, p2) => ({
+      x: (p1.clientX + p2.clientX) / 2,
+      y: (p1.clientY + p2.clientY) / 2
+    });
+
+    const safeSetScale = (s) => {
+      if (!isFinite(s) || s <= 0) return;
+      let next = s;
+      if (next < ZOOM_MIN) next = ZOOM_MIN;
+      if (next > ZOOM_MAX) next = ZOOM_MAX;
+      try {
+        live2dCallGestureActiveModel.scale.set(next, next);
+      } catch (e) { /* ignore */ }
+    };
+    const safeSetPos = (x, y) => {
+      if (!isFinite(x) || !isFinite(y)) return;
+      try {
+        live2dCallGestureActiveModel.x = x;
+        live2dCallGestureActiveModel.y = y;
+      } catch (e) { /* ignore */ }
+    };
+
+    const onPointerDown = (ev) => {
+      // 只响应鼠标左键 / 触摸 / 笔
+      if (ev.button !== undefined && ev.button !== 0) return;
+      if (!live2dCallGestureActiveModel) return;
+      // 阻止浏览器默认 (双指放大 / 滚动)
+      try { ev.preventDefault(); } catch (e) { /* ignore */ }
+      try { canvas.setPointerCapture(ev.pointerId); } catch (e) { /* ignore */ }
+      state.pointers.set(ev.pointerId, { clientX: ev.clientX, clientY: ev.clientY });
+
+      if (state.pointers.size === 1) {
+        state.mode = 'drag';
+        state.dragStart = {
+          modelX: live2dCallGestureActiveModel.x || 0,
+          modelY: live2dCallGestureActiveModel.y || 0,
+          clientX: ev.clientX,
+          clientY: ev.clientY
+        };
+        state.pinchStart = null;
+      } else if (state.pointers.size >= 2) {
+        // 进入 pinch 模式: 锁定当前 distance + 中点 + model 状态
+        const [p1, p2] = Array.from(state.pointers.values());
+        state.mode = 'pinch';
+        state.pinchStart = {
+          distance: getTwoPointerDistance(p1, p2),
+          midClientX: (p1.clientX + p2.clientX) / 2,
+          midClientY: (p1.clientY + p2.clientY) / 2,
+          modelX: live2dCallGestureActiveModel.x || 0,
+          modelY: live2dCallGestureActiveModel.y || 0,
+          scale: (live2dCallGestureActiveModel.scale && typeof live2dCallGestureActiveModel.scale.x === 'number')
+            ? live2dCallGestureActiveModel.scale.x
+            : 1
+        };
+        state.dragStart = null;
+      }
+    };
+
+    const onPointerMove = (ev) => {
+      if (!live2dCallGestureActiveModel) return;
+      if (!state.pointers.has(ev.pointerId)) return;
+      state.pointers.set(ev.pointerId, { clientX: ev.clientX, clientY: ev.clientY });
+      try { ev.preventDefault(); } catch (e) { /* ignore */ }
+
+      if (state.mode === 'drag' && state.dragStart && state.pointers.size === 1) {
+        const dx = ev.clientX - state.dragStart.clientX;
+        const dy = ev.clientY - state.dragStart.clientY;
+        safeSetPos(state.dragStart.modelX + dx, state.dragStart.modelY + dy);
+      } else if (state.mode === 'pinch' && state.pinchStart && state.pointers.size >= 2) {
+        const [p1, p2] = Array.from(state.pointers.values());
+        const curDist = getTwoPointerDistance(p1, p2);
+        const curMid = getTwoPointerMid(p1, p2);
+        if (state.pinchStart.distance > 0) {
+          const ratio = curDist / state.pinchStart.distance;
+          safeSetScale(state.pinchStart.scale * ratio);
+        }
+        // 双指中点 delta 同时平移
+        const midDx = curMid.x - state.pinchStart.midClientX;
+        const midDy = curMid.y - state.pinchStart.midClientY;
+        safeSetPos(state.pinchStart.modelX + midDx, state.pinchStart.modelY + midDy);
+      }
+    };
+
+    const onPointerEnd = (ev) => {
+      if (state.pointers.has(ev.pointerId)) {
+        state.pointers.delete(ev.pointerId);
+      }
+      try { canvas.releasePointerCapture(ev.pointerId); } catch (e) { /* ignore */ }
+      if (state.pointers.size === 0) {
+        state.mode = 'idle';
+        state.dragStart = null;
+        state.pinchStart = null;
+      } else if (state.pointers.size === 1) {
+        // pinch → drag 回落: 用剩余 pointer 重置 dragStart (从当前 model 位置开始)
+        const [p] = Array.from(state.pointers.values());
+        state.mode = 'drag';
+        state.dragStart = {
+          modelX: live2dCallGestureActiveModel.x || 0,
+          modelY: live2dCallGestureActiveModel.y || 0,
+          clientX: p.clientX,
+          clientY: p.clientY
+        };
+        state.pinchStart = null;
+      }
+    };
+
+    canvas.addEventListener('pointerdown', onPointerDown, { passive: false });
+    canvas.addEventListener('pointermove', onPointerMove, { passive: false });
+    canvas.addEventListener('pointerup', onPointerEnd);
+    canvas.addEventListener('pointercancel', onPointerEnd);
+    canvas.addEventListener('pointerleave', onPointerEnd);
+
+    live2dCallGestureDetach = function detach() {
+      try { canvas.removeEventListener('pointerdown', onPointerDown); } catch (e) { /* ignore */ }
+      try { canvas.removeEventListener('pointermove', onPointerMove); } catch (e) { /* ignore */ }
+      try { canvas.removeEventListener('pointerup', onPointerEnd); } catch (e) { /* ignore */ }
+      try { canvas.removeEventListener('pointercancel', onPointerEnd); } catch (e) { /* ignore */ }
+      try { canvas.removeEventListener('pointerleave', onPointerEnd); } catch (e) { /* ignore */ }
+      canvas.style.touchAction = prevTouchAction;
+      canvas.style.pointerEvents = prevPointerEvents;
+      if (callControls) callControls.style.zIndex = prevControlsZIndex;
+      live2dCallGestureCanvas = null;
+      live2dCallGestureActiveModel = null;
+      live2dCallGestureInitial = null;
+      live2dCallGestureDetach = null;
+    };
+  }
+
+  /**
+   * 解绑正式视频通话页 Live2D 手势 (挂断 / 切模型时调用)
+   */
+  function detachLive2DCallGestures() {
+    if (live2dCallGestureDetach) {
+      try { live2dCallGestureDetach(); } catch (e) { /* ignore */ }
     }
   }
 
@@ -207,6 +443,8 @@
    *  - Live2D 加载失败时如果不恢复, 通话过程中对面也是黑的
    */
   function unmountLive2DForCall() {
+    // 先解绑手势 (在 PIXI 资源释放前, 避免对已销毁 model 引用)
+    detachLive2DCallGestures();
     const canvas = document.getElementById('live2d-canvas');
     if (canvas && window.Live2DLoader) {
       window.Live2DLoader.disposeLive2D(canvas);
