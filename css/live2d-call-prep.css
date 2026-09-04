@@ -116,6 +116,13 @@
     color: #b58a9a;
     line-height: 1.5;
 }
+.live2d-call-prep-subtitle {
+    display: block;
+    width: 38%;
+    max-width: 620px;
+    height: auto;
+    margin: 6px auto 18px;
+}
 .live2d-call-prep-character {
     position: relative;
     z-index: 1;
@@ -239,6 +246,21 @@
     background: linear-gradient(135deg, #fff0f5 0%, #ffffff 100%);
     border-radius: 10px;
     border: 1px solid rgba(255, 182, 193, 0.25);
+}
+
+/* v0.5.0 P2.4: "已设默认形象" 轻量 badge — 用户从调试台点"使用此形象进入视频通话"后,
+   准备页 Live2DCallPrep.render() 在这里填 "✅ 已设默认形象 (来自调试台) · 起始表情: xxx" */
+.live2d-call-prep-appearance-badge {
+    font-size: 12px;
+    line-height: 1.55;
+    color: #2f8b5b;
+    background: linear-gradient(135deg, #eafaf1 0%, #f4fff8 100%);
+    border: 1px solid rgba(78, 193, 139, 0.35);
+    border-radius: 10px;
+    padding: 6px 10px;
+    margin: 0;
+    word-break: break-all;
+    text-align: center;
 }
 .live2d-call-prep-card-action {
     display: flex;
@@ -494,4 +516,104 @@
 .live2d-model-picker-upload-btn:active {
     background: rgba(255, 92, 141, 0.05);
     transform: scale(0.98);
+}
+
+/* v0.5.0 P3-1: 准备页"我的画面"卡片 (从聊天设置页"视频通话优化"板块搬来)
+   - 视觉风格: 跟现有 .live2d-call-prep-card / -title / -preview 统一
+   - 配色: 粉白 #ff5c8d / #fff5f9 / #b58a9a
+   - 仅配置, 不触发 camera (camera 由正式视频通话 startVideoCall 走 applyVideoOptimizationToCall 启动) */
+.live2d-call-prep-local-preview-wrap {
+    position: relative;
+    width: 100%;
+    height: 160px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: linear-gradient(135deg, #fff5f9 0%, #ffffff 100%);
+}
+/* v0.5.0 P3-1.1: user 头像兜底层 (绝对定位叠加在 preview-wrap 区域)
+   - localVideoUrl 有值 → #prep-local-video-preview display:block, #prep-local-video-user-avatar display:none
+   - localVideoUrl 空 → #prep-local-video-preview display:none, #prep-local-video-user-avatar display:block
+   - 三个元素 (preview / user-avatar / placeholder) 互斥显示, 由 Live2DCallPrep.refreshPrepLocalFallback 控制 */
+#prep-local-video-user-avatar {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #fff5f9 0%, #ffffff 100%);
+}
+.live2d-call-prep-local-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 2px;
+}
+.live2d-call-prep-local-actions .live2d-call-prep-card-action {
+    flex: 1;
+    padding: 8px 10px;
+    font-size: 12px;
+}
+.live2d-call-prep-local-camera-divider {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 8px;
+    padding-top: 12px;
+    border-top: 1px dashed rgba(255, 142, 179, 0.3);
+    font-size: 13px;
+    font-weight: 600;
+    color: #3a2a30;
+}
+.live2d-call-prep-local-camera-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 10px;
+    padding: 6px 0;
+}
+
+/* P3-1: 准备页 iOS 风格 toggle (跟 .toggle-switch 区分, 这里是粉白卡片内嵌的小开关) */
+.live2d-call-prep-toggle {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+    flex-shrink: 0;
+}
+.live2d-call-prep-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+}
+.live2d-call-prep-toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #e3d8dd;
+    border-radius: 24px;
+    transition: background 0.2s;
+    -webkit-tap-highlight-color: transparent;
+}
+.live2d-call-prep-toggle-slider::before {
+    content: "";
+    position: absolute;
+    height: 20px;
+    width: 20px;
+    left: 2px;
+    top: 2px;
+    background: #ffffff;
+    border-radius: 50%;
+    transition: transform 0.2s;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+.live2d-call-prep-toggle input:checked + .live2d-call-prep-toggle-slider {
+    background: linear-gradient(135deg, #ff5c8d 0%, #ff8eb3 100%);
+}
+.live2d-call-prep-toggle input:checked + .live2d-call-prep-toggle-slider::before {
+    transform: translateX(20px);
 }

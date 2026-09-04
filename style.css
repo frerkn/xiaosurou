@@ -26318,6 +26318,13 @@ a.hot-news-title:hover {
     color: #b58a9a;
     line-height: 1.5;
 }
+.live2d-call-prep-subtitle {
+    display: block;
+    width: 38%;
+    max-width: 620px;
+    height: auto;
+    margin: 6px auto 18px;
+}
 .live2d-call-prep-character {
     position: relative;
     z-index: 1;

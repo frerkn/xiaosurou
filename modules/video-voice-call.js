@@ -52,215 +52,69 @@
   // 外部 API 不变 (window.Live2DLoader), loader.js 内部重写
   // ============================================================
 
-  // === v0.5.0 P2.5: 视频通话页 Live2D 调试面板 (iPhone Safari 无 console 也能看, PWA 也行) ===
-  // 不修改 Live2D / PIXI / XHR / Texture 任何加载逻辑, 只加观察
-  function __live2dShortenUrl(u) {
-    var s = String(u == null ? '' : u);
-    return s.length > 140 ? s.substring(0, 137) + '...' : s;
-  }
-  function showLive2DDebugPanel() {
-    var old = document.getElementById('__live2d_debug_panel__');
-    if (old) { try { old.remove(); } catch (e) {} }
-    var panel = document.createElement('div');
-    panel.id = '__live2d_debug_panel__';
-    panel.style.cssText = [
-      'position:fixed', 'top:10px', 'left:10px', 'right:10px', 'z-index:2147483647',
-      'max-height:45vh', 'overflow:hidden',
-      'padding:8px 10px 10px',
-      'background:rgba(0,0,0,0.88)', 'color:#fff',
-      'font-family:ui-monospace,Menlo,Consolas,monospace',
-      'font-size:10px', 'line-height:1.45',
-      'border-radius:8px', 'box-sizing:border-box',
-      'border:1px solid #666',
-      '-webkit-overflow-scrolling:touch',
-      'word-break:break-all', 'white-space:pre-wrap',
-      'z-index:2147483647',
-    ].join(';');
-    var header = document.createElement('div');
-    header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid #444';
-    var titleEl = document.createElement('strong');
-    titleEl.textContent = 'LIVE2D DEBUG';
-    titleEl.style.cssText = 'color:#ffeb3b;font-size:12px;letter-spacing:0.05em;font-weight:700';
-    header.appendChild(titleEl);
-    var closeBtn = document.createElement('button');
-    closeBtn.textContent = '关闭诊断';
-    closeBtn.style.cssText = 'background:#333;color:#fff;border:1px solid #555;border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;font-family:inherit;';
-    closeBtn.onclick = function () { try { panel.remove(); } catch (e) {} };
-    header.appendChild(closeBtn);
-    var logArea = document.createElement('div');
-    logArea.id = '__live2d_debug_log__';
-    logArea.style.cssText = 'overflow-y:auto;max-height:38vh;white-space:pre-wrap;word-break:break-all;';
-    panel.appendChild(header);
-    panel.appendChild(logArea);
-    var screen = document.getElementById('video-call-screen');
-    var parent = screen || document.body || document.documentElement;
-    try { parent.appendChild(panel); } catch (e) {}
-    function addLine(msg, color) {
-      try {
-        var t = new Date().toISOString().substring(11, 23);
-        var line = document.createElement('div');
-        line.textContent = '[' + t + '] ' + String(msg == null ? '' : msg);
-        line.style.cssText = 'margin:0;padding:1px 0;color:' + (color || '#fff') + ';';
-        logArea.appendChild(line);
-        logArea.scrollTop = logArea.scrollHeight;
-        try { console.log('[LIVE2D-DBG]', msg); } catch (e) {}
-      } catch (e) {}
-    }
-    return {
-      log: function (m) { addLine(m, '#fff'); },
-      step: function (n, d) { addLine('STEP ' + n + ' ' + d, '#69f0ae'); },
-      warn: function (m) { addLine('⚠ ' + m, '#ff9800'); },
-      err: function (m) { addLine('✗ ' + m, '#ff5252'); },
-      ok: function (m) { addLine('✓ ' + m, '#69f0ae'); },
-      raw: addLine,
-      close: function () { try { panel.remove(); } catch (e) {} },
-    };
-  }
-  // XHR 观察 hook: 不改 XHR 行为, 只记录 open / send / load / error / abort / timeout
-  function hookXhrForDebug(panel) {
-    if (typeof XMLHttpRequest === 'undefined') return function () {};
-    var origOpen = XMLHttpRequest.prototype.open;
-    var origSend = XMLHttpRequest.prototype.send;
-    var seen = new Set();
-    var n = 0;
-    XMLHttpRequest.prototype.open = function (method, url) {
-      this.__dbgMethod = String(method || 'GET');
-      this.__dbgUrl = String(url || '');
-      try {
-        if (this.__dbgUrl && !seen.has(this.__dbgUrl)) {
-          seen.add(this.__dbgUrl);
-          n++;
-          var scheme = this.__dbgUrl.indexOf('blob:') === 0 ? 'blob:' : (this.__dbgUrl.indexOf('http') === 0 ? 'http(s):' : 'other:');
-          panel.log('XHR open #' + n + ': ' + this.__dbgMethod + ' ' + __live2dShortenUrl(this.__dbgUrl));
-          panel.log('  scheme=' + scheme + ' length=' + this.__dbgUrl.length);
-        }
-      } catch (e) {}
-      return origOpen.apply(this, arguments);
-    };
-    XMLHttpRequest.prototype.send = function () {
-      var self = this;
-      var url = self.__dbgUrl;
-      var method = self.__dbgMethod;
-      function safeLog(s, c) { try { panel.log(s, c); } catch (e) {} }
-      self.addEventListener('load', function () {
-        try {
-          var len = '?';
-          try { if (self.response) len = (self.response.byteLength || self.response.length || '?'); } catch (e) {}
-          safeLog('XHR load: status=' + self.status + ' ' + method + ' ' + __live2dShortenUrl(url) + ' (response.length=' + len + ')', '#69f0ae');
-        } catch (e) {}
-      });
-      self.addEventListener('error', function () {
-        try {
-          panel.err('XHR ERROR: status=' + self.status + ' readyState=' + self.readyState + ' ' + method + ' ' + __live2dShortenUrl(url));
-          panel.log('  full url: ' + url);
-          var scheme = String(url).indexOf('blob:') === 0 ? 'blob:' : (String(url).indexOf('http') === 0 ? 'http(s):' : 'other:');
-          panel.log('  scheme=' + scheme + ' responseType=' + self.responseType + ' withCredentials=' + self.withCredentials);
-          panel.log('XHR TEST START (独立 XHR, 不影响原请求)');
-          runLive2DIndependentXhrTest(method, url, panel);
-        } catch (e) {}
-      });
-      self.addEventListener('abort', function () { try { panel.warn('XHR ABORT: ' + method + ' ' + __live2dShortenUrl(url)); } catch (e) {} });
-      self.addEventListener('timeout', function () { try { panel.warn('XHR TIMEOUT: ' + method + ' ' + __live2dShortenUrl(url)); } catch (e) {} });
-      return origSend.apply(this, arguments);
-    };
-    return function unhook() {
-      try { XMLHttpRequest.prototype.open = origOpen; } catch (e) {}
-      try { XMLHttpRequest.prototype.send = origSend; } catch (e) {}
-    };
-  }
-  // 独立 XHR 测试: 不影响原请求, 只为诊断
-  function runLive2DIndependentXhrTest(method, url, panel) {
-    if (typeof XMLHttpRequest === 'undefined') return;
-    try {
-      panel.log('XHR INDEP TEST: ' + method + ' ' + __live2dShortenUrl(url));
-      var xhr = new XMLHttpRequest();
-      xhr.open(method, url);
-      xhr.onload = function () {
-        try {
-          var len = '?';
-          try { if (xhr.response) len = (xhr.response.byteLength || xhr.response.length || '?'); } catch (e) {}
-          panel.ok('XHR INDEP OK: status=' + xhr.status + ' readyState=' + xhr.readyState + ' response.length=' + len);
-        } catch (e) {}
-      };
-      xhr.onerror = function () {
-        try {
-          panel.err('XHR INDEP FAILED: status=' + xhr.status + ' readyState=' + xhr.readyState);
-          panel.log('  full url: ' + url);
-          var scheme = String(url).indexOf('blob:') === 0 ? 'blob:' : (String(url).indexOf('http') === 0 ? 'http(s):' : 'other:');
-          panel.log('  scheme=' + scheme + ' responseType=' + xhr.responseType + ' withCredentials=' + xhr.withCredentials);
-        } catch (e) {}
-      };
-      xhr.ontimeout = function () { try { panel.warn('XHR INDEP TIMEOUT'); } catch (e) {} };
-      xhr.send();
-    } catch (e) {
-      try { panel.log('XHR INDEP setup error: ' + (e && (e.message || e))); } catch (e2) {}
-    }
-  }
-  // === P2.5 helpers END ===
   /**
    * 挂载 Live2D 到视频通话对面画面区 (异步, 不阻塞通话初始化)
    * 设计: 把 canvas 塞进 #remote-video-large 里, 替换原本的对面静态图
    * @param {Object} chat - 当前通话的 chat 对象
    */
   async function mountLive2DForCall(chat) {
-    // === v0.5.0 P2.5: 屏幕诊断面板 (iPhone Safari 无 console 也能看) ===
-    // 不修改 Live2D / PIXI / XHR / Texture 加载逻辑, 只加观察
-    var dbg = showLive2DDebugPanel();
-    dbg.log('======================================');
-    dbg.log('LIVE2D 调试面板 v0.5.0 P2.5');
-    dbg.log('======================================');
-    var unhookXhr = function () {};
     try {
       // v0.0.50 Live2D 硬开关 — 默认禁用, 卖家模型不兼容 pixi-live2d-display 时整个模块不工作
       // 以后想恢复: state.globalSettings.live2dEnabled = true (用户在设置里调, 或代码里写死)
-      dbg.log('检查 state.globalSettings.live2dEnabled = ' + (state && state.globalSettings && state.globalSettings.live2dEnabled));
       if (!state || !state.globalSettings || state.globalSettings.live2dEnabled !== true) {
-        dbg.log('STATE CHECK FAILED: live2dEnabled != true, 退出 (不会挂 Live2D)');
         return; // 不挂 Live2D, 不动原图, 视频通话走静态图 (原 330 行为)
       }
       console.log('[Live2D] mountLive2DForCall called, chat:', chat && chat.name, 'modelPath:', chat && chat.settings && chat.settings.live2dModelPath);
 
-      // [STEP 1]
-      dbg.step(1, 'ENTER mountLive2DForCall, chat=' + (chat && chat.name) + ' chat.id=' + (chat && chat.id));
-
       const screen = document.getElementById('video-call-screen');
       if (!screen || !chat) {
-        dbg.log('CHECK FAILED: screen=' + !!screen + ' chat=' + !!chat + ' (没进 mountLive2DFromIDB)');
         return;
       }
-      dbg.log('screen OK (#video-call-screen 找到)');
 
       // 1. 先清理残留 (旧 canvas)
       unmountLive2DForCall();
-      dbg.log('已清理残留 canvas');
 
       // 2. 加载模型来源 — P1.5 仅 IDB 模式 (用户自己上传, 存浏览器 IndexedDB, 不再依赖 assets/ 路径)
       if (!window.Live2DLoader) {
-        dbg.log('CHECK FAILED: Live2DLoader 未加载 (没进 mountLive2DFromIDB)');
         return;
       }
-      dbg.log('Live2DLoader 模块存在');
       let result;
       let activeId = '';
+      // v0.5.0 P2.5: 用户在"视频通话形象调试台"保存的默认形象 (用户保存的"默认起始状态", 跟 runtime 改的 expression 解耦)
+      // 存在 → 优先用 appearance.modelId / scale / positionX / positionY
+      // 不存在 → 完全保持原 activeModelIdForChat 行为, 不影响现有正常通话
+      let videoCallAppearance = null;
+      let mountOptions = { scale: 0.4, autoStartIdle: true };
       try {
         if (window.Live2DStorage) {
           // v0.4.3: per-chat 模型绑定 (chat 专属 modelId, fallback 全局)
-          // [STEP 2] getModel 开始
-          dbg.step(2, 'getModel 开始: getActiveModelIdForChat(chat.id=' + (chat && chat.id) + ')');
           activeId = await window.Live2DStorage.getActiveModelIdForChat(chat.id);
-          // [STEP 3] getModel 成功 (只是拿 UUID, 真正读 model 在 loader 里)
-          dbg.step(3, 'getActiveModelId 返回: ' + JSON.stringify(activeId) + ' (truthy=' + !!activeId + ')');
-        } else {
-          dbg.log('Live2DStorage 未加载, activeId 留空');
         }
       } catch (e) {
-        dbg.log('getActiveModelIdForChat threw: ' + (e && (e.message || e)));
         activeId = '';
+      }
+
+      // === v0.5.0 P2.5: 读用户在"视频通话形象调试台"保存的默认形象 (优先于 activeModelIdForChat) ===
+      try {
+        if (window.Live2DStorage && typeof window.Live2DStorage.getVideoCallAppearance === 'function' && chat && chat.id) {
+          videoCallAppearance = await window.Live2DStorage.getVideoCallAppearance(chat.id);
+        }
+      } catch (e) {
+        videoCallAppearance = null;
+      }
+      if (videoCallAppearance && videoCallAppearance.modelId) {
+        // 找到 appearance → 覆盖 activeId, 用 appearance 里的 scale / position
+        activeId = videoCallAppearance.modelId;
+        // 构造 mountOptions (loader 读 scale / x / y 字段, 不传就走默认居中)
+        if (typeof videoCallAppearance.scale === 'number' && videoCallAppearance.scale > 0) {
+          mountOptions.scale = videoCallAppearance.scale;
+        }
+        if (typeof videoCallAppearance.positionX === 'number') mountOptions.x = videoCallAppearance.positionX;
+        if (typeof videoCallAppearance.positionY === 'number') mountOptions.y = videoCallAppearance.positionY;
       }
 
       if (!activeId) {
         // 没上传模型, 走原始视频通话画面 (跟糯米机一致: 没模型就不挂 Live2D)
-        dbg.log('EARLY EXIT: activeId 为空, IDB 里没绑模型 (没进 mountLive2DFromIDB)');
         console.log('[Live2D] no active IDB model, skip (use original video area)');
         return;
       }
@@ -283,199 +137,12 @@
       const canvas = document.createElement('canvas');
       canvas.id = 'live2d-canvas';
       screen.appendChild(canvas);
-      dbg.log('canvas 创建: id=' + canvas.id + ' clientW=' + canvas.clientWidth + ' clientH=' + canvas.clientHeight);
-
-      // 装 XHR hook (不改变 XHR 行为, 只记录 + 错误时跑独立 XHR 测试)
-      unhookXhr = hookXhrForDebug(dbg);
-      dbg.log('XHR hook 已挂上');
 
       // 走 IDB 模式
       console.log('[Live2D] load from IDB, activeModelId:', activeId);
 
-      // [STEP 4-7] loader 内部执行, 通过 XHR hook 观察
-      dbg.log('STEP 4-7 loader 内部: getModel (data.files) → model3.json 解析 → FileReferences 改写 (IDB blob URL) → Live2DModel.from(JS 对象)');
-      dbg.log('  预期 XHR 日志:');
-      dbg.log('    - P2.4 后 model3.json 不再走 XHR (传 JS 对象) → 0 个 model3.json XHR');
-      dbg.log('    - 必看: 1 个 XHR 抓 moc3 (IDB 散文件 blob URL)');
-      dbg.log('    - 必看: N 个 XHR 抓 textures (PIXI v6 Texture.fromURL 内部 XHR)');
-      dbg.log('  Live2DModel.from NOT REACHED (loader 在准备 IDB 数据 + 改写 JSON)');
-      dbg.log('STEP 7 Live2DModel.from CALLED 触发时机: XHR open 抓 moc3 / texture 时 (库内部 urlToJSON 跳过, 之后 createInternalModel 抓 moc3)');
-
-      // === v0.5.0 P2.6: 现场读 IDB + 文件指纹 + Blob URL 路径映射 ===
-      // 不改 loader, 不改 XHR, 只观察. 目的: 把失败的 blob URL 跟实际文件路径对上号
-      // BEFORE getModel
-      dbg.log('======================================');
-      dbg.log('BEFORE getModel: 准备调 Live2DStorage.getModel(activeId) (诊断读, 跟 loader 内部是同一份 IDB)');
-      let dataDiag = null;
-      try {
-        dataDiag = await window.Live2DStorage.getModel(activeId);
-        // AFTER getModel
-        if (dataDiag) {
-          dbg.log('AFTER getModel: MODEL FOUND');
-          dbg.log('  data.name = ' + JSON.stringify(dataDiag.name));
-          dbg.log('  data.modelPath = ' + JSON.stringify(dataDiag.modelPath));
-          dbg.log('  data.config.refs keys = ' + (dataDiag.config && dataDiag.config.refs ? JSON.stringify(Object.keys(dataDiag.config.refs)) : 'null'));
-          // files count
-          const fc = (dataDiag.files ? dataDiag.files.size : 0);
-          dbg.log('files count: ' + fc);
-          if (dataDiag.files) {
-            const fileList = [];
-            for (const p of dataDiag.files.keys()) fileList.push(p);
-            fileList.sort();
-            dbg.log('files 列表 (' + fileList.length + '):');
-            for (const p of fileList) {
-              const b = dataDiag.files.get(p);
-              dbg.log('  - ' + p + ' (size=' + (b && b.size) + ' type=' + JSON.stringify(b && b.type) + ')');
-            }
-          }
-          // 指纹表 (size|type → paths[])
-          const fpToPath = new Map();
-          if (dataDiag.files) {
-            for (const [path, blob] of dataDiag.files.entries()) {
-              const fp = (blob.size || 0) + '|' + (blob.type || '');
-              if (!fpToPath.has(fp)) fpToPath.set(fp, []);
-              fpToPath.get(fp).push(path);
-            }
-          }
-          dbg.log('===== FILE FINGERPRINTS (size|type → paths[]) =====');
-          for (const [fp, paths] of fpToPath.entries()) {
-            dbg.log('  ' + fp + ' → ' + JSON.stringify(paths));
-          }
-
-          // Wrap URL.createObjectURL (不改变行为, 只记录 url → fingerprint)
-          const origCreate = URL.createObjectURL.bind(URL);
-          const urlToFp = new Map();
-          URL.createObjectURL = function (blob) {
-            const url = origCreate(blob);
-            const fp = (blob.size || 0) + '|' + (blob.type || '');
-            urlToFp.set(url, fp);
-            const paths = fpToPath.get(fp) || [];
-            try {
-              dbg.log('BLOB CREATED originalPath=' + JSON.stringify(paths) + ' fp=' + fp + ' blobUrl=' + url.substring(0, 100));
-            } catch (e) {}
-            return url;
-          };
-
-          // Wrap addEventListener (不改变 XHR 行为, 只在 error 事件触发时追写文件路径)
-          // 这样 XHR ERROR 那行下面会多一行 "→ XHR ERROR FILE PATH: ... path=xxx"
-          const origAEL = XMLHttpRequest.prototype.addEventListener;
-          XMLHttpRequest.prototype.addEventListener = function (type, listener, options) {
-            if (type === 'error' && typeof listener === 'function') {
-              const self = this;
-              const wrapped = function (ev) {
-                try { listener.call(self, ev); } catch (e) {}
-                try {
-                  const u = self.__dbgUrl || (self.responseURL || '');
-                  const fp = urlToFp.get(u);
-                  if (fp) {
-                    const ps = fpToPath.get(fp) || [];
-                    dbg.log('  → XHR ERROR FILE PATH: url=' + u.substring(0, 100) + ' fp=' + fp + ' path=' + JSON.stringify(ps), '#ff5252');
-                  }
-                } catch (e) {}
-              };
-              return origAEL.call(this, type, wrapped, options);
-            }
-            return origAEL.call(this, type, listener, options);
-          };
-
-          try {
-            // BEFORE Live2DModel.from
-            dbg.log('======================================');
-            dbg.log('BEFORE Live2DModel.from: 即将调 Live2DLoader.mountLive2DFromIDB');
-            dbg.log('  接下来 BLOB CREATED / XHR / XHR ERROR FILE PATH 日志都来自这个调用');
-
-            result = await window.Live2DLoader.mountLive2DFromIDB(canvas, activeId, {
-              scale: 0.4,
-              autoStartIdle: true,
-            });
-
-            // Live2DModel.from ERROR (如果 result 表示失败)
-            if (!result || !result.success) {
-              const err = result && result.error;
-              dbg.log('======================================');
-              dbg.log('Live2DModel.from ERROR (via result.success=false)');
-              if (err) {
-                dbg.log('  name: ' + err.name);
-                dbg.log('  message: ' + (err.message || String(err)));
-                if (err.stack) {
-                  dbg.log('  stack (前 5 行):');
-                  const sl = String(err.stack).split('\n').slice(0, 5);
-                  for (let si = 0; si < sl.length; si++) dbg.log('    ' + sl[si]);
-                }
-                if (err.message && /network/i.test(err.message)) {
-                  dbg.log('  ⚠ NetworkError detected');
-                  dbg.log('    上面 XHR ERROR 行 + → XHR ERROR FILE PATH 行 就是失败文件');
-                  dbg.log('    找 path=xxx 那个 xxx 就是该 blob URL 对应的原始文件');
-                }
-              } else {
-                dbg.log('  (no error object)');
-              }
-            }
-          } finally {
-            // 恢复 URL.createObjectURL 和 addEventListener
-            try { URL.createObjectURL = origCreate; } catch (e) {}
-            try { XMLHttpRequest.prototype.addEventListener = origAEL; } catch (e) {}
-            dbg.log('已恢复 URL.createObjectURL 和 addEventListener');
-          }
-        } else {
-          dbg.log('AFTER getModel: MODEL NOT FOUND (dataDiag is null)');
-          // 还是按原样调 loader, 看看 loader 内部怎么报错
-          result = await window.Live2DLoader.mountLive2DFromIDB(canvas, activeId, {
-            scale: 0.4,
-            autoStartIdle: true,
-          });
-        }
-      } catch (e) {
-        dbg.log('AFTER getModel: ERROR: ' + (e && (e.message || String(e))));
-        // 继续调 loader, 不中断流程
-        try {
-          result = await window.Live2DLoader.mountLive2DFromIDB(canvas, activeId, {
-            scale: 0.4,
-            autoStartIdle: true,
-          });
-        } catch (e2) {
-          dbg.log('Live2DModel.from ERROR (loader itself threw): ' + (e2 && (e2.message || String(e2))));
-        }
-      }
-      dbg.log('======================================');
-
-      // [STEP 8] Live2DModel.from 已返回 (不管成功失败, 库都走完了)
-      dbg.step(8, 'Live2DModel.from 已返回 (隐含: 库走完 urlToJSON → jsonToSettings → setupEssentials → createInternalModel)');
-      // [STEP 9] mountLive2DFromIDB 最终结果
-      dbg.step(9, 'mountLive2DFromIDB 最终结果: success=' + !!(result && result.success));
-      dbg.log('result 对象: ' + JSON.stringify({
-        success: !!(result && result.success),
-        hasApp: !!(result && result.app),
-        hasModel: !!(result && result.model),
-        hasError: !!(result && result.error),
-      }));
-
-      if (!result.success) {
-        dbg.log('===== mountLive2DFromIDB FAILED =====');
-        if (result.error) {
-          dbg.log('error.name: ' + result.error.name);
-          dbg.log('error.message: ' + (result.error.message || String(result.error)));
-          var errMsg = String(result.error.message || '');
-          if (/network/i.test(errMsg)) {
-            dbg.log('⚠ 检测到 NetworkError, 上面 XHR 日志应已记录失败 URL, 独立 XHR 测试会跑');
-          }
-          if (/texture/i.test(errMsg)) {
-            dbg.log('⚠ 检测到 Texture load error, 看上面 textures XHR 日志');
-          }
-          if (/model3\.json/i.test(errMsg)) {
-            dbg.log('⚠ 检测到 model3.json 错误, 但 P2.4 已不 fetch model3.json');
-          }
-          if (result.error.stack) {
-            dbg.log('error.stack (前 8 行):');
-            var stackLines = String(result.error.stack).split('\n').slice(0, 8);
-            for (var si = 0; si < stackLines.length; si++) dbg.log('  ' + stackLines[si]);
-          }
-        } else {
-          dbg.log('result.success=false 但 result.error 缺失, 检查 result 对象');
-        }
-      } else {
-        dbg.ok('mountLive2DFromIDB 成功');
-      }
+      // v0.5.0 P2.5: 用 mountOptions (包含 appearance.scale/positionX/positionY) 替代硬编码
+      result = await window.Live2DLoader.mountLive2DFromIDB(canvas, activeId, mountOptions);
 
       if (!result.success) {
         console.warn('[Live2D] mount failed:', result.error, '— restoring original video area');
@@ -483,7 +150,6 @@
         // v0.1.34: 关键修复 — Live2D 加载失败时必须恢复原图显示
         // 否则视频通话整个对面画面区都被 hide, 用户看到黑屏
         restoreVideoCallOriginalDisplay();
-        dbg.log('已恢复原图 (Live2D 挂载失败 fallback)');
       } else {
         console.log('[Live2D] mount success');
         // P1.5 通话套用 active 背景 + 显示浮动切背景按钮
@@ -492,24 +158,27 @@
           try { window.Live2DUI.applyActiveBackground(chat); } catch (e) {}
           try { window.Live2DUI.showBackgroundSwitchBtn(); } catch (e) {}
         }
-        dbg.ok('已套用背景 + 显示切背景按钮');
+
+        // === v0.5.0 P2.5: 应用用户在"视频通话形象调试台"保存的"通话启动时初始表情" (一次性, 不写回) ===
+        // 核心边界: 这里的 defaultExpression 是"用户保存的默认起始状态", 跟未来 AI 在通话中改的
+        // "运行时 expression" 完全分离 — 本阶段不实现 AI 自动表情, 仅在挂载成功后调一次 setExpression.
+        // 通话挂断时 disposeLive2D 释放 PIXI 资源, 运行时改的 expression 状态消失, 下次通话再从
+        // localStorage 读 appearance 重新应用 defaultExpression, 两者物理隔离, 互不写回.
+        if (videoCallAppearance && videoCallAppearance.defaultExpression
+            && window.Live2DLoader && typeof window.Live2DLoader.setExpression === 'function') {
+          try {
+            const st = window.Live2DLoader.setExpression(canvas, videoCallAppearance.defaultExpression);
+            // setExpression 是 async, 这里不 await; 保留 .then/.catch 观察失败 (不影响主流程)
+            if (st && typeof st.then === 'function') {
+              st.catch(function (e) { console.warn('[Live2D] setExpression reject:', e); });
+            }
+          } catch (e) {
+            console.warn('[Live2D] setExpression failed for defaultExpression:', e);
+          }
+        }
       }
     } catch (e) {
-      dbg.err('===== mountLive2DForCall THREW =====');
-      dbg.log('error.name: ' + (e && e.name));
-      dbg.log('error.message: ' + (e && (e.message || String(e))));
-      if (e && e.stack) {
-        dbg.log('error.stack (前 8 行):');
-        var stackLines2 = String(e.stack).split('\n').slice(0, 8);
-        for (var sj = 0; sj < stackLines2.length; sj++) dbg.log('  ' + stackLines2[sj]);
-      }
       console.error('[Live2D] mountLive2DForCall threw:', e);
-    } finally {
-      // 确保 XHR hook 不泄漏
-      try { unhookXhr(); } catch (e) {}
-      dbg.log('======================================');
-      dbg.log('诊断结束 (面板保持打开, 点右上角"关闭诊断"可关)');
-      dbg.log('======================================');
     }
   }
 
@@ -1577,33 +1246,40 @@ ${linkedContents}
         现在，请根据【通话前摘要】和下面的【通话实时记录】，继续进行对话。
         `;
     } else {
+      // P6: 视频通话 AI 输出改为纯对白模式 (跟现有语音通话一致)
+      //   - 不再生成旁白 / 动作描写 / 表情描写 / 场景描述
+      //   - AI 直接输出角色实际会说出口的话, 整段内容交给 TTS
+      //   - 不要求 JSON / Markdown / 任何包装格式
       let openingContext = videoCallState.initiator === 'user' ?
         `你刚刚接听了用户的视频通话请求。` :
         `用户刚刚接听了你主动发起的视频通话。`;
-      const interleavedMode = chat.videoOptimization && chat.videoOptimization.interleavedMode;
-      const layoutRule = interleavedMode
-        ? `4.  **【穿插排版】**: 旁白和对话按自然发生的顺序穿插排列。例如：先一段动作描写，再说一两句话，再一段动作描写，再说话。不要把所有旁白堆在一起。
-        5.  **【对话规则】**: 对话是角色实际说出的话，每句对话会独立显示，可以连续说多句话。`
-        : `4.  **【旁白规则】**: 旁白只描述动作、表情、神态等视觉信息，所有旁白会合并显示为一段灰色文字。
-        5.  **【对话规则】**: 对话是角色实际说出的话，每句对话会独立显示，可以连续说多句话。`;
       inCallPrompt = `
         # 你的任务
-        你现在是一个场景描述引擎。你的任务是扮演 ${chat.name} (${chat.settings.aiPersona})，并以【第三人称旁观视角】来描述TA在视频通话中的所有动作和语言。
+        你是 ${chat.name} (${chat.settings.aiPersona})。你正在和用户进行一次视频通话。
         # 核心规则
-        1.  **【【【视角铁律】】】**: 你的回复【绝对不能】使用第一人称"我"。必须使用第三人称，如"他"、"她"、或直接使用角色名"${chat.name}"。
-        2.  **【格式要求】**: 你的回复【必须】是一个JSON数组，包含旁白和对话。格式如下：
-           - 旁白（动作、表情描述）：\`{"type": "narration", "content": "他笑了笑，挠了挠头"}\`
-           - 对话（角色说的话）：\`{"type": "dialogue", "content": "你好啊！"}\`
-        3.  **【多句发言】**: 你可以一次说多句话，每句话作为独立的dialogue对象。例如：
-           \`[{"type": "narration", "content": "他笑了笑"}, {"type": "dialogue", "content": "你好啊！"}, {"type": "dialogue", "content": "最近怎么样？"}]\`
-        ${layoutRule}
+        1.  **【【输出格式】】】**: 你的回复【必须】是【纯自然语言文本】,【绝对不要】使用:
+            - JSON / Markdown / 代码块 / HTML / XML
+            - 任何 narrator / dialogue / speaker / action / emotion 字段或标签
+            - 任何 [旁白]、(动作)、*表情* 之类的描述包装
+            - 任何"角色说道: "、"旁白: "、"动作: "前缀
+            你的回复【应该】是【你(${chat.name})真正会说出口的话】, 整段内容会被直接朗读给用户听。
+        2.  **【多句发言】**: 你可以一次说多句话, 用正常的中文标点(。?!)分隔, 整段连续输出。
+        3.  **【人设保留】**: 严格遵守你的人设 / 语气 / 说话习惯 / 上下文理解能力; 只是【不要生成任何旁白/动作/表情/场景/心理/第三人称叙述】。
+        4.  **【示例 - 正确】**:
+            "你今天来得挺早的, 我还以为你又迟到了呢。快坐吧, 想喝点什么?"
+        5.  **【示例 - 错误, 不要这样写】**:
+            ${"```"}json
+            [{"type": "narration", "content": "他笑了笑"}, {"type": "dialogue", "content": "你今天来得挺早的"}]
+            ${"```"}
+            或: 旁白: 他笑了笑。角色说道: 你今天来得挺早的。
+            或: （他笑了笑）你今天来得挺早的。
         # 当前情景
-        你正在和用户（${userNickname}，人设: ${chat.settings.myPersona}）进行视频通话。
+        你正在和用户（${userNickname}, 人设: ${chat.settings.myPersona}）进行视频通话。
         ${longTermMemoryContext}${timeContextBlock}
         **${openingContext}**
-        **通话前的聊天摘要 (这是你们通话的原因，至关重要！)**:
+        **通话前的聊天摘要 (这是你们通话的原因, 至关重要!)**:
         ${videoCallState.preCallContext}
-        现在，请根据【通话前摘要】和下面的【通话实时记录】，继续进行对话。记住：必须返回JSON数组格式，区分旁白和对话。
+        现在, 请根据【通话前摘要】和下面的【通话实时记录】, 以${chat.name}的身份继续回复。
         `;
     }
 
@@ -1709,152 +1385,60 @@ ${linkedContents}
         }
         onVideoCallTtsQueueFinished();
       } else {
-        // 单人视频通话：支持旁白和多句对话
+        // P6: 单人视频通话改为纯对白模式 (跟现有语音通话单聊一致)
+        //   - AI 返回纯文本, parseAiResponse 兜底返回 [{ type: 'text', content: originalText }]
+        //   - 遍历每条 msg 取 content/speech, 直接进 TTS
+        //   - 不再区分 narration / dialogue, 不再按 interleavedMode 分支
         const enableTts = chat.settings.enableTts !== false;
         const voiceId = chat.settings.minimaxVoiceId;
-        const interleavedMode = chat.videoOptimization && chat.videoOptimization.interleavedMode;
         let hasVideoCallTtsPlayback = false;
 
-        // 尝试解析为JSON数组
         const messagesArray = parseAiResponse(aiResponse);
 
-        if (interleavedMode) {
-          // 穿插模式：按原始顺序逐条渲染
-          let dialogueCount = 0;
-          let renderedAiContentCount = 0;
-          messagesArray.forEach((msg, index) => {
-            const aiTimestamp = Date.now() + index + 1;
+        messagesArray.forEach((msg, index) => {
+          const messageContent = String(msg.content || msg.speech || '').trim();
+          if (!messageContent) return;
+          const aiTimestamp = Date.now() + index + 1;
 
-            if (msg.type === 'narration') {
-              const narrationBubble = document.createElement('div');
-              narrationBubble.className = 'call-message-bubble ai-narration';
-              narrationBubble.style.color = '#999';
-              narrationBubble.style.fontStyle = 'italic';
-              narrationBubble.textContent = msg.content;
-              narrationBubble.dataset.timestamp = aiTimestamp;
-              addLongPressListener(narrationBubble, () => showCallMessageActions(aiTimestamp));
-              callFeed.appendChild(narrationBubble);
-              renderedAiContentCount++;
-              markVideoCallAiResponseRendered(aiTurnId);
+          const aiBubble = document.createElement('div');
+          aiBubble.className = 'call-message-bubble ai-speech';
+          aiBubble.textContent = messageContent;
+          aiBubble.dataset.timestamp = aiTimestamp;
+          addLongPressListener(aiBubble, () => showCallMessageActions(aiTimestamp));
+          callFeed.appendChild(aiBubble);
 
-              videoCallState.callHistory.push({
-                role: 'assistant',
-                content: `[旁白] ${msg.content}`,
-                timestamp: aiTimestamp
-              });
-            } else {
-              const aiBubble = document.createElement('div');
-              aiBubble.className = 'call-message-bubble ai-speech';
-              aiBubble.textContent = msg.content;
-              aiBubble.dataset.timestamp = aiTimestamp;
-              addLongPressListener(aiBubble, () => showCallMessageActions(aiTimestamp));
-              callFeed.appendChild(aiBubble);
-              renderedAiContentCount++;
-              markVideoCallAiResponseRendered(aiTurnId);
-
-              videoCallState.callHistory.push({
-                role: 'assistant',
-                content: msg.content,
-                timestamp: aiTimestamp
-              });
-
-              if (enableTts && voiceId) {
-                setVideoCallStatusText('AI正在说话…');
-                if (playVideoCallPureTTS(msg.content, voiceId, { source: 'videoCall' })) {
-                  hasVideoCallTtsPlayback = true;
-                  videoCallState.isAiSpeaking = true;
-                  videoCallState.isTtsPlaying = true;
-                }
-              }
-              dialogueCount++;
-            }
+          videoCallState.callHistory.push({
+            role: 'assistant',
+            content: messageContent,
+            timestamp: aiTimestamp
           });
 
-          // 头像动画
-          const speakingAvatar = document.querySelector(`.participant-avatar-wrapper[data-participant-id="ai"] .participant-avatar`);
-          if (speakingAvatar && dialogueCount > 0) {
-            speakingAvatar.classList.add('speaking');
-            const totalLength = messagesArray.filter(m => m.type === 'dialogue').reduce((sum, m) => sum + (m.content || '').length, 0);
-            const speakTime = Math.min(totalLength * 200, 5000);
-            setTimeout(() => speakingAvatar.classList.remove('speaking'), speakTime);
-          }
-          if (renderedAiContentCount === 0) {
-            throw new Error('AI返回为空');
-          }
-          if (!hasVideoCallTtsPlayback) {
-            onVideoCallTtsQueueFinished();
-          }
-        } else {
-          // 默认模式：旁白合并在前，对话在后
-          let renderedAiContentCount = 0;
-          const narrations = messagesArray.filter(m => m.type === 'narration');
-          const dialogues = messagesArray.filter(m => m.type === 'dialogue' || m.type === 'text' || (!m.type && (m.content || m.speech)));
+          markVideoCallAiResponseRendered(aiTurnId);
 
-          if (narrations.length > 0) {
-            const narrationTimestamp = Date.now();
-            const narrationBubble = document.createElement('div');
-            narrationBubble.className = 'call-message-bubble ai-narration';
-            narrationBubble.style.color = '#999';
-            narrationBubble.style.fontStyle = 'italic';
-            const narrationText = narrations.map(n => n.content).join(' ');
-            narrationBubble.textContent = narrationText;
-            narrationBubble.dataset.timestamp = narrationTimestamp;
-            addLongPressListener(narrationBubble, () => showCallMessageActions(narrationTimestamp));
-            callFeed.appendChild(narrationBubble);
-            renderedAiContentCount++;
-            markVideoCallAiResponseRendered(aiTurnId);
-
-            videoCallState.callHistory.push({
-              role: 'assistant',
-              content: `[旁白] ${narrationText}`,
-              timestamp: narrationTimestamp
-            });
-          }
-
-          dialogues.forEach((msg, index) => {
-            const messageContent = msg.content || msg.speech || '';
-            if (!String(messageContent || '').trim()) return;
-            const aiTimestamp = Date.now() + index + 1;
-
-            const aiBubble = document.createElement('div');
-            aiBubble.className = 'call-message-bubble ai-speech';
-            aiBubble.textContent = messageContent;
-            aiBubble.dataset.timestamp = aiTimestamp;
-            addLongPressListener(aiBubble, () => showCallMessageActions(aiTimestamp));
-            callFeed.appendChild(aiBubble);
-            renderedAiContentCount++;
-            markVideoCallAiResponseRendered(aiTurnId);
-
-            videoCallState.callHistory.push({
-              role: 'assistant',
-              content: messageContent,
-              timestamp: aiTimestamp
-            });
-
-            if (enableTts && voiceId) {
-              setVideoCallStatusText('AI正在说话…');
-              if (playVideoCallPureTTS(messageContent, voiceId, { source: 'videoCall' })) {
-                hasVideoCallTtsPlayback = true;
-                videoCallState.isAiSpeaking = true;
-                videoCallState.isTtsPlaying = true;
-              }
+          if (enableTts && voiceId) {
+            setVideoCallStatusText('AI正在说话…');
+            if (playVideoCallPureTTS(messageContent, voiceId, { source: 'videoCall' })) {
+              hasVideoCallTtsPlayback = true;
+              videoCallState.isAiSpeaking = true;
+              videoCallState.isTtsPlaying = true;
             }
-          });
+          }
+        });
 
-          // 头像动画
-          const speakingAvatar = document.querySelector(`.participant-avatar-wrapper[data-participant-id="ai"] .participant-avatar`);
-          if (speakingAvatar) {
-            speakingAvatar.classList.add('speaking');
-            const totalLength = dialogues.reduce((sum, msg) => sum + (msg.content || '').length, 0);
-            const speakTime = Math.min(totalLength * 200, 5000);
-            setTimeout(() => speakingAvatar.classList.remove('speaking'), speakTime);
-          }
-          if (renderedAiContentCount === 0) {
-            throw new Error('AI返回为空');
-          }
-          if (!hasVideoCallTtsPlayback) {
-            onVideoCallTtsQueueFinished();
-          }
+        if (messagesArray.length === 0) {
+          throw new Error('AI返回为空');
+        }
+
+        // 头像动画
+        const speakingAvatar = document.querySelector(`.participant-avatar-wrapper[data-participant-id="ai"] .participant-avatar`);
+        if (speakingAvatar) {
+          speakingAvatar.classList.add('speaking');
+          const totalLength = messagesArray.reduce((sum, msg) => sum + String(msg.content || msg.speech || '').trim().length, 0);
+          const speakTime = Math.min(totalLength * 200, 5000);
+          setTimeout(() => speakingAvatar.classList.remove('speaking'), speakTime);
+        }
+        if (!hasVideoCallTtsPlayback) {
+          onVideoCallTtsQueueFinished();
         }
       }
 

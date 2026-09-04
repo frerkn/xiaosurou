@@ -634,26 +634,6 @@
     line-height: 1.6 !important;
 }
 
-/* ---------- 32. 远程/本地视频预览占位 ---------- */
-#chat-settings-screen #remote-video-preview,
-#chat-settings-screen #local-video-preview {
-    border-color: #D8E0EB !important;
-}
-#chat-settings-screen #remote-video-placeholder,
-#chat-settings-screen #local-video-placeholder {
-    background-color: #DCEAF5 !important;
-    color: #8896A6 !important;
-    border: 1px solid #B5CFE0 !important;
-}
-
-/* ---------- 33. 摄像头状态面板 ---------- */
-#chat-settings-screen #camera-status {
-    background-color: #EEF5FB !important;
-    border: 1px solid #C7DCEB !important;
-    color: #4A6A8F !important;
-    border-radius: 8px !important;
-}
-
 /* ---------- 34. 存档卡片容器（memory-archive-list） ---------- */
 #chat-settings-screen #memory-archive-list {
     margin-top: 10px !important;

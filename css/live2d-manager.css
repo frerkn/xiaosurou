@@ -1,4 +1,4 @@
-/* Live2D 模型管理页 (v0.5.0 P0) — 粉白 iOS 风格, 沿用准备页色调, 手机优先 */
+/* 视频通话形象调试台 (v0.5.0 P2.4 改定位) — 粉白 iOS 风格, 沿用准备页色调, 手机优先 */
 
 #live2d-manager-screen.live2d-manager-screen {
     position: fixed !important;
@@ -352,6 +352,74 @@
     font-family: ui-monospace, SFMono-Regular, "SF Mono", Consolas, monospace;
     font-size: 11px;
     color: #7a5a68;
+}
+
+/* ===== v0.5.0 P2.4: "使用此形象进入视频通话" 主操作 (粉白 iOS 风格, 比 debug 按钮更突出) ===== */
+.live2d-manager-confirm {
+    flex-shrink: 0;
+    padding: 4px 0 2px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+}
+.live2d-manager-confirm-btn {
+    width: 100%;
+    min-height: 48px;
+    background: linear-gradient(135deg, #ff8fb7 0%, #ff6b9d 55%, #ff4d6d 100%);
+    color: #fff;
+    border: none;
+    border-radius: 14px;
+    padding: 12px 16px;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-shadow: 0 4px 14px rgba(255, 77, 109, 0.32), 0 1px 3px rgba(255, 142, 179, 0.18);
+    transition: transform 0.1s, box-shadow 0.15s, filter 0.15s;
+    font-family: inherit;
+    /* 视觉上比普通 debug 按钮更突出: 更大圆角, 更厚阴影, 渐变填充 */
+}
+.live2d-manager-confirm-btn:active {
+    transform: scale(0.98);
+    box-shadow: 0 2px 8px rgba(255, 77, 109, 0.28);
+    filter: brightness(0.96);
+}
+.live2d-manager-confirm-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    box-shadow: 0 1px 3px rgba(255, 142, 179, 0.15);
+}
+.live2d-manager-confirm-btn-saved {
+    background: linear-gradient(135deg, #7ed6a7 0%, #4ec18b 100%) !important;
+    box-shadow: 0 4px 14px rgba(78, 193, 139, 0.3) !important;
+}
+.live2d-manager-confirm-btn-icon {
+    font-size: 17px;
+    line-height: 1;
+}
+.live2d-manager-confirm-btn-text {
+    line-height: 1.2;
+}
+.live2d-manager-confirm-hint {
+    font-size: 11px;
+    line-height: 1.5;
+    color: #a08a98;
+    text-align: center;
+    padding: 0 4px;
+    transition: color 0.2s;
+}
+.live2d-manager-confirm-hint-success {
+    color: #2f8b5b;
+    font-weight: 500;
+}
+.live2d-manager-confirm-hint-error {
+    color: #c9184a;
+    font-weight: 500;
 }
 
 /* ===== 删除按钮 ===== */

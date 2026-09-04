@@ -65,78 +65,19 @@ function extractDialogueOnly(text) {
 }
 
 
-// 获取处理后的TTS文本
-window.getProcessedTTSText = function (originalText, chatId) {
-  if (!originalText) return '';
+// P3-2: 删 window.getProcessedTTSText (P3-0 审计已确认无任何外部调用方; tts-audio.js 直接调 extractDialogueOnly)
+//   ttsDialogueOnly 字段读取保留在 tts-audio.js (P6 才动 AI 逻辑, 本阶段保证不抛错)
 
-  // 检查是否启用了"仅读取对话"功能
-  if (typeof state !== 'undefined' && state.chats && state.chats[chatId]) {
-    const chat = state.chats[chatId];
-    if (chat.videoOptimization && chat.videoOptimization.ttsDialogueOnly) {
-      // extractDialogueOnly 会返回引号内容或原文，不会返回空
-      return extractDialogueOnly(originalText);
-    }
-  }
-
-  return originalText;
-};
 
 // 初始化视频通话优化事件监听
-function initVideoOptimization() {
-  // 视频通话优化开关
-  const enableSwitch = document.getElementById('enable-video-optimization-switch');
-  const configContainer = document.getElementById('video-optimization-config-container');
+// v0.5.0 P3-1: 加 prefix 参数支持多套 DOM 实例
+// v0.5.0 P3-2: 聊天设置页"视频通话优化"板块已删除, prefix 默认值不再有意义但保留兼容
+//   prefix === 'prep-' → 视频通话准备页 #live2d-call-prep-screen 的"我的画面"卡片
+function initVideoOptimization(prefix) {
+  prefix = prefix || '';
 
-  if (enableSwitch) {
-    enableSwitch.addEventListener('change', function () {
-      if (this.checked) {
-        configContainer.style.display = 'block';
-      } else {
-        configContainer.style.display = 'none';
-      }
-    });
-  }
-
-  // 对方视频图片 - 本地上传
-  const remoteVideoInput = document.getElementById('remote-video-input');
-  if (remoteVideoInput) {
-    remoteVideoInput.addEventListener('change', function (e) {
-      const file = e.target.files[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = function (event) {
-          const imgUrl = event.target.result;
-          document.getElementById('remote-video-preview').src = imgUrl;
-          document.getElementById('remote-video-preview').style.display = 'block';
-          document.getElementById('remote-video-placeholder').style.display = 'none';
-        };
-        reader.readAsDataURL(file);
-      }
-    });
-  }
-
-  // 对方视频图片 - URL上传
-  const remoteVideoUrlBtn = document.getElementById('remote-video-url-btn');
-  const remoteVideoUrlInput = document.getElementById('remote-video-url-input');
-  if (remoteVideoUrlBtn && remoteVideoUrlInput) {
-    remoteVideoUrlBtn.addEventListener('click', function () {
-      const url = remoteVideoUrlInput.value.trim();
-      if (url) {
-        document.getElementById('remote-video-preview').src = url;
-        document.getElementById('remote-video-preview').style.display = 'block';
-        document.getElementById('remote-video-placeholder').style.display = 'none';
-      }
-    });
-
-    remoteVideoUrlInput.addEventListener('keypress', function (e) {
-      if (e.key === 'Enter') {
-        remoteVideoUrlBtn.click();
-      }
-    });
-  }
-
-  // 我方视频图片 - 本地上传
-  const localVideoInput = document.getElementById('local-video-input');
+  // 我方视频图片 - 本地上传 (P3-2: URL 输入框已从准备页删除, 保留 file input + preview + placeholder)
+  const localVideoInput = document.getElementById(prefix + 'local-video-input');
   if (localVideoInput) {
     localVideoInput.addEventListener('change', function (e) {
       const file = e.target.files[0];
@@ -144,77 +85,50 @@ function initVideoOptimization() {
         const reader = new FileReader();
         reader.onload = function (event) {
           const imgUrl = event.target.result;
-          document.getElementById('local-video-preview').src = imgUrl;
-          document.getElementById('local-video-preview').style.display = 'block';
-          document.getElementById('local-video-placeholder').style.display = 'none';
+          document.getElementById(prefix + 'local-video-preview').src = imgUrl;
+          document.getElementById(prefix + 'local-video-preview').style.display = 'block';
+          document.getElementById(prefix + 'local-video-placeholder').style.display = 'none';
         };
         reader.readAsDataURL(file);
       }
     });
   }
 
-  // 我方视频图片 - URL上传
-  const localVideoUrlBtn = document.getElementById('local-video-url-btn');
-  const localVideoUrlInput = document.getElementById('local-video-url-input');
-  if (localVideoUrlBtn && localVideoUrlInput) {
-    localVideoUrlBtn.addEventListener('click', function () {
-      const url = localVideoUrlInput.value.trim();
-      if (url) {
-        document.getElementById('local-video-preview').src = url;
-        document.getElementById('local-video-preview').style.display = 'block';
-        document.getElementById('local-video-placeholder').style.display = 'none';
-      }
-    });
-
-    localVideoUrlInput.addEventListener('keypress', function (e) {
-      if (e.key === 'Enter') {
-        localVideoUrlBtn.click();
-      }
-    });
-  }
-
-  // 对方视频图片 - 重置按钮
-  const remoteVideoResetBtn = document.getElementById('remote-video-reset-btn');
-  if (remoteVideoResetBtn) {
-    remoteVideoResetBtn.addEventListener('click', function () {
-      document.getElementById('remote-video-preview').src = '';
-      document.getElementById('remote-video-preview').style.display = 'none';
-      document.getElementById('remote-video-placeholder').style.display = 'flex';
-      document.getElementById('remote-video-url-input').value = '';
-      const remoteVideoInput = document.getElementById('remote-video-input');
-      if (remoteVideoInput) remoteVideoInput.value = '';
-    });
-  }
-
   // 我方视频图片 - 重置按钮
-  const localVideoResetBtn = document.getElementById('local-video-reset-btn');
+  const localVideoResetBtn = document.getElementById(prefix + 'local-video-reset-btn');
   if (localVideoResetBtn) {
     localVideoResetBtn.addEventListener('click', function () {
-      document.getElementById('local-video-preview').src = '';
-      document.getElementById('local-video-preview').style.display = 'none';
-      document.getElementById('local-video-placeholder').style.display = 'flex';
-      document.getElementById('local-video-url-input').value = '';
-      const localVideoInput = document.getElementById('local-video-input');
-      if (localVideoInput) localVideoInput.value = '';
+      document.getElementById(prefix + 'local-video-preview').src = '';
+      document.getElementById(prefix + 'local-video-preview').style.display = 'none';
+      const ph = document.getElementById(prefix + 'local-video-placeholder');
+      if (ph) ph.style.display = 'flex';
+      // P3-2: URL 输入框已从准备页删除, 加守卫避免删 DOM 后 .value='' 抛 null 错
+      const urlInput = document.getElementById(prefix + 'local-video-url-input');
+      if (urlInput) urlInput.value = '';
+      const localVideoInputEl = document.getElementById(prefix + 'local-video-input');
+      if (localVideoInputEl) localVideoInputEl.value = '';
     });
   }
 
   // 真实摄像头开关
-  const enableRealCameraSwitch = document.getElementById('enable-real-camera-switch');
-  const cameraIntervalSetting = document.getElementById('camera-interval-setting');
+  // v0.5.0 P3-1: 准备页 (prefix='prep-') 只配置不启动, 关闭时不调 stopCamera()
+  const enableRealCameraSwitch = document.getElementById(prefix + 'enable-real-camera-switch');
+  const cameraIntervalSetting = document.getElementById(prefix + 'camera-interval-setting');
   if (enableRealCameraSwitch) {
     enableRealCameraSwitch.addEventListener('change', function () {
       if (this.checked) {
         cameraIntervalSetting.style.display = 'block';
       } else {
         cameraIntervalSetting.style.display = 'none';
-        stopCamera();
+        if (prefix === '') stopCamera();
       }
     });
   }
 
   // 后置摄像头开关 - 通话中实时切换
-  const enableRearCameraSwitch = document.getElementById('enable-rear-camera-switch');
+  // v0.5.0 P3-1: 准备页 (prefix='prep-') 上也有此开关, 但已有 videoCallState.isActive 守卫
+  //   → 准备页 cameraStream === null && videoCallState.isActive === false, handler 自然 no-op
+  const enableRearCameraSwitch = document.getElementById(prefix + 'enable-rear-camera-switch');
   if (enableRearCameraSwitch) {
     enableRearCameraSwitch.addEventListener('change', async function () {
       // 如果正在通话中且摄像头已启动，实时切换
@@ -228,7 +142,7 @@ function initVideoOptimization() {
     });
   }
 
-  // 点击小屏互换位置
+  // 点击小屏互换位置 (这是通话屏的 DOM, 不加 prefix)
   const localVideoSmall = document.getElementById('local-video-small');
   if (localVideoSmall) {
     localVideoSmall.addEventListener('click', swapVideoPosition);
@@ -247,48 +161,45 @@ function swapVideoPosition() {
 }
 
 // 加载视频通话优化设置
-window.loadVideoOptimizationSettings = function (chat) {
+// v0.5.0 P3-1: 加 prefix 参数支持多套 DOM 实例
+// v0.5.0 P3-2: 聊天设置页"视频通话优化"板块已删除
+//   - 删主开关 / configContainer / remoteVideoUrl / ttsDialogueOnly / interleavedMode 加载
+//   - 仅剩 localVideoUrl / enableRealCamera / cameraInterval / useRearCamera 加载 (准备页"我的画面"卡片用)
+window.loadVideoOptimizationSettings = function (chat, prefix) {
   if (!chat) return;
+  prefix = prefix || '';
 
   const settings = chat.videoOptimization || {};
 
-  const enableSwitch = document.getElementById('enable-video-optimization-switch');
-  const configContainer = document.getElementById('video-optimization-config-container');
-  if (enableSwitch) {
-    enableSwitch.checked = settings.enabled || false;
-    configContainer.style.display = settings.enabled ? 'block' : 'none';
-  }
-
-  if (settings.remoteVideoUrl) {
-    document.getElementById('remote-video-preview').src = settings.remoteVideoUrl;
-    document.getElementById('remote-video-preview').style.display = 'block';
-    document.getElementById('remote-video-placeholder').style.display = 'none';
-    document.getElementById('remote-video-url-input').value = settings.remoteVideoUrl;
-  } else {
-    document.getElementById('remote-video-preview').style.display = 'none';
-    document.getElementById('remote-video-placeholder').style.display = 'flex';
-    document.getElementById('remote-video-url-input').value = '';
-  }
-
   if (settings.localVideoUrl) {
-    document.getElementById('local-video-preview').src = settings.localVideoUrl;
-    document.getElementById('local-video-preview').style.display = 'block';
-    document.getElementById('local-video-placeholder').style.display = 'none';
-    document.getElementById('local-video-url-input').value = settings.localVideoUrl;
+    const localPreview = document.getElementById(prefix + 'local-video-preview');
+    if (localPreview) {
+      localPreview.src = settings.localVideoUrl;
+      localPreview.style.display = 'block';
+    }
+    const localPlaceholder = document.getElementById(prefix + 'local-video-placeholder');
+    if (localPlaceholder) localPlaceholder.style.display = 'none';
+    const localUrlInput = document.getElementById(prefix + 'local-video-url-input');
+    if (localUrlInput) localUrlInput.value = settings.localVideoUrl;
   } else {
-    document.getElementById('local-video-preview').style.display = 'none';
-    document.getElementById('local-video-placeholder').style.display = 'flex';
-    document.getElementById('local-video-url-input').value = '';
+    const localPreview = document.getElementById(prefix + 'local-video-preview');
+    if (localPreview) localPreview.style.display = 'none';
+    const localPlaceholder = document.getElementById(prefix + 'local-video-placeholder');
+    if (localPlaceholder) localPlaceholder.style.display = 'flex';
+    const localUrlInput = document.getElementById(prefix + 'local-video-url-input');
+    if (localUrlInput) localUrlInput.value = '';
   }
 
   // 加载真实摄像头设置
-  const enableRealCameraSwitch = document.getElementById('enable-real-camera-switch');
-  const cameraIntervalSetting = document.getElementById('camera-interval-setting');
-  const cameraIntervalInput = document.getElementById('camera-capture-interval');
+  const enableRealCameraSwitch = document.getElementById(prefix + 'enable-real-camera-switch');
+  const cameraIntervalSetting = document.getElementById(prefix + 'camera-interval-setting');
+  const cameraIntervalInput = document.getElementById(prefix + 'camera-capture-interval');
 
   if (enableRealCameraSwitch) {
     enableRealCameraSwitch.checked = settings.enableRealCamera || false;
-    cameraIntervalSetting.style.display = settings.enableRealCamera ? 'block' : 'none';
+    if (cameraIntervalSetting) {
+      cameraIntervalSetting.style.display = settings.enableRealCamera ? 'block' : 'none';
+    }
   }
 
   if (cameraIntervalInput) {
@@ -296,46 +207,31 @@ window.loadVideoOptimizationSettings = function (chat) {
   }
 
   // 加载后置摄像头设置
-  const enableRearCameraSwitch = document.getElementById('enable-rear-camera-switch');
+  const enableRearCameraSwitch = document.getElementById(prefix + 'enable-rear-camera-switch');
   if (enableRearCameraSwitch) {
     enableRearCameraSwitch.checked = settings.useRearCamera || false;
-  }
-
-  // 加载仅读取对话设置
-  const ttsDialogueOnlySwitch = document.getElementById('tts-dialogue-only-switch');
-  if (ttsDialogueOnlySwitch) {
-    ttsDialogueOnlySwitch.checked = settings.ttsDialogueOnly || false;
-  }
-
-  // 加载旁白对话穿插模式设置
-  const videoInterleavedSwitch = document.getElementById('video-interleaved-mode-switch');
-  if (videoInterleavedSwitch) {
-    videoInterleavedSwitch.checked = settings.interleavedMode || false;
   }
 };
 
 // 保存视频通话优化设置
-window.saveVideoOptimizationSettings = function (chat) {
+// v0.5.0 P3-1: 加 prefix 参数支持多套 DOM 实例
+// v0.5.0 P3-2: 聊天设置页"视频通话优化"板块已删除
+//   - 删 enabled / remoteVideoUrl / ttsDialogueOnly / interleavedMode 字段
+//   - 仅存 localVideoUrl / enableRealCamera / useRearCamera / cameraInterval (准备页"我的画面"卡片用)
+window.saveVideoOptimizationSettings = function (chat, prefix) {
   if (!chat) return;
+  prefix = prefix || '';
 
-  const enableSwitch = document.getElementById('enable-video-optimization-switch');
-  const remoteVideoPreview = document.getElementById('remote-video-preview');
-  const localVideoPreview = document.getElementById('local-video-preview');
-  const enableRealCameraSwitch = document.getElementById('enable-real-camera-switch');
-  const cameraIntervalInput = document.getElementById('camera-capture-interval');
-  const ttsDialogueOnlySwitch = document.getElementById('tts-dialogue-only-switch');
-
-  const videoInterleavedSwitch = document.getElementById('video-interleaved-mode-switch');
+  const localVideoPreview = document.getElementById(prefix + 'local-video-preview');
+  const enableRealCameraSwitch = document.getElementById(prefix + 'enable-real-camera-switch');
+  const cameraIntervalInput = document.getElementById(prefix + 'camera-capture-interval');
+  const enableRearCameraSwitch = document.getElementById(prefix + 'enable-rear-camera-switch');
 
   chat.videoOptimization = {
-    enabled: enableSwitch ? enableSwitch.checked : false,
-    remoteVideoUrl: remoteVideoPreview.style.display === 'block' ? remoteVideoPreview.src : '',
-    localVideoUrl: localVideoPreview.style.display === 'block' ? localVideoPreview.src : '',
+    localVideoUrl: localVideoPreview && localVideoPreview.style.display === 'block' ? localVideoPreview.src : '',
     enableRealCamera: enableRealCameraSwitch ? enableRealCameraSwitch.checked : false,
-    useRearCamera: document.getElementById('enable-rear-camera-switch') ? document.getElementById('enable-rear-camera-switch').checked : false,
-    cameraInterval: cameraIntervalInput ? parseInt(cameraIntervalInput.value) || 5 : 5,
-    ttsDialogueOnly: ttsDialogueOnlySwitch ? ttsDialogueOnlySwitch.checked : false,
-    interleavedMode: videoInterleavedSwitch ? videoInterleavedSwitch.checked : false
+    useRearCamera: enableRearCameraSwitch ? enableRearCameraSwitch.checked : false,
+    cameraInterval: cameraIntervalInput ? parseInt(cameraIntervalInput.value) || 5 : 5
   };
 
   // 不需要在这里put到数据库，因为调用方会统一保存
@@ -343,11 +239,13 @@ window.saveVideoOptimizationSettings = function (chat) {
 
 
 // 应用视频通话优化到视频界面
+// v0.5.0 P3-2: remoteVideoUrl 废弃, "对方"由 Live2D 替代; 删 settings.enabled / settings.remoteVideoUrl 分支
+//   触发条件改为: localVideoUrl 或 enableRealCamera 任一为真
 window.applyVideoOptimizationToCall = async function (chat) {
   const videoDisplayArea = document.getElementById('video-display-area');
   const avatarArea = document.querySelector('.video-call-avatar-area');
 
-  if (!chat || !chat.videoOptimization || !chat.videoOptimization.enabled) {
+  if (!chat || !chat.videoOptimization || (!chat.videoOptimization.localVideoUrl && !chat.videoOptimization.enableRealCamera)) {
     videoDisplayArea.style.display = 'none';
     if (avatarArea) avatarArea.style.display = 'flex';
     updateVideoCallCameraSwitchButton(false);
@@ -356,13 +254,9 @@ window.applyVideoOptimizationToCall = async function (chat) {
   }
 
   const settings = chat.videoOptimization;
-  if (settings.remoteVideoUrl || settings.localVideoUrl || settings.enableRealCamera) {
+  if (settings.localVideoUrl || settings.enableRealCamera) {
     videoDisplayArea.style.display = 'block';
     if (avatarArea) avatarArea.style.display = 'none';
-
-    if (settings.remoteVideoUrl) {
-      document.getElementById('remote-video-img').src = settings.remoteVideoUrl;
-    }
 
     // 处理我方画面：真实摄像头或静态图片
     const localImg = document.getElementById('local-video-img');
@@ -573,12 +467,5 @@ window.getLastCameraCapture = function () {
   return lastCapturedImage;
 };
 
-// 在页面加载完成后初始化
-document.addEventListener('DOMContentLoaded', function () {
-  initVideoOptimization();
-});
-
-// 如果DOMContentLoaded已经触发，立即初始化
-if (document.readyState === 'complete' || document.readyState === 'interactive') {
-  setTimeout(initVideoOptimization, 1);
-}
+// P3-2: 删 DOMContentLoaded 自动 initVideoOptimization() (旧聊天设置页 DOM 已删, 不再需要自动绑)
+//   准备页由 Live2DCallPrep.init() 显式调 initVideoOptimization('prep-')

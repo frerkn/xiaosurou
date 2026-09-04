@@ -3790,10 +3790,8 @@ window.initEventBindingsA = async function(state, db) {
       // 渲染记忆库列表
       renderMemoryArchiveList();
 
-      // 加载视频通话优化设置
-      if (typeof window.loadVideoOptimizationSettings === 'function') {
-        window.loadVideoOptimizationSettings(chat);
-      }
+      // P3-2: 聊天设置页"视频通话优化"板块已删除, loadVideoOptimizationSettings(chat) (无 prefix) 入口不再调用
+      //   视频通话优化加载入口仅在 #live2d-call-prep-screen 的 Live2DCallPrep.render() 中以 'prep-' prefix 调
 
       showScreen('chat-settings-screen');
     });
@@ -4172,10 +4170,8 @@ window.initEventBindingsA = async function(state, db) {
         chat.groupId = selectedGroupId ? parseInt(selectedGroupId) : null;
       }
 
-      // 保存视频通话优化设置
-      if (typeof window.saveVideoOptimizationSettings === 'function') {
-        window.saveVideoOptimizationSettings(chat);
-      }
+      // P3-2: 聊天设置页"视频通话优化"板块已删除, saveVideoOptimizationSettings(chat) (无 prefix) 入口不再调用
+      //   视频通话优化保存入口仅在 #live2d-call-prep-screen 的事件委托中以 'prep-' prefix 调
 
       await db.chats.put(chat);
       if (!chat.isGroup) {

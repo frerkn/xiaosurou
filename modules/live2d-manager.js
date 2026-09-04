@@ -1,10 +1,11 @@
-// Live2D 模型管理页 (v0.5.0 P0)
+// 视频通话形象调试台 (v0.5.0 P0 起步, v0.5.0 P2.4 改定位)
 // 准备页"管理"按钮入口, 复用现有 Live2D 核心 API
-// 依赖: window.Live2DStorage (listModels/getModel/deleteModel/getActiveModelIdForChat/setActiveModelIdForChat)
+// 依赖: window.Live2DStorage (listModels/getModel/deleteModel/getActiveModelIdForChat/setActiveModelIdForChat/getVideoCallAppearance/setVideoCallAppearance)
 // 依赖: window.Live2DLoader (mountLive2DFromIDB/disposeLive2D)
 // 依赖: window.Live2DCallPrep.render(chat) - 关闭时回调让准备页刷新
-// 职责: 列表 + 完整 Live2D 预览 + 元数据 + 删除 + 加载状态 + 错误重试
+// 职责: 列表 + 完整 Live2D 预览 + 元数据 + 动作/表情调试 + 删除 + "使用此形象进入视频通话" 主操作
 // 不做: 上传/选择/动作权限/衣橱/构图/VTube 参数编辑器
+// 不做: AI 自动表情 (P2.4 留数据接口, runtime 改 expression 不反向写 defaultExpression)
 // DOM 动态注入 (init 时), 不需要预先在 index.html 写
 // CSS 走 index.html 静态 link (避免动态注入导致首帧无样式)
 // API: window.Live2DManager = { init, open, close }
@@ -60,6 +61,13 @@
   let delModalCancelEl = null;
   let delModalConfirmEl = null;
   let pendingDelModelId = '';   // 当前弹窗等待删除的 modelId (挂载失败也能删, 不依赖 activeModel 实例)
+  // v0.5.0 P2.4: "使用此形象进入视频通话" 主操作 refs
+  let confirmSectionEl = null;
+  let confirmBtnEl = null;
+  let confirmHintEl = null;
+  // v0.5.0 P2.4: 跟踪用户在调试台当前选中的 expression (用户最后选的表情就是 defaultExpression 候选)
+  // '' 表示"恢复默认"或未选, 任何非空字符串就是 .exp3.json 的 basename
+  let currentExpression = '';
 
   let currentChat = null;
   let onCloseCallback = null;
@@ -107,7 +115,7 @@
       wrap.innerHTML = [
         '<header class="live2d-manager-header">',
         '  <button type="button" class="live2d-manager-back-btn" data-role="back" aria-label="返回">‹</button>',
-        '  <h1 class="live2d-manager-title">Live2D 模型管理</h1>',
+        '  <h1 class="live2d-manager-title">视频通话形象调试台</h1>',
         '  <span class="live2d-manager-header-spacer"></span>',
         '</header>',
         '<div class="live2d-manager-body">',
@@ -156,6 +164,14 @@
         '        <div class="live2d-manager-debug-buttons" data-role="expressions"></div>',
         '        <div class="live2d-manager-debug-empty" data-role="expressions-empty" style="display:none">暂无可用表情</div>',
         '      </div>',
+        '    </div>',
+        // v0.5.0 P2.4: "视频通话形象调试台" 主操作 — 表情区下方, 比普通调试按钮更突出
+        '    <div class="live2d-manager-confirm" data-role="confirm-section">',
+        '      <button type="button" class="live2d-manager-confirm-btn" data-role="confirm-appearance">',
+        '        <span class="live2d-manager-confirm-btn-icon">📞</span>',
+        '        <span class="live2d-manager-confirm-btn-text">使用此形象进入视频通话</span>',
+        '      </button>',
+        '      <div class="live2d-manager-confirm-hint">将当前形象设为视频通话默认状态，AI 可在通话中根据对话实时调整</div>',
         '    </div>',
         '    <div class="live2d-manager-actions">',
         // v0.5.0 P1.1: delBtn 永远显示 (加载失败也要能删), 默认 inline-block
@@ -212,6 +228,10 @@
     delModalDescEl = screenEl.querySelector('[data-role="del-modal-desc"]');
     delModalCancelEl = screenEl.querySelector('[data-role="del-modal-cancel"]');
     delModalConfirmEl = screenEl.querySelector('[data-role="del-modal-confirm"]');
+    // v0.5.0 P2.4: 主操作按钮 refs
+    confirmSectionEl = screenEl.querySelector('[data-role="confirm-section"]');
+    confirmBtnEl = screenEl.querySelector('[data-role="confirm-appearance"]');
+    confirmHintEl = confirmSectionEl ? confirmSectionEl.querySelector('.live2d-manager-confirm-hint') : null;
   }
 
   function bindEvents() {
@@ -286,12 +306,27 @@
             const id = btn.getAttribute('data-id');
             // 抄糯米机 Live2DAvatarCanvas 直 SDK 改参数, 绕开库 expressionManager
             if (id) applyExpressionToModel(activeModel, id);
+            // v0.5.0 P2.4: 跟踪用户最后选中的 expression, 点"使用此形象进入视频通话"时存为 defaultExpression
+            // '↺ 默认' 按钮 action === 'expression-reset' 不进这条, 见下面
+            currentExpression = id || '';
           } else if (action === 'expression-reset' && activeModel) {
             // 恢复所有参数到挂载时的初始值
             resetExpressionParams(activeModel);
+            // v0.5.0 P2.4: '恢复默认' 也是合法选择, currentExpression = '' (空串 = 起始无 expression)
+            currentExpression = '';
           }
         } catch (e) { console.warn('[Live2DManager] expression click failed:', e); }
         flashDebugButton(btn, expressionsEl);
+      });
+    }
+
+    // v0.5.0 P2.4: "使用此形象进入视频通话" 主按钮 → 收集当前形象状态 + 存 storage + 回到准备页
+    // 默认状态 (用户保存的) ≠ 运行时状态 (AI 后续改的): currentExpression 是用户点这个按钮时的"起始" expression
+    if (confirmBtnEl) {
+      confirmBtnEl.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        saveAndGoToPrep();
       });
     }
 
@@ -532,6 +567,8 @@
       showErrorOverlay('Live2DLoader 模块未加载');
       return;
     }
+    // v0.5.0 P2.4: 切模型时重置"用户选中的 expression", 旧模型选择不能跨模型带过去
+    currentExpression = '';
     // v0.5.0 P1.3 兜底: 放弃依赖 canvasEl 模块变量, 每次强制 querySelector (同步 + microtask 双重)
     // user 报 "每次第一次加载都报 canvas is null, F5 刷新就好" 真凶: 跨 open() 时 canvasEl 引用错位 + DOM 渲染竞态
     let canvas = canvasEl;
@@ -791,6 +828,16 @@
       screenEl.style.display = 'block';
     }
     // 重置状态
+    currentExpression = '';   // v0.5.0 P2.4: 重新打开时清掉上次选择
+    if (confirmBtnEl) {
+      confirmBtnEl.classList.remove('live2d-manager-confirm-btn-saved');
+      const textEl = confirmBtnEl.querySelector('.live2d-manager-confirm-btn-text');
+      if (textEl) textEl.textContent = '使用此形象进入视频通话';
+    }
+    if (confirmHintEl) {
+      confirmHintEl.classList.remove('live2d-manager-confirm-hint-error', 'live2d-manager-confirm-hint-success');
+      confirmHintEl.textContent = '将当前形象设为视频通话默认状态，AI 可在通话中根据对话实时调整';
+    }
     showOverlay('idle');
     if (infoEl) infoEl.style.display = 'none';
     if (delBtnEl) delBtnEl.style.display = 'none';
@@ -815,6 +862,96 @@
     if (typeof cb === 'function') {
       try { cb(); } catch (e) { console.warn('[Live2DManager] onClose error:', e); }
     }
+  }
+
+  // v0.5.0 P2.4: 收集当前调试台状态 → 存到 Live2DStorage.videoCallAppearance[chatId] → close() 回到准备页
+  // 核心原则: 这里存的"默认起始状态"是用户确认的, AI 在视频通话运行中改的 expression / 动作
+  // 是"运行时状态", 后续 video-voice-call 挂载时读这个 appearance, 但 AI 改完 expression 不要反向写这个对象.
+  // 数据结构 (Live2DStorage.setVideoCallAppearance 会自动加 updatedAt):
+  //   {
+  //     modelId,         // 当前调试台预览的 modelId
+  //     modelPath,       // model3.json 在 IDB record 里的相对路径
+  //     scale,           // activeModel.scale.x, PIXI 缩放 (绝对)
+  //     positionX,       // activeModel.x, PIXI 坐标相对 canvas
+  //     positionY,       // activeModel.y
+  //     defaultExpression // 用户最后选的表情 (.exp3.json basename, '' = 不设 / 恢复默认)
+  //   }
+  async function saveAndGoToPrep() {
+    if (!currentChat) {
+      console.warn('[Live2DManager] saveAndGoToPrep: 没有 currentChat (从准备页进入才会传)');
+      return;
+    }
+    if (!activeModelId) {
+      console.warn('[Live2DManager] saveAndGoToPrep: 没有选中模型, 按钮不该可点');
+      return;
+    }
+    if (!global.Live2DStorage || typeof global.Live2DStorage.setVideoCallAppearance !== 'function') {
+      console.warn('[Live2DManager] saveAndGoToPrep: Live2DStorage.setVideoCallAppearance 不可用');
+      return;
+    }
+    // 1. 拿 modelPath (从 IDB 读一次; 这个量很轻, 用户点按钮一次)
+    let modelPath = '';
+    try {
+      const rec = await global.Live2DStorage.getModel(activeModelId);
+      if (rec) modelPath = rec.modelPath || '';
+    } catch (e) {
+      console.warn('[Live2DManager] saveAndGoToPrep: getModel 拿 modelPath 失败, 继续 (不阻塞保存):', e);
+    }
+    // 2. 收集模型显示状态 (从 activeModel PIXI 实例读; activeModel 可能因为加载失败为 null, 兜底)
+    let scale = 1, positionX = 0, positionY = 0;
+    if (activeModel) {
+      try {
+        if (activeModel.scale && typeof activeModel.scale.x === 'number') scale = activeModel.scale.x;
+      } catch (e) { /* ignore */ }
+      try { positionX = activeModel.x; } catch (e) { positionX = 0; }
+      try { positionY = activeModel.y; } catch (e) { positionY = 0; }
+    }
+    // 3. 构造 appearance 并存到 localStorage (per-chat)
+    //    注意: 复用现有 setActiveModelIdForChat 让 per-chat 模型绑定跟 appearance 的 modelId 对齐
+    //    (现有 call-prep.render 读 activeModelIdForChat 显示"已绑定·xxx" 文字)
+    const appearance = {
+      modelId: activeModelId,
+      modelPath: modelPath,
+      scale: scale,
+      positionX: positionX,
+      positionY: positionY,
+      defaultExpression: currentExpression || '',
+    };
+    let saved = false;
+    try {
+      saved = await global.Live2DStorage.setVideoCallAppearance(currentChat.id, appearance);
+    } catch (e) {
+      console.warn('[Live2DManager] saveAndGoToPrep: setVideoCallAppearance 失败:', e);
+    }
+    if (!saved) {
+      if (confirmHintEl) {
+        confirmHintEl.textContent = '保存失败, 请重试';
+        confirmHintEl.classList.add('live2d-manager-confirm-hint-error');
+      }
+      return;
+    }
+    // 4. 顺手把 per-chat 模型绑定也指向当前 (复用现有 storage 行为, 不破坏)
+    try {
+      if (global.Live2DStorage.setActiveModelIdForChat) {
+        await global.Live2DStorage.setActiveModelIdForChat(currentChat.id, activeModelId);
+      }
+    } catch (e) { /* 绑定失败不阻塞 */ }
+    console.log('[Live2DManager] 已保存视频通话默认形象:', appearance);
+    // 5. 视觉反馈 (短暂变"已保存" → 然后 close)
+    if (confirmBtnEl) {
+      confirmBtnEl.classList.add('live2d-manager-confirm-btn-saved');
+      const textEl = confirmBtnEl.querySelector('.live2d-manager-confirm-btn-text');
+      if (textEl) textEl.textContent = '已保存默认形象';
+    }
+    if (confirmHintEl) {
+      confirmHintEl.textContent = '已确认, 正在返回准备页…';
+      confirmHintEl.classList.add('live2d-manager-confirm-hint-success');
+    }
+    // 6. 走 close() → showScreen('live2d-call-prep-screen') + onCloseCallback → Live2DCallPrep.render(chat)
+    //    准备页 render 读 appearance 显示"已设默认形象" badge, 用户看到状态闭环
+    setTimeout(function () {
+      try { close(); } catch (e) { console.warn('[Live2DManager] close after save failed:', e); }
+    }, 280);
   }
 
   // ===== v0.5.0 P1: 动作/表情调试区 =====

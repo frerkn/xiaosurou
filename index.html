@@ -4541,10 +4541,8 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
       <!-- 顶部: 页面标题 + 英文副标题 + 提示语 -->
       <header class="live2d-call-prep-header">
         <button type="button" class="live2d-call-prep-back-btn" data-role="back" aria-label="返回">‹</button>
-        <p class="live2d-call-prep-eyebrow">VIDEO CALL</p>
         <h1 class="live2d-call-prep-title">视频通话</h1>
-        <p class="live2d-call-prep-hint">想见谁一面？</p>
-        <p class="live2d-call-prep-hint-sub">挑个 Live2D 形象，拨过去吧。</p>
+        <img class="live2d-call-prep-subtitle" src="assets/live2d-call/微信图片_20260904085633_2_42.png" alt="想见谁一面？挑个 Live2D 形象，拨过去吧">
       </header>
 
       <!-- 角色信息区域 (v0.4.3: 名字/头像/描述由 JS 根据 chat 动态填充) -->
@@ -4570,6 +4568,8 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
           <div class="live2d-call-prep-preview" data-role="model-preview">
             <span class="live2d-call-prep-preview-placeholder">尚未绑定动态模型</span>
           </div>
+          <!-- v0.5.0 P2.4: 默认形象调试台保存后, 在此显示"已设默认形象"轻量提示 (Live2DCallPrep.render 填充) -->
+          <div class="live2d-call-prep-appearance-badge" data-role="appearance-badge" style="display:none"></div>
           <button type="button" class="live2d-call-prep-card-action" data-role="upload-select-model">
             <span class="live2d-call-prep-card-action-icon">＋</span>
             上传 / 选择 Live2D
@@ -4594,6 +4594,85 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
             <span class="live2d-call-prep-card-action-icon">＋</span>
             上传舞台背景
           </button>
+        </div>
+      </section>
+
+      <!-- v0.5.0 P3-1: 我的画面配置卡 (从原聊天设置页"视频通话优化"板块搬来, 仅配置, 不启动 camera) -->
+      <section class="live2d-call-prep-card">
+        <div class="live2d-call-prep-card-header">
+          <h2 class="live2d-call-prep-card-title">
+            <span class="live2d-call-prep-card-icon">🎥</span>
+            我的画面
+          </h2>
+        </div>
+        <div class="live2d-call-prep-card-body">
+
+          <!-- 当前画面预览 (静态图片) -->
+          <div class="live2d-call-prep-local-preview-wrap">
+            <img id="prep-local-video-preview" src=""
+                 style="width: 100%; height: 100%; object-fit: cover; border-radius: 12px; display: none;">
+            <!-- v0.5.0 P3-1.1: user 头像兜底层 (localVideoUrl 为空时显示当前用户头像; 由 Live2DCallPrep.refreshPrepLocalFallback 控显隐) -->
+            <img id="prep-local-video-user-avatar" alt="" style="display: none;">
+            <!-- 占位层 (P3-1.1: user 头像接管显示, 这里 hidden 留位避免旧 handler 抛 null 错) -->
+            <div id="prep-local-video-placeholder" style="display: none;"></div>
+          </div>
+
+          <!-- 操作按钮: 本地上传 / 重置 -->
+          <div class="live2d-call-prep-local-actions">
+            <button type="button" class="live2d-call-prep-card-action"
+                    onclick="document.getElementById('prep-local-video-input').click()">
+              <span class="live2d-call-prep-card-action-icon">📁</span>
+              本地上传
+            </button>
+            <button type="button" id="prep-local-video-reset-btn" class="live2d-call-prep-card-action"
+                    style="border-color: rgba(255, 80, 110, 0.5); color: #ff506e;">
+              <span class="live2d-call-prep-card-action-icon">↺</span>
+              重置
+            </button>
+            <input type="file" id="prep-local-video-input" accept="image/*" hidden>
+          </div>
+          <div style="font-size: 11px; color: #b58a9a; line-height: 1.5;">
+            未上传图片时, 视频通话将使用你当前的用户头像作为我方画面
+          </div>
+
+          <!-- 分隔: 真实摄像头区 -->
+          <div class="live2d-call-prep-local-camera-divider">
+            <span>使用真实摄像头</span>
+            <label class="live2d-call-prep-toggle">
+              <input type="checkbox" id="prep-enable-real-camera-switch">
+              <span class="live2d-call-prep-toggle-slider"></span>
+            </label>
+          </div>
+          <div style="font-size: 11px; color: #b58a9a; line-height: 1.5; margin-top: -4px;">
+            开启后, 正式视频通话中你的摄像头画面会作为我方画面, AI 可以看到你
+          </div>
+
+          <!-- 摄像头子设置 (仅开关开时显示) -->
+          <div id="prep-camera-interval-setting" style="display: none;">
+            <div class="live2d-call-prep-local-camera-row">
+              <label style="font-size: 13px; color: #3a2a30; white-space: nowrap;">截图间隔</label>
+              <input type="number" id="prep-camera-capture-interval"
+                     min="1" max="60" value="5"
+                     style="width: 64px; padding: 6px 8px; border: 1px solid rgba(255, 142, 179, 0.3); border-radius: 8px; font-size: 13px; background: #ffffff; color: #3a2a30;">
+              <span style="font-size: 12px; color: #b58a9a;">秒</span>
+            </div>
+
+            <div class="live2d-call-prep-local-camera-row">
+              <label style="font-size: 13px; color: #3a2a30;">使用后置摄像头</label>
+              <label class="live2d-call-prep-toggle">
+                <input type="checkbox" id="prep-enable-rear-camera-switch">
+                <span class="live2d-call-prep-toggle-slider"></span>
+              </label>
+            </div>
+
+            <!-- 摄像头状态 (仅在正式通话中才会被 updateCameraStatus 填充) -->
+            <div id="prep-camera-status" style="margin-top: 6px; padding: 8px 10px; background: linear-gradient(135deg, #fff5f9 0%, #ffffff 100%); border-radius: 10px; border: 1px solid rgba(255, 182, 193, 0.3); font-size: 12px; color: #3a2a30; display: none;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span id="prep-camera-status-icon" style="width: 8px; height: 8px; border-radius: 50%; background: #ccc; flex-shrink: 0;"></span>
+                <span id="prep-camera-status-text" style="color: #b58a9a;">摄像头未激活</span>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -5336,134 +5415,7 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
     </div>
 </div>
 
-        <!-- 视频通话优化设置 -->
-        <div class="settings-section" id="video-call-optimization-section">
-            <!-- 开关行 -->
-            <div class="settings-item">
-                <label>视频通话优化</label>
-                <label class="toggle-switch">
-                    <input type="checkbox" id="enable-video-optimization-switch">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            
-            <!-- 详情配置区域 (由JS控制显示/隐藏) -->
-            <div id="video-optimization-config-container" style="display: none;">
-                
-                <!-- 对方视频图片 -->
-                <div class="settings-item-block">
-                    <label style="font-weight: 500;">对方视频画面</label>
-                    <div style="display: flex; align-items: center; gap: 10px; margin-top: 8px;">
-                        <img id="remote-video-preview" src="" 
-                             style="width: 80px; height: 80px; border-radius: 8px; object-fit: cover; border: 2px solid #ddd; display: none;">
-                        <div id="remote-video-placeholder" style="width: 80px; height: 80px; border-radius: 8px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #999;">未设置</div>
-                    </div>
-                    <div style="display: flex; gap: 8px; margin-top: 10px;">
-                        <button class="settings-mini-btn" onclick="document.getElementById('remote-video-input').click()">本地上传</button>
-                        <button class="settings-mini-btn" id="remote-video-url-btn">URL上传</button>
-                        <button class="settings-mini-btn" id="remote-video-reset-btn" style="background: #ff3b30; color: white;">重置</button>
-                        <input type="file" id="remote-video-input" accept="image/*" hidden>
-                    </div>
-                    <input type="text" id="remote-video-url-input" placeholder="或输入图片URL" 
-                           style="width: 100%; padding: 8px; margin-top: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
-                </div>
-
-                <!-- 我方视频图片 -->
-                <div class="settings-item-block" style="border-bottom: none;">
-                    <label style="font-weight: 500;">我方视频画面</label>
-                    <div style="display: flex; align-items: center; gap: 10px; margin-top: 8px;">
-                        <img id="local-video-preview" src="" 
-                             style="width: 80px; height: 80px; border-radius: 8px; object-fit: cover; border: 2px solid #ddd; display: none;">
-                        <div id="local-video-placeholder" style="width: 80px; height: 80px; border-radius: 8px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #999;">未设置</div>
-                    </div>
-                    <div style="display: flex; gap: 8px; margin-top: 10px;">
-                        <button class="settings-mini-btn" onclick="document.getElementById('local-video-input').click()">本地上传</button>
-                        <button class="settings-mini-btn" id="local-video-url-btn">URL上传</button>
-                        <button class="settings-mini-btn" id="local-video-reset-btn" style="background: #ff3b30; color: white;">重置</button>
-                        <input type="file" id="local-video-input" accept="image/*" hidden>
-                    </div>
-                    <input type="text" id="local-video-url-input" placeholder="或输入图片URL" 
-                           style="width: 100%; padding: 8px; margin-top: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
-                </div>
-
-                <!-- 真实摄像头设置 -->
-                <div class="settings-item-block" style="border-bottom: none; padding-top: 15px; border-top: 1px solid #e0e0e0; margin-top: 15px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <label style="font-weight: 500;">使用真实摄像头</label>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="enable-real-camera-switch">
-                            <span class="slider"></span>
-                        </label>
-                    </div>
-                    <div style="font-size: 12px; color: #666; margin-bottom: 10px;">
-                        启用后，我方画面将使用设备摄像头，AI可以真正"看到"你
-                    </div>
-                    
-                    <!-- 截图间隔设置 -->
-                    <div id="camera-interval-setting" style="display: none;">
-                        <div style="display: flex; align-items: center; gap: 10px; margin-top: 10px;">
-                            <label style="font-size: 13px; white-space: nowrap;">截图间隔</label>
-                            <input type="number" id="camera-capture-interval" 
-                                   min="1" max="60" value="5" 
-                                   style="width: 60px; padding: 6px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
-                            <span style="font-size: 13px; color: #666;">秒</span>
-                        </div>
-                        <div style="font-size: 11px; color: #999; margin-top: 5px;">
-                            定时截取摄像头画面发送给AI，默认5秒
-                        </div>
-                        
-                        <!-- 使用后置摄像头开关 -->
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px;">
-                            <label style="font-size: 13px;">使用后置摄像头</label>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="enable-rear-camera-switch">
-                                <span class="slider"></span>
-                            </label>
-                        </div>
-                        <div style="font-size: 11px; color: #999; margin-top: 5px;">
-                            开启后将切换为后置摄像头（仅移动设备有效）
-                        </div>
-
-                        <!-- 摄像头状态 -->
-                        <div id="camera-status" style="margin-top: 10px; padding: 8px; background: #f9f9f9; border-radius: 6px; font-size: 12px; display: none;">
-                            <div style="display: flex; align-items: center; gap: 5px;">
-                                <span id="camera-status-icon" style="width: 8px; height: 8px; border-radius: 50%; background: #ccc;"></span>
-                                <span id="camera-status-text" style="color: #666;">摄像头未激活</span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- 仅读取对话开关 -->
-                    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e0e0e0;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                            <label style="font-weight: 500; font-size: 13px;">仅读取对话内容</label>
-                            <label class="toggle-switch" style="transform: scale(0.9);">
-                                <input type="checkbox" id="tts-dialogue-only-switch">
-                                <span class="slider"></span>
-                            </label>
-                        </div>
-                        <div style="font-size: 11px; color: #666; line-height: 1.5;">
-                            启用后，语音播报只读取引号内的对话，不读取动作描写等旁白内容
-                        </div>
-                    </div>
-
-                    <!-- 旁白对话穿插模式 -->
-                    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e0e0e0;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                            <label style="font-weight: 500; font-size: 13px;">旁白与对话穿插</label>
-                            <label class="toggle-switch" style="transform: scale(0.9);">
-                                <input type="checkbox" id="video-interleaved-mode-switch">
-                                <span class="slider"></span>
-                            </label>
-                        </div>
-                        <div style="font-size: 11px; color: #666; line-height: 1.5;">
-                            启用后，旁白和对话按自然顺序穿插显示，而非旁白合并在前、对话在后
-                        </div>
-                    </div>
-                </div>
-
-            </div>
-        </div>
+        <!-- 视频通话优化设置 (P3-2: 已删除, 功能迁移到 #live2d-call-prep-screen 的"我的画面"卡片) -->
 
         <!-- 记忆库区域 -->
         <div class="settings-section" id="memory-archive-section">

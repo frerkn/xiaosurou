@@ -393,6 +393,9 @@
   }
 
   // --- 视频/语音通话专用 TTS 播放函数（队列版） ---
+  // P6: 视频通话 AI 改为纯对白输出, 不再有旁白, 删除 videoCall 路径的 ttsDialogueOnly 过滤
+  //   - source === 'videoCall': 走"去除括号及括号内"清洗 (保留旧兼容), 不再读 chat.videoOptimization.ttsDialogueOnly
+  //   - source === 'voiceCall': 走纯 trim 路径 (旧行为, 不读 ttsDialogueOnly)
   function playVideoCallPureTTS(text, voiceId, options = {}) {
     const source = options && options.source ? options.source : '';
     const isVoiceCallTts = source === 'voiceCall';
@@ -401,17 +404,9 @@
     if (isVoiceCallTts) {
       cleanText = String(text || '').trim();
     } else {
-      // 1. 正则去除括号及括号内的内容
+      // 视频通话: AI 返回纯对白, 仅做"去除括号及括号内"清洗 (沿用旧清洗逻辑, 防止残留旁白包裹)
+      // P6: 删除 ttsDialogueOnly / extractDialogueOnly 过滤 (旧数据残留也不影响 — 视频通话统一纯对白)
       cleanText = String(text || '').replace(/(\[.*?\]|\(.*?\)|（.*?）|【.*?】)/g, '').trim();
-
-      // 1.5. 处理"仅读取对话"功能，仅保留视频通话原有行为
-      if (state.activeChatId && state.chats[state.activeChatId]) {
-        const chat = state.chats[state.activeChatId];
-        if (chat.videoOptimization && chat.videoOptimization.ttsDialogueOnly) {
-          cleanText = extractDialogueOnly(cleanText);
-          console.log('[视频通话TTS] 仅读取对话模式：', cleanText);
-        }
-      }
     }
 
     if (!cleanText) {

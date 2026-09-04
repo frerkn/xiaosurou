@@ -102,6 +102,33 @@
     try { localStorage.setItem('live2d.activeModelId.' + chatId, modelId || ''); } catch (e) {}
   }
 
+  // v0.5.0 P2.4: 视频通话默认形象配置 (per-chat, localStorage)
+  // 跟 activeModelId 区别: 这里是用户从"形象调试台"点"使用此形象进入视频通话"后保存的完整状态.
+  // 视频通话挂载模型依然用 activeModelId 拿, 这个 appearance 是更细的"起始状态", 未来
+  // AI 改运行时 expression 不覆盖这里. 结构:
+  //   { modelId, modelPath, scale, positionX, positionY, defaultExpression, updatedAt }
+  function _appearanceKey(chatId) {
+    return 'live2d.videoCallAppearance.' + chatId;
+  }
+  async function getVideoCallAppearance(chatId) {
+    if (!chatId || typeof chatId !== 'string') return null;
+    try {
+      const raw = localStorage.getItem(_appearanceKey(chatId));
+      if (!raw) return null;
+      const obj = JSON.parse(raw);
+      return (obj && typeof obj === 'object') ? obj : null;
+    } catch (e) { return null; }
+  }
+  async function setVideoCallAppearance(chatId, appearance) {
+    if (!chatId || typeof chatId !== 'string') return false;
+    if (!appearance || typeof appearance !== 'object') return false;
+    try {
+      const toSave = Object.assign({}, appearance, { updatedAt: Date.now() });
+      localStorage.setItem(_appearanceKey(chatId), JSON.stringify(toSave));
+      return true;
+    } catch (e) { return false; }
+  }
+
   global.Live2DStorage = {
     saveModel,
     listModels,
@@ -111,5 +138,7 @@
     setActiveModelId,
     getActiveModelIdForChat,
     setActiveModelIdForChat,
+    getVideoCallAppearance,
+    setVideoCallAppearance,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

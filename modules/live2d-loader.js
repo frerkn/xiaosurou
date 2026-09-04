@@ -192,7 +192,72 @@
     return false;
   }
 
-  function setExpression(canvas, expressionId) {
+  // v0.5.0 P2.5: 从 .exp3.json 的 Parameters 数组, 用 SDK coreModel.setParameterValueByIndex 直改模型参数
+  // 抄糯米机 Live2DAvatarCanvas + live2d-manager.js applyExpressionToModel 已验证的路径.
+  // 0.4.0 cubism4 fork 不实例化 expressionManager, 走库 setExpression 会抛异常, 这里绕开库直写参数.
+  // 返回 true = 至少应用了一个参数; false = 找不到 expression 对应参数 (调用方 fallback).
+  async function applyExpressionViaCoreModel(model, expressionId, data) {
+    // 1. 从 data.files 找 .exp3.json (basename 匹配 expressionId, 忽略大小写)
+    //    data 由 mountLive2DFromIDB 缓存到 canvas._live2dModelData.
+    if (!model || !model.internalModel || !expressionId || !data || !data.files) {
+      return false;
+    }
+    const core = model.internalModel.coreModel
+      || model.internalModel._model
+      || (model.internalModel.coreModel && model.internalModel.coreModel._model)
+      || null;
+    if (!core || typeof core.setParameterValueByIndex !== 'function') {
+      return false;
+    }
+    if (typeof core.getParameterIndex !== 'function') {
+      return false;
+    }
+
+    // 2. 定位匹配的 .exp3.json blob
+    let exp3Blob = null;
+    const extIdx = expressionId.toLowerCase().endsWith('.exp3.json') ? expressionId.length : -1;
+    const want = extIdx > 0 ? expressionId.substring(0, extIdx) : expressionId; // 去 .exp3.json
+    for (const [filePath, blob] of data.files.entries()) {
+      const lower = filePath.toLowerCase();
+      if (!lower.endsWith('.exp3.json')) continue;
+      const base = filePath.substring(filePath.lastIndexOf('/') + 1, lower.lastIndexOf('.exp3.json'));
+      if (base === want) { exp3Blob = blob; break; }
+    }
+    if (!exp3Blob || typeof exp3Blob.text !== 'function') {
+      return false;
+    }
+
+    // 3. 解析 Parameters, 逐个 setParameterValueByIndex
+    let applied = 0;
+    try {
+      const expJson = JSON.parse(await exp3Blob.text());
+      const params = Array.isArray(expJson.Parameters) ? expJson.Parameters : [];
+      for (const p of params) {
+        if (!p || !p.Id) continue;
+        let index = -1;
+        try { index = core.getParameterIndex(p.Id); } catch (e) { index = -1; }
+        if (index < 0) continue;
+        const value = typeof p.Value === 'number' ? p.Value : 0;
+        const blend = p.Blend || 'Overwrite';
+        try {
+          let newVal = value;
+          if (blend === 'Add' && typeof core.getParameterValueByIndex === 'function') {
+            newVal = core.getParameterValueByIndex(index) + value;
+          } else if (blend === 'Multiply' && typeof core.getParameterValueByIndex === 'function') {
+            newVal = core.getParameterValueByIndex(index) * value;
+          }
+          core.setParameterValueByIndex(index, newVal);
+          applied++;
+        } catch (e) { /* skip this param */ }
+      }
+    } catch (e) {
+      console.warn('[Live2D] applyExpressionViaCoreModel parse exp3 failed:', e);
+      return false;
+    }
+    return applied > 0;
+  }
+
+  async function setExpression(canvas, expressionId) {
     const model = canvas && canvas._live2dModel;
     if (!model) return false;
     try {
@@ -204,8 +269,18 @@
         }
         return false;
       }
-      model.internalModel.expressionManager.setExpression(expressionId);
-      return true;
+      // 1. 优先走库 expressionManager (如果实例化了)
+      const em = model.internalModel && model.internalModel.expressionManager;
+      if (em && typeof em.setExpression === 'function') {
+        em.setExpression(expressionId);
+        return true;
+      }
+      // 2. 0.4.0 cubism4 fork 不实例化 expressionManager → 走 SDK 直改参数 (live2d-manager.js 已验证)
+      //    data 从 canvas._live2dModelData 拿 (mountLive2DFromIDB 缓存)
+      const viaCore = await applyExpressionViaCoreModel(model, expressionId, canvas._live2dModelData);
+      if (viaCore) return true;
+      console.warn('[Live2D] setExpression: expressionManager 缺失且 SDK 直改找不到参数 (id=' + expressionId + ')');
+      return false;
     } catch (e) {
       console.warn('[Live2D] setExpression failed:', e);
       return false;
@@ -324,6 +399,11 @@
     if (!result.success) {
       canvas._live2dBlobUrls = null;
       blobUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (e) {} });
+    } else {
+      // v0.5.0 P2.5: 缓存 IDB data, 给 setExpression fallback 读 .exp3.json 用
+      // 0.4.0 cubism4 fork 不实例化 expressionManager, setExpression 走 SDK 直改参数时需要
+      // 从 data.files 里拿 .exp3.json 的 Parameters 数组.
+      canvas._live2dModelData = data;
     }
     return result;
   }
