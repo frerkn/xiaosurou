@@ -120,11 +120,13 @@
       }
 
       // v0.1.6: 彻底隐藏所有可能遮挡的"对面画面区"元素
-      // - #video-display-area 整个隐藏 (applyVideoOptimizationToCall 设的 block 会被覆盖)
+      // - #remote-video-large 隐藏 (对面视频显示区, Live2D 挂载后由 canvas 替代)
       // - #remote-video-img 隐藏 (不显示背景图)
       // - #participant-avatars-grid 隐藏 (不显示参与者头像)
-      const displayArea = document.getElementById('video-display-area');
-      if (displayArea) displayArea.style.display = 'none';
+      // 注意: 绝对不能隐藏 #video-display-area 本身 — 它同时包含"我方小屏" (#local-video-small / #local-camera-video),
+      //       藏掉它会连用户自己的摄像头画面一起消失 (回归根因)。
+      const remoteLarge = document.getElementById('remote-video-large');
+      if (remoteLarge) remoteLarge.style.display = 'none';
       const remoteImg = document.getElementById('remote-video-img');
       if (remoteImg) remoteImg.style.display = 'none';
       const participantGrid = document.getElementById('participant-avatars-grid');
@@ -188,8 +190,8 @@
    * inline style 恢复后原图被父元素一起隐藏, 不会出现 1 帧闪现.
    */
   function restoreVideoCallOriginalDisplay() {
-    const displayArea = document.getElementById('video-display-area');
-    if (displayArea) displayArea.style.display = '';
+    const remoteLarge = document.getElementById('remote-video-large');
+    if (remoteLarge) remoteLarge.style.display = '';
     const remoteImg = document.getElementById('remote-video-img');
     if (remoteImg) remoteImg.style.display = '';
     const participantGrid = document.getElementById('participant-avatars-grid');
