@@ -245,7 +245,13 @@ window.applyVideoOptimizationToCall = async function (chat) {
   const videoDisplayArea = document.getElementById('video-display-area');
   const avatarArea = document.querySelector('.video-call-avatar-area');
 
-  if (!chat || !chat.videoOptimization || (!chat.videoOptimization.localVideoUrl && !chat.videoOptimization.enableRealCamera)) {
+  const settings = chat && chat.videoOptimization;
+  const hasRealCam = !!(settings && settings.enableRealCamera);
+  const hasLocalImg = !!(settings && settings.localVideoUrl);
+
+  // 完全没有 videoOptimization 配置 (从未进过准备页"我的画面"卡片) → 保持默认视图 (头像区)
+  // 原逻辑: 隐藏视频区, 显示头像区
+  if (!settings) {
     videoDisplayArea.style.display = 'none';
     if (avatarArea) avatarArea.style.display = 'flex';
     updateVideoCallCameraSwitchButton(false);
@@ -253,39 +259,63 @@ window.applyVideoOptimizationToCall = async function (chat) {
     return;
   }
 
-  const settings = chat.videoOptimization;
-  if (settings.localVideoUrl || settings.enableRealCamera) {
+  // 关闭真实摄像头且无自定义静态图 → 用户视野窗口 (#local-video-small) 仍需可见 (手机 PWA 修复)
+  // 原逻辑: 整个 #video-display-area 被 display:none → 用户视野窗口消失
+  // 现在: 显示视频区, 用户视野窗口用用户头像兜底填充, 保证"关闭真实摄像头后窗口仍在"
+  if (!hasRealCam && !hasLocalImg) {
     videoDisplayArea.style.display = 'block';
     if (avatarArea) avatarArea.style.display = 'none';
-
-    // 处理我方画面：真实摄像头或静态图片
     const localImg = document.getElementById('local-video-img');
     const localVideo = document.getElementById('local-camera-video');
-
-    if (settings.enableRealCamera) {
-      // 使用真实摄像头
-      localImg.style.display = 'none';
-      localVideo.style.display = 'block';
-      updateVideoCallCameraSwitchButton(true);
-
-      const facingMode = settings.useRearCamera ? 'environment' : 'user';
-      const success = await startCamera(facingMode);
-      if (success) {
-        // 启动定时截图
-        const interval = settings.cameraInterval || 5;
-        startCameraCapture(interval);
-      }
-    } else if (settings.localVideoUrl) {
-      // 使用静态图片
-      localVideo.style.display = 'none';
+    if (localVideo) localVideo.style.display = 'none';
+    if (localImg) {
       localImg.style.display = 'block';
-      localImg.src = settings.localVideoUrl;
-      updateVideoCallCameraSwitchButton(false);
-      stopCamera();
+      // 兜底: 无自定义静态图时用用户头像, 跟准备页 getUserAvatarUrl 保持同三级 fallback
+      // (chat.settings.myAvatar → state.qzoneSettings.avatar → defaultAvatar)
+      // 保证手机 PWA 关摄像头后窗口显示用户头像, 而不是黑底 / 空窗
+      let userAvatar = '';
+      try {
+        userAvatar = (chat.settings && chat.settings.myAvatar) || '';
+        if (!userAvatar && typeof state !== 'undefined' && state && state.qzoneSettings && state.qzoneSettings.avatar) {
+          userAvatar = state.qzoneSettings.avatar;
+        }
+        if (!userAvatar && typeof defaultAvatar !== 'undefined' && defaultAvatar) {
+          userAvatar = defaultAvatar;
+        }
+      } catch (e) { /* 取头像失败, 保留窗口黑底, 不抛错 */ }
+      if (userAvatar) localImg.src = userAvatar;
     }
-  } else {
-    videoDisplayArea.style.display = 'none';
-    if (avatarArea) avatarArea.style.display = 'flex';
+    updateVideoCallCameraSwitchButton(false);
+    stopCamera();
+    return;
+  }
+
+  // 有摄像头或有静态图 → 显示视频区
+  videoDisplayArea.style.display = 'block';
+  if (avatarArea) avatarArea.style.display = 'none';
+
+  // 处理我方画面：真实摄像头或静态图片
+  const localImg = document.getElementById('local-video-img');
+  const localVideo = document.getElementById('local-camera-video');
+
+  if (hasRealCam) {
+    // 使用真实摄像头
+    localImg.style.display = 'none';
+    localVideo.style.display = 'block';
+    updateVideoCallCameraSwitchButton(true);
+
+    const facingMode = settings.useRearCamera ? 'environment' : 'user';
+    const success = await startCamera(facingMode);
+    if (success) {
+      // 启动定时截图
+      const interval = settings.cameraInterval || 5;
+      startCameraCapture(interval);
+    }
+  } else if (hasLocalImg) {
+    // 使用静态图片
+    localVideo.style.display = 'none';
+    localImg.style.display = 'block';
+    localImg.src = settings.localVideoUrl;
     updateVideoCallCameraSwitchButton(false);
     stopCamera();
   }

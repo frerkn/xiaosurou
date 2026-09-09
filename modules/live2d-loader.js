@@ -269,17 +269,22 @@
         }
         return false;
       }
-      // 1. 优先走库 expressionManager (如果实例化了)
+      // 1. 优先 SDK 直改 (applyExpressionViaCoreModel): 跟模型预览台 live2d-manager.js 用的是同一套,
+      //    按 .exp3.json basename 匹配并 coreModel.setParameterValueByIndex 改参.
+      //    原因: 之前优先走库 expressionManager 时, em 按 model3.json FileReferences.Expressions[].Name
+      //    查找 id, 对"猫耳"这类未在 model3.json 声明但 .exp3.json 文件仍存于 IDB 的表情会 silent fail,
+      //    我们又直接 return true → SDK fallback 走不到 → 按钮按了不响应.
+      //    SDK 路径预览台已经验证对所有 .exp3.json 都生效.
+      //    data 从 canvas._live2dModelData 拿 (mountLive2DFromIDB 缓存).
+      const viaCore = await applyExpressionViaCoreModel(model, expressionId, canvas._live2dModelData);
+      if (viaCore) return true;
+      // 2. SDK 失败 → 再尝试库 expressionManager (某些模型 em 注册了部分声明过的表情, 兜底保留)
       const em = model.internalModel && model.internalModel.expressionManager;
       if (em && typeof em.setExpression === 'function') {
         em.setExpression(expressionId);
         return true;
       }
-      // 2. 0.4.0 cubism4 fork 不实例化 expressionManager → 走 SDK 直改参数 (live2d-manager.js 已验证)
-      //    data 从 canvas._live2dModelData 拿 (mountLive2DFromIDB 缓存)
-      const viaCore = await applyExpressionViaCoreModel(model, expressionId, canvas._live2dModelData);
-      if (viaCore) return true;
-      console.warn('[Live2D] setExpression: expressionManager 缺失且 SDK 直改找不到参数 (id=' + expressionId + ')');
+      console.warn('[Live2D] setExpression: SDK 直改及库 expressionManager 都不可用 (id=' + expressionId + ')');
       return false;
     } catch (e) {
       console.warn('[Live2D] setExpression failed:', e);
