@@ -1,0 +1,2694 @@
+           /* 视频通话优化 - 视频显示区域 */
+           #video-display-area {
+               position: absolute;
+               top: 0;
+               left: 0;
+               width: 100%;
+               height: 100%;
+               z-index: 1;
+           }
+
+           .video-large-screen {
+               position: absolute;
+               top: 0;
+               left: 0;
+               width: 100%;
+               height: 100%;
+               background-color: #000;
+               overflow: hidden;
+           }
+
+           .video-large-screen img {
+               width: 100%;
+               height: 100%;
+               object-fit: cover;
+           }
+
+           .video-small-screen {
+               position: absolute;
+               top: 80px;
+               right: 20px;
+               width: 100px;
+               height: 140px;
+               background-color: #000;
+               border-radius: 12px;
+               overflow: hidden;
+               border: 2px solid rgba(255, 255, 255, 0.3);
+               cursor: pointer;
+               z-index: 101;
+               transition: all 0.3s ease;
+           }
+
+           .video-small-screen:hover {
+               border-color: rgba(255, 255, 255, 0.6);
+               transform: scale(1.05);
+           }
+
+           .video-small-screen img {
+               width: 100%;
+               height: 100%;
+               object-fit: cover;
+           }
+
+           #video-call-main {
+               position: absolute;
+               bottom: 140px;
+               left: 15px;
+               right: 15px;
+               max-height: 30%;
+               overflow-y: auto;
+               padding: 15px;
+               background-color: rgba(0, 0, 0, 0.6);
+               border-radius: 20px;
+               display: flex;
+               flex-direction: column;
+               gap: 15px;
+               box-sizing: border-box;
+               z-index: 50;
+               backdrop-filter: blur(10px);
+           }
+
+           .control-btn {
+               width: 70px;
+               height: 70px;
+               border-radius: 50%;
+               border: none;
+               cursor: pointer;
+               background-repeat: no-repeat;
+               background-position: center;
+               transition: transform 0.2s, background-color 0.2s;
+           }
+
+           .control-btn:active {
+               transform: scale(0.9);
+           }
+
+           .control-btn.speak-btn {
+               background-color: rgba(255, 255, 255, 0.2);
+               background-size: 55%;
+               background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>');
+           }
+
+           #video-call-screen #user-speak-btn {
+               display: none !important;
+           }
+
+           #video-call-screen #regenerate-call-btn.camera-switch-btn {
+               background-size: 55% !important;
+               background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/><path d="M8 2v3"/><path d="M8 19v3"/><path d="M5 12h6"/><path d="M8 9l-3 3 3 3"/></svg>') !important;
+           }
+
+           /* 模型管理按钮 — 半透明白底 + 人物轮廓图标 (feather icons "user")
+              位置: 挂断键 和 摄像头翻转键 之间 */
+           #video-call-screen #model-manage-btn.model-manage-btn {
+               background-color: rgba(255, 255, 255, 0.2);
+               background-size: 55% !important;
+               background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>') !important;
+           }
+
+           /* 模型管理浮层面板 — 复用项目通用 .modal 模式
+              位置: 视频通话页面内, #video-call-screen 内部
+              不影响: Live2D canvas / 摄像头 / 通话状态 / ASR / TTS / AI 对话 (只是 CSS overlay) */
+           #video-call-screen #model-management-panel.model-management-panel {
+               /* 盖过 Live2D canvas (inline z-index: 99999, pointer-events:auto) + 通话控制条 (inline z-index: 100000)
+                  之前 z-index:10000 被 canvas 盖住导致面板按钮全点不到, 抬到 100001 恢复可点 */
+               z-index: 100001 !important;
+           }
+
+           #video-call-screen .model-management-content {
+               width: 90%;
+               max-width: 480px;
+               max-height: 80%;
+               background: rgba(255, 245, 248, 0.92);  /* 粉白色半透明 */
+               border-radius: 18px;
+               box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+               -webkit-backdrop-filter: blur(20px);
+               backdrop-filter: blur(20px);
+               border: 1px solid rgba(255, 255, 255, 0.6);
+           }
+
+           #video-call-screen .model-management-header {
+               padding: 14px 18px;
+               border-bottom: 1px solid rgba(220, 200, 210, 0.4);
+               color: #6b4a5b;
+           }
+
+           #video-call-screen .model-management-title {
+               font-size: 16px;
+               font-weight: 600;
+           }
+
+           #video-call-screen .model-management-close-btn {
+               width: 30px;
+               height: 30px;
+               border-radius: 50%;
+               border: none;
+               background: rgba(255, 200, 215, 0.5);
+               color: #6b4a5b;
+               font-size: 20px;
+               line-height: 1;
+               cursor: pointer;
+               display: flex;
+               align-items: center;
+               justify-content: center;
+               padding: 0;
+               transition: background 0.2s;
+           }
+
+           #video-call-screen .model-management-close-btn:hover {
+               background: rgba(255, 180, 200, 0.7);
+           }
+
+           #video-call-screen .model-management-body {
+               padding: 40px 20px;
+               text-align: center;
+               color: #8a6470;
+           }
+
+           #video-call-screen .model-management-placeholder {
+               font-size: 15px;
+               color: #a07a85;
+               margin: 0;
+           }
+
+           /* 模型管理面板 - 表情/动作 区域 (粉白调, 跟 live2d-manager-debug-btn 对齐) */
+           #video-call-screen .model-management-section {
+               margin-bottom: 14px;
+           }
+
+           #video-call-screen .model-management-section:last-child {
+               margin-bottom: 0;
+           }
+
+           #video-call-screen .model-management-section-title {
+               font-size: 12px;
+               font-weight: 600;
+               color: #b06a82;
+               margin-bottom: 6px;
+           }
+
+           #video-call-screen .model-management-actions {
+               display: flex;
+               flex-wrap: wrap;
+               gap: 6px;
+           }
+
+           #video-call-screen .model-management-action-btn {
+               flex-shrink: 0;
+               max-width: 100%;
+               overflow: hidden;
+               text-overflow: ellipsis;
+               white-space: nowrap;
+               background: rgba(255, 255, 255, 0.85);
+               border: 1.5px solid rgba(255, 182, 193, 0.35);
+               border-radius: 8px;
+               padding: 5px 10px;
+               font-size: 12px;
+               color: #b06a82;
+               cursor: pointer;
+               font-family: inherit;
+               transition: background 0.15s, border-color 0.15s, transform 0.1s;
+           }
+
+           #video-call-screen .model-management-action-btn:active {
+               transform: scale(0.96);
+               background: rgba(255, 200, 220, 0.85);
+           }
+
+           #video-call-screen .model-management-action-btn-active {
+               background: linear-gradient(135deg, #fff0f5 0%, #ffe4ec 100%);
+               border-color: rgba(255, 105, 135, 0.55);
+               color: #c2185b;
+           }
+
+           #video-call-screen .model-management-action-reset {
+               background: rgba(255, 240, 245, 0.9);
+               border: 1.5px solid rgba(255, 142, 179, 0.4);
+               border-radius: 8px;
+               padding: 5px 10px;
+               font-size: 12px;
+               color: #c2185b;
+               font-weight: 500;
+               cursor: pointer;
+               font-family: inherit;
+               margin-top: 6px;
+               transition: background 0.15s, transform 0.1s;
+           }
+
+           #video-call-screen .model-management-action-reset:hover:not(:disabled) {
+               background: rgba(255, 220, 232, 0.95);
+           }
+
+           #video-call-screen .model-management-action-reset:active:not(:disabled) {
+               transform: scale(0.96);
+           }
+
+           #video-call-screen .model-management-action-reset:disabled {
+               opacity: 0.5;
+               cursor: not-allowed;
+           }
+
+           #video-call-screen .model-management-empty {
+               font-size: 12px;
+               color: #b58a9a;
+               text-align: center;
+               padding: 8px 0;
+           }
+
+           #video-call-screen .model-management-no-model {
+               font-size: 13px;
+               color: #b58a9a;
+               text-align: center;
+               padding: 16px 0;
+           }
+
+           .control-btn.hangup-btn {
+               background-color: #ff3b30;
+               background-size: 50%;
+               background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 16.5L3 6m18 6l-5.6-5.6a1.2 1.2 0 0 0-1.7 0L3 18.2a1.2 1.2 0 0 0-.3 1.2l1.2 3.6a1.2 1.2 0 0 0 1.2.9h15.6a1.2 1.2 0 0 0 1.2-1.2V7.7a1.2 1.2 0 0 0-.3-1.1z"/></svg>');
+           }
+
+           .control-btn.join-btn {
+               background-color: #007bff;
+               background-size: 50%;
+               background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="17" y1="11" x2="23" y2="11"></line></svg>');
+           }
+
+           .call-message-bubble {
+               padding: 10px 15px;
+               border-radius: 12px;
+               max-width: 85%;
+               line-height: 1.6;
+               word-break: break-word;
+               white-space: pre-wrap;
+           }
+
+           .call-message-bubble.ai-speech {
+               background-color: rgba(255, 255, 255, 0.15);
+               align-self: flex-start;
+           }
+
+           .call-message-bubble.user-speech {
+               background-color: #4cd964;
+               align-self: flex-end;
+               text-align: left;
+           }
+
+           #outgoing-call-screen {
+               background-color: #1c1c1e;
+               color: white;
+               justify-content: center;
+           }
+
+           /* 语音通话样式 */
+           #voice-call-screen {
+               background-color: #1c1c1e;
+               color: white;
+               display: flex;
+               flex-direction: column;
+               overflow: hidden;
+           }
+
+           .voice-call-top-bar {
+               position: absolute;
+               top: 0;
+               left: 0;
+               width: 100%;
+               padding: 15px 20px;
+               padding-top: 50px;
+               background: linear-gradient(to bottom, rgba(0, 0, 0, 0.5), transparent);
+               z-index: 100;
+               text-align: center;
+               box-sizing: border-box;
+               pointer-events: none;
+           }
+
+           #voice-call-timer {
+               font-size: 16px;
+               font-weight: 500;
+               letter-spacing: 1px;
+           }
+
+           .voice-call-controls {
+               position: absolute;
+               bottom: 0;
+               left: 0;
+               width: 100%;
+               display: flex;
+               justify-content: space-around;
+               align-items: center;
+               padding: 20px;
+               padding-bottom: 40px;
+               background: linear-gradient(to top, rgba(0, 0, 0, 0.5), transparent);
+               z-index: 100;
+               box-sizing: border-box;
+           }
+
+            .voice-call-avatar-area {
+                flex-grow: 1;
+                display: flex;
+                justify-content: center;
+                align-items: flex-start;
+                padding: 20px;
+                padding-top: 100px;
+                box-sizing: border-box;
+                overflow-y: auto;
+            }
+
+           #voice-participant-avatars-grid {
+               display: flex;
+               flex-wrap: wrap;
+               justify-content: center;
+               align-items: center;
+               gap: 15px;
+               max-width: 100%;
+           }
+
+           .voice-call-status-text {
+               position: absolute;
+               left: 20px;
+               right: 20px;
+               bottom: 245px;
+               z-index: 55;
+               color: rgba(255, 255, 255, 0.88);
+               font-size: 14px;
+               text-align: center;
+               pointer-events: none;
+               text-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+           }
+
+           #video-call-screen #video-call-status-text {
+               display: block !important;
+               position: absolute;
+               left: 50%;
+               right: auto;
+               bottom: 245px;
+               z-index: 120;
+               width: auto;
+               max-width: calc(100% - 40px);
+               min-height: 20px;
+               padding: 0;
+               box-sizing: border-box;
+               color: rgba(255, 255, 255, 0.96);
+               font-size: 14px;
+               font-weight: 500;
+               line-height: 20px;
+               text-align: center;
+               opacity: 1;
+               visibility: visible;
+               pointer-events: none;
+               transform: translateX(-50%);
+               text-shadow: 0 1px 5px rgba(0, 0, 0, 0.65);
+               background: transparent;
+               border: none;
+               border-radius: 0;
+               box-shadow: none;
+               backdrop-filter: none;
+               -webkit-backdrop-filter: none;
+           }
+
+           #voice-call-main {
+               position: absolute;
+               bottom: 140px;
+               left: 15px;
+               right: 15px;
+               max-height: 30%;
+               overflow-y: auto;
+               padding: 15px;
+               background-color: rgba(0, 0, 0, 0.6);
+               border-radius: 20px;
+               display: flex;
+               flex-direction: column;
+               gap: 15px;
+               box-sizing: border-box;
+               z-index: 50;
+               backdrop-filter: blur(10px);
+           }
+
+           .voice-call-top-bar #minimize-voice-call-btn {
+               position: absolute;
+               left: 20px;
+               top: 50px;
+               width: 36px;
+               height: 36px;
+               border-radius: 50%;
+               background-color: rgba(255, 255, 255, 0.2);
+               border: none;
+               cursor: pointer;
+               display: flex;
+               align-items: center;
+               justify-content: center;
+               transition: all 0.3s ease;
+               opacity: 0.7;
+               pointer-events: auto;
+           }
+
+           .voice-call-top-bar #minimize-voice-call-btn:hover {
+               opacity: 1;
+           }
+
+           #voice-call-restore-btn {
+               position: absolute;
+               top: 120px;
+               right: 20px;
+               width: 60px;
+               height: 60px;
+               border-radius: 50%;
+               background-color: #1c1c1e;
+               border: 2px solid rgba(255, 255, 255, 0.3);
+               cursor: pointer;
+               display: none;
+               align-items: center;
+               justify-content: center;
+               z-index: 1000;
+               box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+               transition: all 0.3s ease;
+           }
+
+           #voice-call-restore-btn:hover {
+               transform: scale(1.1);
+               border-color: rgba(255, 255, 255, 0.6);
+           }
+
+           #voice-call-restore-btn svg {
+               width: 30px;
+               height: 30px;
+               stroke: white;
+           }
+
+           .outgoing-call-content {
+               display: flex;
+               flex-direction: column;
+               align-items: center;
+               text-align: center;
+           }
+
+           .outgoing-call-actions {
+               margin-top: 50px;
+               display: flex;
+               flex-direction: column;
+               align-items: center;
+               gap: 8px;
+               font-size: 13px;
+               color: #e0e0e0;
+           }
+
+           .qzone-post-container {
+               position: relative;
+               overflow: hidden;
+               border-radius: 12px;
+           }
+
+           .qzone-post-item {
+               transition: transform 0.3s ease;
+               background-color: var(--secondary-bg);
+               position: relative;
+               z-index: 2;
+           }
+
+           .qzone-post-delete-action {
+               position: absolute;
+               top: 0;
+               right: 0;
+               bottom: 0;
+               width: 90px;
+               background-color: #ff3b30;
+               color: white;
+               display: flex;
+               align-items: center;
+               justify-content: center;
+               font-weight: 500;
+               cursor: pointer;
+               z-index: 1;
+           }
+
+           .qzone-post-item.swiped {
+               transform: translateX(-90px);
+           }
+
+           @keyframes pat-shake {
+
+               0%,
+               100% {
+                   transform: translateX(0);
+               }
+
+               10%,
+               30%,
+               50%,
+               70%,
+               90% {
+                   transform: translateX(-3px);
+               }
+
+               20%,
+               40%,
+               60%,
+               80% {
+                   transform: translateX(3px);
+               }
+           }
+
+           .pat-animation {
+               animation: pat-shake 0.4s ease-in-out;
+           }
+
+           .system-message {
+               align-self: center;
+               padding: 4px 12px;
+               margin: 5px 0;
+               background-color: rgba(0, 0, 0, 0.1);
+               color: var(--text-secondary);
+               font-size: 12px;
+               border-radius: 10px;
+               text-align: center;
+               max-width: 80%;
+           }
+
+           .message-wrapper.system-pat {
+               justify-content: center;
+               align-self: center;
+               margin: 5px 0;
+               max-width: 80%;
+           }
+
+           .message-bubble.system-bubble {
+               background-color: rgba(0, 0, 0, 0.1);
+               color: var(--text-secondary);
+               font-size: 12px;
+               padding: 4px 12px;
+               border-radius: 10px;
+           }
+
+           #chat-input-actions-top {
+               display: flex;
+               gap: 8px;
+               padding: 0 5px;
+               overflow-x: auto;
+               flex-wrap: nowrap;
+               -webkit-overflow-scrolling: touch;
+               scrollbar-width: none;
+               -ms-overflow-style: none;
+           }
+
+           #chat-input-actions-top::-webkit-scrollbar {
+               display: none;
+           }
+
+           #chat-header-title-wrapper {
+               display: flex;
+               flex-direction: column;
+               align-items: center;
+               gap: 2px;
+               position: absolute;
+               left: 50%;
+               transform: translateX(-50%);
+               max-width: 60%;
+           }
+
+           #chat-header-title {
+               font-size: 16px;
+               font-weight: 600;
+               position: static;
+               transform: none;
+               white-space: nowrap;
+               overflow: hidden;
+               text-overflow: ellipsis;
+               max-width: 100%;
+           }
+
+           #chat-header-status {
+               display: flex;
+               align-items: center;
+               gap: 5px;
+               font-size: 11px;
+               color: var(--text-secondary);
+               transition: all 0.3s ease;
+           }
+
+           .status-dot {
+               width: 7px;
+               height: 7px;
+               border-radius: 50%;
+               background-color: #4cd964;
+               transition: background-color 0.3s ease;
+           }
+
+           #chat-header-status.busy .status-dot {
+               background-color: #cccccc;
+           }
+
+           .status-text {
+               font-weight: 500;
+           }
+
+           .memory-card {
+               background-color: #fffaf0;
+               border-radius: 12px;
+               padding: 15px;
+               box-shadow: 0 2px 6px rgba(0, 0, 0, 0.07);
+               border-left: 5px solid #ffb74d;
+               display: flex;
+               flex-direction: column;
+               gap: 8px;
+           }
+
+           .memory-card .header {
+               border-bottom: 1px solid rgba(217, 129, 0, 0.15);
+               padding-bottom: 8px;
+           }
+
+           .memory-card .header .date {
+               font-size: 11px;
+               color: #a1887f;
+               margin-bottom: 4px;
+           }
+
+           .memory-card .header .author {
+               font-weight: 600;
+               color: #d98100;
+               font-size: 15px;
+               white-space: nowrap;
+               overflow: hidden;
+               text-overflow: ellipsis;
+           }
+
+           .memory-card .content {
+               font-size: 14px;
+               line-height: 1.7;
+               color: #5d4037;
+               white-space: pre-wrap;
+           }
+
+           .countdown-card {
+               background: linear-gradient(135deg, #667eea, #764ba2);
+               color: white;
+               border-radius: 12px;
+               padding: 20px;
+               box-shadow: 0 4px 15px rgba(118, 75, 162, 0.4);
+               text-align: center;
+               position: relative;
+               overflow: hidden;
+               flex-shrink: 0;
+           }
+
+           .countdown-card::before {
+               content: '✨';
+               position: absolute;
+               top: -10px;
+               left: -10px;
+               font-size: 50px;
+               opacity: 0.1;
+               transform: rotate(-15deg);
+           }
+
+           .countdown-card .title {
+               font-size: 18px;
+               font-weight: 600;
+               margin-bottom: 15px;
+           }
+
+           .countdown-card .timer {
+               font-size: 28px;
+               font-weight: 300;
+               letter-spacing: 2px;
+               margin-bottom: 15px;
+           }
+
+           .countdown-card .target-date {
+               font-size: 12px;
+               opacity: 0.8;
+               border-top: 1px solid rgba(255, 255, 255, 0.2);
+               padding-top: 10px;
+           }
+
+           #chat-lock-overlay {
+               position: absolute;
+               bottom: 0;
+               left: 0;
+               width: 100%;
+               background-color: rgba(247, 247, 247, 0.9);
+               backdrop-filter: blur(10px);
+               -webkit-backdrop-filter: blur(10px);
+               z-index: 150;
+               display: none;
+               align-items: center;
+               justify-content: center;
+               padding: 20px;
+               box-sizing: border-box;
+               border-top: 1px solid var(--border-color);
+               text-align: center;
+           }
+
+           #chat-lock-content {
+               display: flex;
+               flex-direction: column;
+               gap: 15px;
+           }
+
+           #chat-lock-content .lock-text {
+               color: var(--text-secondary);
+               font-size: 14px;
+           }
+
+           #chat-lock-content .lock-action-btn {
+               padding: 10px 20px;
+               border-radius: 20px;
+               border: 1px solid var(--accent-color);
+               background-color: var(--accent-color);
+               color: white;
+               cursor: pointer;
+           }
+
+           #chat-lock-content .lock-action-btn.secondary {
+               background-color: transparent;
+               color: var(--accent-color);
+           }
+
+           .red-packet-card {
+               width: 220px;
+               border-radius: 8px;
+               background: linear-gradient(160deg, #F96259, #E44D44);
+               color: #ffd700;
+               padding: 12px;
+               cursor: pointer;
+               box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+               position: relative;
+               overflow: hidden;
+           }
+
+           .red-packet-card.opened {
+               background: linear-gradient(160deg, #d3c4a0, #c4b693);
+               cursor: default;
+           }
+
+           .red-packet-card::before {
+               content: '🧧';
+               position: absolute;
+               top: -5px;
+               left: -5px;
+               font-size: 30px;
+               opacity: 0.2;
+               transform: rotate(-10deg);
+           }
+
+           .rp-header {
+               display: flex;
+               align-items: center;
+               gap: 8px;
+               margin-bottom: 8px;
+           }
+
+           .rp-icon {
+               width: 20px;
+               height: 20px;
+           }
+
+           .rp-greeting {
+               font-size: 15px;
+               font-weight: 500;
+               white-space: nowrap;
+               overflow: hidden;
+               text-overflow: ellipsis;
+           }
+
+           .rp-type {
+               font-size: 11px;
+               color: white;
+               opacity: 0.8;
+               border-top: 1px solid rgba(255, 255, 255, 0.2);
+               padding-top: 8px;
+               margin-top: 8px;
+           }
+
+           .rp-claimed-info {
+               font-size: 13px;
+               color: white;
+               margin-top: 10px;
+               padding-top: 10px;
+               border-top: 1px solid rgba(255, 255, 255, 0.3);
+           }
+
+           .rp-details-item {
+               display: flex;
+               align-items: center;
+               padding: 8px 0;
+               border-bottom: 1px solid #eee;
+           }
+
+           .rp-details-item:last-child {
+               border-bottom: none;
+           }
+
+           .rp-details-item .name {
+               flex-grow: 1;
+               font-weight: 500;
+               color: #333;
+           }
+
+           .rp-details-item .amount {
+               font-weight: 500;
+               color: #555;
+           }
+
+           .rp-details-item .lucky-king-tag {
+               font-size: 10px;
+               background-color: #ffd700;
+               color: #a67c00;
+               padding: 2px 5px;
+               border-radius: 4px;
+               margin-left: 8px;
+               font-weight: bold;
+           }
+
+           .poll-card {
+               width: 250px;
+               background-color: #f9f9f9;
+               border-radius: 10px;
+               border: 1px solid #e0e0e0;
+               padding: 12px;
+               font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+           }
+
+           .poll-card.closed {
+               background-color: #e9ecef;
+           }
+
+           .poll-question {
+               font-weight: 600;
+               font-size: 15px;
+               margin-bottom: 12px;
+               line-height: 1.4;
+               word-break: break-word;
+           }
+
+           .poll-options-list {
+               display: flex;
+               flex-direction: column;
+               gap: 8px;
+           }
+
+           .poll-option-item {
+               background-color: white;
+               border: 1px solid #dcdcdc;
+               border-radius: 8px;
+               padding: 10px;
+               cursor: pointer;
+               position: relative;
+               overflow: hidden;
+               transition: background-color 0.2s;
+           }
+
+           .poll-card:not(.closed) .poll-option-item:hover {
+               background-color: #f0f8ff;
+           }
+
+           .poll-option-item.voted {
+               border-color: var(--accent-color);
+               background-color: #e7f3ff;
+               font-weight: 500;
+           }
+
+           .poll-option-bar {
+               position: absolute;
+               top: 0;
+               left: 0;
+               height: 100%;
+               background-color: rgba(0, 123, 255, 0.1);
+               z-index: 1;
+               transition: width 0.3s ease-in-out;
+           }
+
+           .poll-option-content {
+               position: relative;
+               z-index: 2;
+               display: flex;
+               justify-content: space-between;
+               align-items: center;
+           }
+
+           .poll-option-text {
+               font-size: 14px;
+           }
+
+           .poll-option-votes {
+               font-size: 13px;
+               color: #8a8a8a;
+               font-weight: 500;
+           }
+
+           .poll-footer {
+               margin-top: 12px;
+               padding-top: 8px;
+               border-top: 1px solid #e9e9e9;
+               display: flex;
+               justify-content: space-between;
+               align-items: center;
+               font-size: 12px;
+               color: var(--text-secondary);
+           }
+
+           .poll-total-votes {
+               font-weight: 500;
+           }
+
+           .poll-action-btn {
+               background: none;
+               border: 1px solid var(--accent-color);
+               color: var(--accent-color);
+               padding: 4px 10px;
+               border-radius: 15px;
+               cursor: pointer;
+               font-size: 12px;
+           }
+
+           .poll-card.closed .poll-action-btn {
+               background-color: #6c757d;
+               color: white;
+               border-color: #6c757d;
+           }
+
+           .poll-option-input-wrapper {
+               display: flex;
+               align-items: center;
+               gap: 8px;
+           }
+
+           .poll-option-input-wrapper input {
+               flex-grow: 1;
+           }
+
+           .poll-option-input-wrapper .remove-option-btn {
+               width: 28px;
+               height: 28px;
+               border-radius: 50%;
+               background-color: #f0f0f0;
+               color: #ff3b30;
+               border: none;
+               cursor: pointer;
+               font-size: 18px;
+               line-height: 28px;
+               text-align: center;
+               flex-shrink: 0;
+           }
+
+           #chat-header-title.typing-status {
+               color: var(--text-secondary);
+               animation: typing-pulse 1.5s infinite;
+               font-style: italic;
+           }
+
+           @keyframes typing-pulse {
+
+               0%,
+               100% {
+                   opacity: 1;
+               }
+
+               50% {
+                   opacity: 0.6;
+               }
+           }
+
+           #chat-header-title {
+               transition: opacity 0.2s ease-in-out;
+           }
+
+           @keyframes message-pop-in {
+               from {
+                   opacity: 0;
+                   transform: translateY(15px);
+               }
+
+               to {
+                   opacity: 1;
+                   transform: translateY(0);
+               }
+           }
+
+           .message-wrapper.animate-in {
+               animation: message-pop-in 0.3s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+           }
+
+           #icon-settings-grid,
+           #cphone-icon-settings-grid {
+               display: grid;
+               grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+               gap: 20px;
+               width: 100%;
+               padding: 0 10px;
+               box-sizing: border-box;
+           }
+
+           .icon-setting-item {
+               display: flex;
+               flex-direction: column;
+               align-items: center;
+               gap: 8px;
+           }
+
+           .icon-preview {
+               width: 60px;
+               height: 60px;
+               border-radius: 15px;
+               background-size: cover;
+               background-position: center;
+               box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+           }
+
+           .change-icon-btn {
+               padding: 4px 10px;
+               font-size: 12px;
+               border: 1px solid #ccc;
+               background-color: #f0f0f0;
+               border-radius: 5px;
+               cursor: pointer;
+           }
+
+           #wallpaper-screen .form-container {
+               min-height: 0;
+           }
+
+           #wallpaper-preview {
+               flex-shrink: 0;
+           }
+
+           #browser-screen {
+               background-color: #f8f9fa;
+           }
+
+           #browser-content {
+               padding: 20px;
+               font-size: 16px;
+               line-height: 1.8;
+               color: #333;
+               overflow-y: auto;
+               background-color: #f8f9fa;
+           }
+
+           #browser-content .article-title {
+               font-size: 24px;
+               font-weight: 700;
+               margin-bottom: 10px;
+           }
+
+           #browser-content .article-meta {
+               font-size: 13px;
+               color: #8a8a8a;
+               margin-bottom: 25px;
+               padding-bottom: 15px;
+               border-bottom: 1px solid #e0e0e0;
+           }
+
+           #browser-content .article-body {
+               white-space: pre-wrap;
+               word-break: break-word;
+           }
+
+           #browser-content .article-body p {
+               margin-bottom: 1em;
+           }
+
+           .link-share-card {
+               width: 210px;
+               background-color: var(--secondary-bg);
+               border-radius: 10px;
+               border: 1px solid #e0e0e0;
+               padding: 12px;
+               cursor: pointer;
+               transition: background-color 0.2s;
+               display: flex;
+               flex-direction: column;
+               gap: 8px;
+           }
+
+           .link-share-card:hover {
+               background-color: #f9f9f9;
+           }
+
+           .link-share-card .title {
+               font-weight: 600;
+               font-size: 15px;
+               line-height: 1.4;
+               color: #1f1f1f;
+               display: -webkit-box;
+               -webkit-line-clamp: 2;
+               -webkit-box-orient: vertical;
+               overflow: hidden;
+               text-overflow: ellipsis;
+           }
+
+           .link-share-card .description {
+               font-size: 13px;
+               color: #8a8a8a;
+               display: -webkit-box;
+               -webkit-line-clamp: 3;
+               -webkit-box-orient: vertical;
+               overflow: hidden;
+               text-overflow: ellipsis;
+           }
+
+           .link-share-card .footer {
+               display: flex;
+               align-items: center;
+               gap: 6px;
+               font-size: 12px;
+               color: var(--text-secondary);
+               margin-top: 4px;
+           }
+
+           .link-share-card .footer-icon {
+               width: 14px;
+               height: 14px;
+               flex-shrink: 0;
+           }
+
+           /* 歌单分享卡片 */
+           .playlist-share-card {
+               width: 210px;
+               background-color: var(--secondary-bg);
+               border-radius: 10px;
+               border: 1px solid #e0e0e0;
+               padding: 12px;
+               display: flex;
+               flex-direction: column;
+               gap: 8px;
+           }
+
+           .playlist-share-header {
+               display: flex;
+               align-items: center;
+               gap: 8px;
+           }
+
+           .playlist-share-icon {
+               flex-shrink: 0;
+               color: var(--text-secondary);
+           }
+
+           .playlist-share-title {
+               font-weight: 600;
+               font-size: 15px;
+               color: #1f1f1f;
+               overflow: hidden;
+               text-overflow: ellipsis;
+               white-space: nowrap;
+           }
+
+           .playlist-share-songs {
+               display: flex;
+               flex-direction: column;
+               gap: 6px;
+           }
+
+           .playlist-song-item {
+               display: flex;
+               align-items: center;
+               gap: 8px;
+           }
+
+           .playlist-song-index {
+               font-size: 12px;
+               color: var(--text-secondary);
+               width: 16px;
+               text-align: center;
+               flex-shrink: 0;
+           }
+
+           .playlist-song-info {
+               display: flex;
+               flex-direction: column;
+               overflow: hidden;
+               min-width: 0;
+           }
+
+           .playlist-song-name {
+               font-size: 13px;
+               color: #1f1f1f;
+               overflow: hidden;
+               text-overflow: ellipsis;
+               white-space: nowrap;
+           }
+
+           .playlist-song-artist {
+               font-size: 11px;
+               color: var(--text-secondary);
+               overflow: hidden;
+               text-overflow: ellipsis;
+               white-space: nowrap;
+           }
+
+           .playlist-song-more {
+               font-size: 12px;
+               color: var(--text-secondary);
+               padding-left: 24px;
+           }
+
+           .playlist-share-footer {
+               display: flex;
+               align-items: center;
+               font-size: 12px;
+               color: var(--text-secondary);
+               margin-top: 4px;
+               padding-top: 8px;
+               border-top: 1px solid #e8e8e8;
+           }
+
+           .comment-item {
+               position: relative;
+               padding-right: 25px;
+           }
+
+           .comment-delete-btn {
+               position: absolute;
+               top: 50%;
+               right: 0;
+               transform: translateY(-50%);
+               width: 22px;
+               height: 22px;
+               line-height: 22px;
+               text-align: center;
+               border-radius: 50%;
+               color: var(--text-secondary);
+               font-size: 18px;
+               cursor: pointer;
+               transition: all 0.2s ease;
+               opacity: 0;
+           }
+
+           .comment-item:hover .comment-delete-btn {
+               opacity: 1;
+           }
+
+           .comment-delete-btn:hover {
+               background-color: #f0f0f0;
+               color: #ff3b30;
+           }
+
+           #phone-screen.dark-mode {
+               --secondary-bg: #1c1c1e;
+               --border-color: #38383a;
+               --text-primary: #ffffff;
+               --text-secondary: #8d8d92;
+           }
+
+           #phone-screen.dark-mode #chat-list-screen,
+           #phone-screen.dark-mode #qzone-screen .qzone-content,
+           #phone-screen.dark-mode #memories-view {
+               background-color: #000000;
+           }
+
+           #phone-screen.dark-mode #chat-list {
+               background-color: #000000;
+           }
+
+           #phone-screen.dark-mode .chat-list-item {
+               border-bottom-color: rgba(255, 255, 255, 0.15);
+           }
+
+           #phone-screen.dark-mode .chat-group-header {
+               background-color: #1c1c1e;
+               border-bottom: 1px solid #38383a;
+           }
+
+           #phone-screen.dark-mode .chat-list-item .name,
+           #phone-screen.dark-mode .chat-group-header .group-name {
+               color: #ffffff;
+           }
+
+           #phone-screen.dark-mode .chat-list-item:hover {
+               background-color: #1c1c1e;
+           }
+
+           #phone-screen.dark-mode .header,
+           #phone-screen.dark-mode .qzone-header {
+               background-color: rgba(25, 25, 25, 0.9);
+               backdrop-filter: blur(15px);
+               -webkit-backdrop-filter: blur(15px);
+               border-bottom-color: rgba(255, 255, 255, 0.15);
+               color: #ffffff;
+           }
+
+           #phone-screen.dark-mode .header .back-btn,
+           #phone-screen.dark-mode .header .action-btn,
+           #phone-screen.dark-mode .header .save-btn {
+               color: #ffffff;
+           }
+
+           #phone-screen.dark-mode #chat-list-bottom-nav {
+               background-color: rgba(25, 25, 25, 0.9);
+               border-top-color: rgba(255, 255, 255, 0.15);
+           }
+
+           #phone-screen.dark-mode .nav-item.active {
+               color: #ffffff;
+           }
+
+           #phone-screen.dark-mode #chat-input-area {
+               background-color: rgba(5, 5, 5, 0.8);
+               border-top: none;
+           }
+
+           #phone-screen.dark-mode #chat-input {
+               background-color: #3e3e42;
+               color: #ffffff;
+           }
+
+           #phone-screen.dark-mode #chat-input::placeholder {
+               color: #8d8d92;
+           }
+
+           #phone-screen.dark-mode .chat-action-icon-btn {
+               color: #ffffff;
+               background-color: rgba(255, 255, 255, 0.1);
+               border: none;
+           }
+
+           #phone-screen.dark-mode #send-btn {
+               background-color: var(--accent-color);
+           }
+
+           #phone-screen.dark-mode .qzone-actions-bar,
+           #phone-screen.dark-mode .qzone-post-item {
+               background-color: #1c1c1e;
+               border: 1px solid #333;
+               box-shadow: 0 2px 8px rgba(255, 255, 255, 0.05);
+           }
+
+           #phone-screen.dark-mode .action-item:not(:last-child)::after {
+               background-color: #333;
+           }
+
+           #phone-screen.dark-mode .post-footer,
+           #phone-screen.dark-mode .post-likes-section {
+               border-top-color: #333;
+           }
+
+           #phone-screen.dark-mode .post-likes-section {
+               background-color: rgba(0, 123, 255, 0.1);
+           }
+
+           #phone-screen.dark-mode .comment-input {
+               background-color: #333;
+               color: #ffffff;
+           }
+
+           #phone-screen.dark-mode .comment-input::placeholder {
+               color: #8d8d92;
+           }
+
+           #phone-screen.dark-mode .post-actions-btn:hover {
+               background-color: #333;
+           }
+
+           #phone-screen.dark-mode .at-mention-popup {
+               background-color: #1c1c1e;
+               border-color: #333;
+           }
+
+           #phone-screen.dark-mode .at-mention-item {
+               border-bottom-color: #333;
+           }
+
+           #phone-screen.dark-mode .at-mention-item:hover {
+               background-color: #333;
+           }
+
+           #phone-screen.dark-mode .memory-card {
+               background-color: #1c1c1e;
+               border-left-color: #e6a753;
+               box-shadow: 0 4px 12px rgba(255, 255, 255, 0.08);
+           }
+
+           #phone-screen.dark-mode .memory-card .header {
+               background-color: #2c2c2e;
+               border-bottom-color: #38383a;
+               margin: -15px -15px 8px -15px;
+               padding: 12px 15px;
+               border-radius: 12px 12px 0 0;
+           }
+
+           #phone-screen.dark-mode .memory-card .header .date,
+           #phone-screen.dark-mode .memory-card .header .author,
+           #phone-screen.dark-mode .memory-card .content {
+               color: #e0e0e0;
+           }
+
+           #phone-screen.dark-mode #api-settings-screen,
+           #phone-screen.dark-mode #font-settings-screen,
+           #phone-screen.dark-mode #wallpaper-screen,
+           #phone-screen.dark-mode #contact-picker-screen,
+           #phone-screen.dark-mode #member-management-screen,
+           #phone-screen.dark-mode #world-book-editor-screen,
+           #phone-screen.dark-mode #world-book-list,
+           #phone-screen.dark-mode .list-item:hover,
+           #phone-screen.dark-mode .list-container,
+           #phone-screen.dark-mode .form-container {
+               background-color: #000000;
+           }
+
+           #phone-screen.dark-mode .form-group input,
+           #phone-screen.dark-mode .form-group select,
+           #phone-screen.dark-mode .form-group textarea {
+               background-color: #1c1c1e;
+               color: #ffffff;
+               border-color: #38383a;
+           }
+
+           #phone-screen.dark-mode .form-button-secondary {
+               background-color: #333;
+               border-color: #555;
+               color: #fff;
+           }
+
+/* 启用音频按钮样式 */
+.unlock-inactive, .unlock-loading, .unlock-connected {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    box-sizing: border-box;
+    padding: 2px;
+    line-height: 1.2;
+    border: none; /* 重置边框 */
+}
+
+.unlock-inactive {
+  color: #00D9FF;
+  border: 2px solid #00D9FF;
+  box-shadow: 0 0 10px #00D9FF, 0 0 20px rgba(0,217,255,0.5);
+  background: rgba(0, 217, 255, 0.1);
+  animation: glow-pulse 2s infinite;
+}
+
+.unlock-loading {
+  color: #00D9FF;
+  border: 2px solid #00D9FF;
+  background: rgba(0, 217, 255, 0.1);
+  opacity: 0.7;
+  pointer-events: none;
+  animation: spin 1s linear infinite;
+}
+
+.unlock-connected {
+  color: #64B5F6;
+  border: 1px solid #64B5F6;
+  box-shadow: 0 0 5px #64B5F6;
+  background: rgba(100, 181, 246, 0.15);
+}
+
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.8; box-shadow: 0 0 10px #00D9FF, 0 0 20px rgba(0,217,255,0.5); }
+  50% { opacity: 1; box-shadow: 0 0 15px #00D9FF, 0 0 30px rgba(0,217,255,0.7); }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* v0.1.30 Live2D 视频通话 - canvas 浮层 + fallback 静态图 */
+#live2d-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10;  /* 背景之上, 字幕 (#video-call-main z-index:50) 之下 */
+    pointer-events: none;  /* 不抢视频通话控制按钮的点击 */
+    background: transparent;
+}
+
+.video-call-fallback-avatar {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 55%;
+    max-width: 280px;
+    aspect-ratio: 3 / 4;
+    border-radius: 20px;
+    object-fit: cover;
+    z-index: 10;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+#video-call-screen.live2d-active #video-call-main {
+    /* Live2D 模式下, 字幕背景更透明, 让模型看得更清楚 */
+    background-color: rgba(0, 0, 0, 0.35);
+}
+
+/* ============================================================
+   语音通话 v0.2.30.28: 暖黄色光晕 (v4 — box-shadow 挂在元素上)
+   - 用户说话时: 挂断键 box-shadow 外发光 (大, 闪烁)
+   - AI 思考时: AI 头像 box-shadow 外发光 (缩小, 柔和脉动)
+   - AI 说话时: AI 头像 box-shadow 外发光 (大, 闪烁)
+   - 提示文字位置抬到图1 "倾听中" 位置
+   v0.2.30.28: 彻底删独立光晕 div (会跑偏) — box-shadow 直接挂在元素上
+   ============================================================ */
+
+/* 语音通话主区域 z-index 重排 */
+#voice-call-screen .voice-call-avatar-area {
+    position: relative;
+    z-index: 5;
+}
+
+#voice-call-screen .voice-call-controls {
+    z-index: 60;
+}
+
+#voice-call-screen #voice-call-status-text {
+    z-index: 60;
+}
+
+/* v0.2.30.24: 语音通话 layout 重新排版
+   - 挂断键固定在屏幕底部居中
+   - speak-btn 在挂断键上方 110px (左侧偏移, 不遮挡光晕)
+   - 启用音频按钮隐藏 (跟之前改的"接通后自动隐藏"配合, 默认就不显示, 接通后才显示)
+   - 状态文字抬到图1 "倾听中" 位置 (屏幕 60% 位置) */
+#voice-call-screen .voice-call-controls {
+    justify-content: center;
+    align-items: center;
+    gap: 28px;
+}
+
+#voice-call-screen #voice-hang-up-btn {
+    /* v0.2.30.51: 改成 absolute 强制屏幕水平居中
+       之前 position: relative + flex space-around — voice-regenerate-call-btn 显示时挂断键被挤偏,
+       跟上方 AI 头像 (语音呼叫屏水平中心) 不在同一条垂直线上
+       改成 absolute + left:50% + transform translateX(-50%) — 不管其他按钮显示/隐藏, 挂断键永远在屏幕水平中心
+       v0.2.30.66: 56→64px 按钮再大一点 + bottom 40→50px 往上挪一点
+       v0.2.30.71z: bottom 50→75px 再往上挪 25px — user 2026-08-25 反馈"挂断键太靠下了"
+         v0.2.30.66 改的 50px 看着还是靠下, 再往上挪 25px
+         挂断键中心 y = 75 + 64/2 = 107px (从屏幕底部算)
+         voice-call-spot-fly 起点 translateY 260px 也要跟着调 (挂断键位置移动) */
+    position: absolute;
+    bottom: 75px;
+    left: 50%;
+    transform: translateX(-50%);
+    /* v0.2.30.48: 缩到 56px 让 AI 头像 100px 明显大于挂断键 — user 反馈 "挂断键比 AI 头像还大"
+       v0.2.30.66: 56→64px 再大一点点, AI 头像 vortex 130/avatar 100 仍然大于挂断键 */
+    width: 64px;
+    height: 64px;
+    z-index: 70;
+}
+
+#voice-call-screen #voice-user-speak-btn {
+    /* 说话键位置: 挂断键左边 */
+    z-index: 70;
+}
+
+#voice-call-screen #voice-regenerate-call-btn {
+    /* v0.2.30.52: 改成 absolute 定位到屏幕右下 — 之前 voice-call-controls flex 居中布局跟挂断键重叠 */
+    position: absolute;
+    bottom: 43px;  /* 跟挂断键 (56x56 bottom:40px) 中心 y 对齐: 挂断键中心 y=68px, 彩铃 50x50 中心 y=43+25=68px */
+    right: 30px;   /* 屏幕右边 30px */
+    /* 启用音频按钮: 跟挂断键同一行, 缩成小圆 */
+    width: 50px;
+    height: 50px;
+    font-size: 10px;
+    z-index: 70;
+}
+
+#voice-call-screen #voice-user-speak-btn.speak-btn-active,
+#voice-call-screen #voice-user-speak-btn:active {
+    transform: scale(0.92);
+}
+
+/* v0.2.30.24: 状态文字位置 — 抬到图1 倾听中位置 (屏幕 60%) */
+#voice-call-screen .voice-call-status-text {
+    bottom: auto;
+    top: 60%;
+    font-size: 16px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.95);
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+    letter-spacing: 0.5px;
+    z-index: 60;
+    transition: top 0.5s ease, opacity 0.3s ease;
+}
+
+/* v0.2.30.71: 给 .participant-avatar-wrapper 加 position: relative
+   之前 v0.2.30.70 改 .ccw-vortex-wrap 用 absolute 居中, 但 wrapper 不是 positioned 父级
+   绝对定位参照跑到 .voice-call-avatar-area 去了, vortex 跟 img 错位 80px (用户截图反馈)
+   加 position: relative 后, absolute 参照 wrapper 自己, vortex 跟 img 同心 */
+#voice-call-screen #voice-participant-avatars-grid .participant-avatar-wrapper {
+    position: relative;
+}
+
+/* v0.2.30.24 → v0.2.30.31: AI 状态时只下移容器, 头像保持默认 70px 不放大
+   user 反馈: 头像全程不需要变大, 只要 AI 状态时位置下移到屏幕中央
+   v0.2.30.71v: 删 .voice-call-ai-active 限定, voice-call 父级直接覆盖
+     之前 listening 状态下 .voice-call-ai-active 不加, padding-top: 0 = 头像在屏幕顶部
+     thinking/speaking/transitioning 加 .voice-call-ai-active, padding-top: 18vh = 头像下移中央
+     user 反馈"通话时 AI 头像一会儿上一会儿下" — 5 状态位置不一致
+     修法: 5 状态统一 padding-top: 18vh (AI 状态位置, 屏幕中央)
+     status text "倾听中" top: 60% 位置不变, 跟 18vh 头像位置不冲突 (60% 比 18vh 偏下) */
+#voice-call-screen .voice-call-avatar-area {
+    padding-top: 18vh;
+}
+
+/* v0.2.30.71s: voice-call 内 .participant-avatar 统一 100x100 (5 状态一致)
+   之前 v0.2.30.48 用 .voice-call-ai-active 限定 (line 1484), 只有 thinking/speaking/transitioning 加 voice-call-ai-active 类
+   listening/idle 状态下 voice-call-ai-active 类没加, 这条规则不匹配, 退回 music-player.css 通用 70x70
+     视觉差异: listening 70+border 3=73 vs thinking 100+border 2.5=102.5 差 30px (看着小)
+   user 反馈: "倾听时头像变小, 思考和说话是正常的" — 4 状态头像应该统一
+   修法: 删 .voice-call-ai-active 限定, voice-call 父级直接覆盖 (listening/idle/thinking/speaking/transitioning 5 状态统一 100x100 + border 2.5px)
+   破 v0.2.30.48 "AI 状态时头像 100, listening 时 70" 锁死 — user 2026-08-25 反馈接受新设计 */
+#voice-call-screen #voice-participant-avatars-grid .participant-avatar {
+    width: 100px;
+    height: 100px;
+    border-width: 2.5px;
+    border-color: rgba(255, 255, 255, 0.85);
+}
+
+#voice-call-screen.voice-call-ai-active #voice-participant-avatars-grid .participant-name {
+    font-size: 13px;
+    margin-top: 12px;
+}
+
+/* ============================================================
+   v0.2.30.26: 修两个问题
+   1. 挂断键周围有"黑色圆圈" — 是 .voice-call-controls 的底部黑色渐变
+      background: linear-gradient(to top, rgba(0, 0, 0, 0.5), transparent)
+      把按钮周围 130px 都染成黑色, 覆盖在光晕之外显得很突兀
+      → 去掉黑色背景, 光晕本身就够亮, 不需要暗化背景
+   2. 挂断键图标改成"图2"风格 — 红色圆 + 白色听筒朝下 (经典电话挂断图标)
+      原图标是 iOS 风的"山形 + 横向", 跟参考图不一样
+   ============================================================ */
+
+/* 去掉 .voice-call-controls 的底部黑色渐变背景 — v0.2.30.26 */
+#voice-call-screen .voice-call-controls {
+    background: transparent !important;
+}
+
+/* 语音通话挂断键 — 老式电话听筒 (Material phone path 旋转 135° = 朝下挂+斜着放)
+   v0.2.30.35: rotate(180) → rotate(135) 逆时针 45° */
+#voice-call-screen .control-btn.hangup-btn {
+    background-color: #ff3b30;
+    background-size: 56%;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path transform="rotate(135 12 12)" d="M20 15.5c-1.25 0-2.45-.2-3.57-.57-.35-.12-.74-.03-1.01.24l-2.2 2.2a15.045 15.045 0 0 1-6.59-6.58l2.2-2.21a.96.96 0 0 0 .25-1A11.36 11.36 0 0 1 8.5 4c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1 0 9.39 7.61 17 17 17 .55 0 1-.45 1-1v-3.5c0-.55-.45-1-1-1z"/></svg>');
+    box-shadow: 0 4px 16px rgba(255, 59, 48, 0.35);
+}
+
+/* 视频通话挂断键图标 — v0.2.30.30 撤回
+   之前 v0.2.30.26 改成跟语音通话一样 (红色圆 + phone-down 图标)
+   但用户要做 Live2D, 视频通话界面会大改, 不在此预先改动
+   保留原始样式 (iOS 风山形 + 横向) — 跟原 .control-btn.hangup-btn 一致
+   */
+/* #video-call-screen .control-btn.hangup-btn {  // v0.2.30.30 撤回, Live2D 时再改
+    background-color: #ff3b30;
+    background-size: 56%;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path fill-rule="evenodd" d="M19.91 14.49a14.45 14.45 0 0 1-3.7-1.04 1 1 0 0 0-1.05.24l-2.4 2.4a15.4 15.4 0 0 1-6.86-6.86l2.4-2.4a1 1 0 0 0 .25-1.05A14.45 14.45 0 0 1 7.5 4.09a1 1 0 0 0-.83-1.04A47.69 47.69 0 0 0 3 3a1 1 0 0 0-1 1c0 9.39 7.61 17 17 17a1 1 0 0 0 1-1c0-1.21-.13-2.42-.36-3.6a1 1 0 0 0-1.05-.83z" clip-rule="evenodd"/></svg>');
+    box-shadow: 0 4px 16px rgba(255, 59, 48, 0.35);
+} */
+
+/* ============================================================
+   v0.2.30.28: box-shadow 光晕直接挂在按钮/头像上 (避免位置跑偏)
+   - 单层 box-shadow + 大 blur + 中 alpha + 小 spread (柔散过渡)
+   - listening: 挂断键外发光
+   - thinking/speaking: AI 头像外发光 (带白色描边)
+   ============================================================ */
+
+/* 用户说话 — 挂断键大光晕闪烁
+   v0.2.30.39: 回退到 v0.2.30.31 user 满意版本 (spread 30, blur 100-150px)
+   v0.2.30.36 改 spread 0 弱化过头, 这次回退
+   v0.2.30.53: user 反馈"用户说话光晕辐射范围比 AI 说话小" — 加大 spread/blur 让 listening > speaking
+     listening: 0 0 130-180 blur + 40-55 spread (峰值 0.7)
+     speaking:  0 0 100-150 blur + 30-45 spread (峰值 0.65) — 保持
+   v0.2.30.67: user 反馈"挂断键光晕颜色不够亮, 范围不够大" — 颜色 255,180,80→255,210,130 更亮黄
+     blur 130-180→200-280, spread 40-55→60-85, alpha 0.5-0.7→0.65-0.85
+     加双层 box-shadow 叠加 (外层柔光 + 内层实光) 让光晕更明显 */
+#voice-call-screen #voice-hang-up-btn.glow-listening {
+    animation: voice-hangup-glow 1.6s ease-in-out infinite;
+}
+
+@keyframes voice-hangup-glow {
+    /* v0.2.30.69: user 反馈"又亮过头了" — 折中回退
+       v0.2.30.53 (原锁死) → v0.2.30.67 (改亮加大) → v0.2.30.69 (折中)
+       颜色 255,210,130→255,195,105 (中亮黄)
+       blur 200-280→170-220, spread 60-85→50-70
+       alpha 0.65-0.85→0.55-0.7 (峰值)
+       v0.2.30.71ab: 折中回退后再提亮 — user 反馈"用户说话时的呼吸光圈也亮一点"
+         0%  外层 170/50 α0.55 → 200/60 α0.70 (blur +18%, spread +20%, α +27%)
+         0%  内层 70/18 α0.42 → 85/22 α0.55 (blur +21%, spread +22%, α +31%)
+         50% 外层 220/70 α0.7 → 255/80 α0.85 (blur +16%, spread +14%, α +21%)
+         50% 内层 100/25 α0.55 → 125/30 α0.70 (blur +25%, spread +20%, α +27%)
+         红色底层 0 4px 16px rgba(255, 59, 48) 不动 (v0.2.30.51 锁死)
+         风险: v0.2.30.69 折中是因为 v0.2.30.67 改亮过头, 这次提亮要保守 +15-20% 避免再次过头 */
+    0%, 100% {
+        box-shadow:
+            0 4px 16px rgba(255, 59, 48, 0.4),
+            0 0 200px 60px rgba(255, 195, 105, 0.70),
+            0 0 85px 22px rgba(255, 210, 130, 0.55);
+    }
+    50% {
+        box-shadow:
+            0 4px 16px rgba(255, 59, 48, 0.45),
+            0 0 255px 80px rgba(255, 195, 105, 0.85),
+            0 0 125px 30px rgba(255, 210, 130, 0.70);
+    }
+}
+
+/* AI 思考 — 头像外圈弧形光晕顺时针旋转
+   v0.2.30.43: user 请人翻译的最终 spec
+     1. 绝对不要画任何风扇/扇叶结构
+     2. 头像外围圆环光晕 (::before 伪元素)
+     3. conic-gradient 黄色到透明柔和光晕弧线 + filter: blur() 模糊发光
+     4. @keyframes rotate 顺时针平滑旋转
+   之前 4 段扇叶 (0/90/180/270° 4 片) 删了, 改单段 ~100° 宽弧线 */
+#voice-call-screen #voice-participant-avatars-grid .participant-avatar-wrapper.glow-thinking {
+    position: relative;
+}
+
+/* 头像浮在 ::before 上面, 永远不被遮挡 */
+#voice-call-screen #voice-participant-avatars-grid .participant-avatar {
+    position: relative;
+    z-index: 2;
+}
+
+/* v0.2.30.60: thinking 状态改用 user 提供的 vortex 流光方案 (ccw-* 类) — 之前 v0.2.30.43-59 的 ::before + 三层 conic-gradient + blur + box-shadow 全部删掉
+   vortex 结构 (HTML 在 video-voice-call.js 模板里):
+     .ccw-vortex-wrap (148x148)
+       .ccw-layer (vortex-breathe 4.6s 呼吸)
+         .ccw-glow-base (中央暖金雾, blur 24px)
+         .ccw-inner-light (头像边缘高亮, blur 24px + drop-shadow)
+         svg.ccw-svg (vortex-spin 2s 旋转, mask 内圈隐藏外圈显现)
+           g.ccw-soft-halo (6 道外围扩散长尾, blur 250px)
+           g.ccw-soft-streak (6 道核心流线, blur 95px + drop-shadow)
+       .ccw-avatar (86x86, border 1px 白 + box-shadow 多层)
+         img.participant-avatar (100% 填充)
+   CSS 默认 vortex 隐藏, 只在 .glow-thinking 状态显示 */
+
+/* 头像浮在最前 (vortex 内 img + 默认 img 都需要) */
+#voice-call-screen #voice-participant-avatars-grid .participant-avatar {
+    position: relative;
+    z-index: 2;
+}
+
+/* v0.2.30.71: AI 说话大光晕呼吸 — 之前 v0.2.30.45+55+67 设计是 border 圆环 + 小 box-shadow 静态
+   user 反馈: "AI 说话的时候也要大光晕呼吸" — 跟 listening 一样的"大光晕呼吸"但作用在 AI 头像上
+   修法:
+     1. 删 voice-speaking-glow keyframes 里的单层小 box-shadow, 改成双层大 box-shadow (跟 listening 妥协方案 v0.2.30.69 锁死一致)
+     2. 删 .glow-speaking::before 110x110 border 圆环 (user v0.2.30.45 "边界标识" 不需要了, 大光晕本身就是标识)
+     3. ::before 110x110 保留 (v0.2.30.55 锁死 — AI 头像外 5px, 大于头像)
+     4. 1.6s ease-in-out infinite 呼吸动画 (跟 listening 同步)
+   v0.2.30.71l: 缩小 15% (跟 listening 解绑, speaking 单独调)
+     user 反馈: "speaking 阶段呼吸大光圈大了" — 缩小 15% 让 AI 头像周围光晕收紧
+     0%:  170/50 α0.55 + 70/18 α0.42  →  145/40 α0.50 + 60/15 α0.38
+     50%: 220/70 α0.7  + 100/25 α0.55 →  188/58 α0.62 + 85/20 α0.48
+     listening 锁死不动 (v0.2.30.69 折中, user 之前接受的状态)
+     ★ 双层 box-shadow 颜色保留 (255,195,105 外层 + 255,210,130 内层) — 暖金双层
+   v0.2.30.71ab: 再提亮 — user 反馈"AI 说话时候的呼吸光晕也再亮一点"
+     0%  外层 145/40 α0.50 → 170/50 α0.62 (blur +17%, spread +25%, α +24%)
+     0%  内层 60/15 α0.38 → 78/20 α0.50 (blur +30%, spread +33%, α +32%)
+     50% 外层 188/58 α0.62 → 220/70 α0.78 (blur +17%, spread +21%, α +26%)
+     50% 内层 85/20 α0.48 → 110/28 α0.62 (blur +29%, spread +40%, α +29%)
+     比 71ab listening 小一档 — speaking 已经在 AI 头像上 (box-shadow 跟着 img 100 边缘) */
+@keyframes voice-speaking-glow {
+    0%, 100% {
+        box-shadow:
+            0 0 170px 50px rgba(255, 195, 105, 0.62),
+            0 0 78px 20px rgba(255, 210, 130, 0.50);
+    }
+    50% {
+        box-shadow:
+            0 0 220px 70px rgba(255, 195, 105, 0.78),
+            0 0 110px 28px rgba(255, 210, 130, 0.62);
+    }
+}
+
+/* AI 说话 — AI 头像大光晕呼吸 (跟 listening 视觉一致, 作用在 AI 头像上)
+   v0.2.30.55: ::before 110x110 (外径 110 vs 头像 100, 大 10px) 锁死 — 跟 img 100x100 同心
+   v0.2.30.71: 删 border 圆环 (user 不再需要"边界标识", 大光晕本身就是标识)
+     居中: top:50px + margin-top:-50px (v0.2.30.49 锁死, 不用 transform translate)
+     1.6s 呼吸动画 (跟 listening 同步)
+   v0.2.30.71l: ::before 110→100 (跟 img 100x100 同尺寸)
+     之前 110 vs img 100 = 5px 环宽, ::before 内部透明, 露出 5px 暗影/缝隙
+     挂断键完美融合是因为单元素单圆心 (button 64 内部 svg), box-shadow 跟着 button 边缘散
+     speaking 是两个不同心圆 (img 100 + ::before 110), 5px 环 = 暗环
+     改成 ::before 100 = 跟 img 同尺寸, box-shadow 从 img 边缘外直接散光, 跟挂断键结构一致
+     破 v0.2.30.55 "外径 110 大 10px" 锁死 — user 接受"大光晕本身就是标识", 110 外径不需要 */
+#voice-call-screen #voice-participant-avatars-grid .participant-avatar-wrapper.glow-speaking::before {
+    content: '';
+    position: absolute;
+    top: 50px;  /* img 中心 y=50px (img 100/2) */
+    left: 50%;
+    width: 100px;  /* v0.2.30.71l: 110→100, 跟 img 100x100 同尺寸, 消除 5px 暗环 */
+    height: 100px;
+    margin-left: -50px;  /* 100/2 (v0.2.30.71l: 跟 width 同步 55→50) */
+    margin-top: -50px;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 0;
+    animation: voice-speaking-glow 1.6s ease-in-out infinite;
+}
+
+/* 过渡光斑 — 从挂断键位置飞到 AI 头像位置
+   v0.2.30.56: user spec 翻译
+     1. 用户说话时: 挂断键大光晕呼吸闪烁 (v0.2.30.53 已有)
+     2. 用户说完瞬间: 挂断键光晕停, 生成独立聚光灯/光斑, transform translate 平滑向上移动 + 放大到 AI 头像
+     3. 到达 AI 头像后: 光斑无缝隐藏, 立即触发太阳神鸟旋转思考动画
+   v0.2.30.59: user 反馈"光圈大一点" — ::before 130→200, scale 0.3→0.4 起点, scale 1→0.65 终点 (200*0.65=130 跟 thinking 同尺寸无缝衔接)
+   v0.2.30.68: user 反馈"看着从屏幕中间往上移动, 光团大小之前小了, 要跟说话时光晕一样大, 速度慢一拍"
+     修法: translateY 360→260 (起点 y 跟挂断键 y=718 匹配, 之前 360 起点 y=827 在屏幕外底部, vortex 30% 在屏幕内看着像中间飞)
+     起点 scale 0.4→0.5 (光团起步更大, 看着像"光团飞起")
+     终点 scale 0.65 保持 (无缝衔接 thinking 130)
+     动画 0.5s→0.7s 慢一拍
+     加 box-shadow 双层 (外层柔光 + 内层实光, 跟 speaking v0.2.30.67 锁死一致), 光团扩散总半径 360px ≈ speaking 365px
+     radial-gradient alpha 加亮 0.95→1.0, filter blur 6→8 柔化 */
+/* v0.2.30.71: transitioning 模糊雾气 — user 反馈"中间是黑的"
+   v0.2.30.71 之前: 中心 alpha 0.4 + blur 14px → 中心变暗看着"黑"
+   v0.2.30.71b 修法: 中心 alpha 0.4 → 0.75 (中心亮), 30%/60%/85% 多点 alpha 让 200x200 圆盘连成一片暖金雾
+     blur 14px → 8px (不太模糊, 中心更"实"), box-shadow alpha 略加 (0.55/0.42 → 0.6/0.45)
+   整体效果: 中心 0.75 alpha 暖金雾 + 中等 0.65/0.45 alpha + 远场 0.2 alpha + box-shadow 边缘散光 = 连成一片暖黄光晕
+   不是"光球"也不是"黑心", 是"一坨黄光雾" (跟 listening 视觉效果一致)
+   v0.2.30.71n: 修"看着是发光圆球, 不是一团模糊光晕"问题
+     真凶:
+       1. blur(8px) 太小, ::before 200x200 边缘 8px 散开看着还是清晰圆
+       2. box-shadow 双层 (0 0 200/80 + 0 0 80/25) 散光是从 ::before 边缘外扩散的"光环", 不是融合雾化
+       3. radial-gradient 中心 0.75 alpha 太"实", 外圈再虚也是"圆球"
+     修法:
+       1. 删 box-shadow (双层 0.6/0.45) — 让 background gradient + blur 主导, 散光是"渐变 + 模糊"不是"box 边缘光环"
+       2. blur 8→24 (3x 加大) — 边缘彻底散开, 看着是"雾"不是"球"
+       3. 中心 alpha 0.75→0.50 — 中心不"实", 跟外圈更平滑过渡
+       4. radial-gradient 5 点→8 点平滑曲线 — 消除"0%/30%/60%/85%/100%" 阶梯感 */
+#voice-call-screen #voice-participant-avatars-grid .participant-avatar-wrapper.glow-transitioning::before {
+    content: '';
+    position: absolute;
+    top: 50px;  /* 终点: img 中心 y=50px */
+    left: 50%;
+    /* v0.2.30.71q: width/height 200→250 (容器本身大 25%)
+       之前 v0.2.30.59 改 130→200 是 user 反馈"光圈大一点", 200 不是锁死值
+       v0.2.30.71p user 反馈"再大一点" — 容器 +25% 让光雾整体大一坨
+       v0.2.30.71aa: 容器 250→280 (再大 12%) + margin -125→-140 — user 反馈"再大一点再亮一点" */
+    width: 280px;
+    height: 280px;
+    margin-left: -140px;
+    margin-top: -140px;
+    border-radius: 50%;
+    box-sizing: border-box;
+    pointer-events: none;
+    z-index: 0;
+    /* 8 点平滑曲线 — 中心 0.50 + 8 个 alpha 衰减点 (0% 0.50 → 100% 0) — 看着是"光雾"不是"实心球"
+       v0.2.30.71n 锁死不动 (user 接受"光雾效果")
+       v0.2.30.71t: 8 点 alpha 整体 +20% — user 反馈"光雾不够亮, 再亮一丢丢"
+       v0.2.30.71u: 累计 +40% (相对 71n 基准 0.50) — user 反馈"还是不怎么亮"
+       v0.2.30.71aa: 累计 +68% (相对 71n 基准 0.50) — user 反馈"还不够亮不够大"
+         0%  0.50 → 0.84 (+0.14)
+         15% 0.46 → 0.78 (+0.13)
+         30% 0.42 → 0.70 (+0.12)
+         45% 0.34 → 0.56 (+0.09)
+         60% 0.26 → 0.43 (+0.07)
+         75% 0.16 → 0.26 (+0.04)
+         90% 0.08 → 0.13 (+0.02)
+         100% 0   → 0 (保持)
+       容器 250→280 (大 12%) + blur 32→40 (散开多 25%) + scale 0.75/0.95→0.85/1.05 (大 13%/11%)
+       颜色保留 (暖金) / 删 box-shadow 不动
+       风险: 跟 v0.2.30.71d→71f 教训"叠成大光圈"类似, 4 项同时改可能过头, user 验证后回调 (类似 71f 减弱) */
+    background: radial-gradient(circle,
+        rgba(255, 225, 160, 0.84) 0%,
+        rgba(255, 220, 150, 0.78) 15%,
+        rgba(255, 215, 140, 0.70) 30%,
+        rgba(255, 205, 125, 0.56) 45%,
+        rgba(255, 200, 115, 0.43) 60%,
+        rgba(255, 190, 100, 0.26) 75%,
+        rgba(255, 180, 80, 0.13) 90%,
+        transparent 100%
+    );
+    /* v0.2.30.71n: 删 box-shadow (双层 200/80 α0.6 + 80/25 α0.45)
+       box-shadow 是绕着 box 边缘外扩散的"光环" — 形成"圆球 + 边缘散光"视觉
+       纯 background + filter:blur 才是"渐变 + 模糊雾化" — 一坨光晕 */
+    /* v0.2.30.71q: blur 24→32 (再大 33%) — 边缘散开更多, 看着更"雾化"
+       v0.2.30.71aa: blur 32→40 (再大 25%) — user 反馈"再大一点再亮一点" */
+    filter: blur(40px);
+    animation: voice-call-spot-fly 0.7s ease-out forwards;
+}
+
+@keyframes voice-call-spot-fly {
+    /* 起点: 挂断键位置 (屏幕底部, translateY 260 适配 v0.2.30.66 挂断键 bottom:50 位置)
+       v0.2.30.71p: scale 0.5→0.7 (起点大, 看着"大坨光雾飞起")
+       v0.2.30.71q: scale 0.7→0.75 (再大 7%, user 反馈"再大一点")
+       v0.2.30.71z: 挂断键 bottom 50→75 (上挪 25px), 飞行光斑起点也要上挪
+       v0.2.30.71aa: translateY 260→235 (上挪 25px 跟挂断键同步) — user 反馈"飞行光斑从挂断键起飞"
+         视觉直径: 280*0.85+40=278px (之前 220, 大 58px ≈ 大 26%) */
+    0% {
+        transform: translateY(235px) scale(0.85);
+        opacity: 0;
+    }
+    20% {
+        opacity: 1;  /* 快速出现, 不延迟 */
+    }
+    /* 终点: 0 偏移, scale 1.05 — 280*1.05=294 看着"大坨光雾落地"
+       v0.2.30.71p: scale 0.65→0.85 (终点大, 飞完大光雾覆盖 AI 头像)
+       v0.2.30.71q: scale 0.85→0.95 (再大 12%, 大坨光雾更明显)
+       v0.2.30.71aa: scale 0.95→1.05 (再大 11%, 终点大坨光雾)
+       视觉直径: 280*1.05+40=334px (之前 270, 大 64px ≈ 大 24%, opacity 0 不可见)
+       跟 thinking 130 衔接: v0.2.30.71f 100% opacity 0 自然淡出再切 thinking
+         所以 334 vs thinking 130 的"缩"在 0 透明度下完成, 视觉上看不到"砰一下缩"
+       v0.2.30.71f: opacity 1→0 飞完淡出 — 之前 forwards 状态保持 opacity 1 + 依赖 setTimeout 700ms 切 thinking class
+         1. forwards + class 切换: 如果 setTimeout 失败或 class 没切换, transitioning ::before 一直显示 (forwards 保持) — 看着"光圈一直占据"
+         2. opacity 1→0: 飞完 0.7s 自然淡出, 不依赖 class 切换, 更安全 */
+    100% {
+        transform: translateY(0) scale(1.05);
+        opacity: 0;  /* 飞完淡出, 不停留 */
+    }
+}
+
+/* 视频通话同步支持 — v0.2.30.30 撤回
+   之前 v0.2.30.28 / v0.2.30.29 在视频通话也加了 box-shadow 光晕 + 金沙图腾光环
+   但用户要做 Live2D, 视频通话界面会大改, 不在此预先改动
+   视频通话保留原始样式, Live2D 时再统一加
+   */
+/* #video-call-screen #voice-hang-up-btn.glow-listening,
+#video-call-screen #hang-up-btn.glow-listening {
+    animation: voice-hangup-glow 1.6s ease-in-out infinite;
+}
+
+#video-call-screen #video-participant-avatars-grid .participant-avatar.glow-thinking {
+    position: relative;
+    box-shadow: 0 0 18px 4px rgba(255, 180, 80, 0.35);
+}
+
+#video-call-screen #video-participant-avatars-grid .participant-avatar.glow-thinking::before,
+#video-call-screen #video-participant-avatars-grid .participant-avatar.glow-thinking::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 1;
+}
+
+#video-call-screen #video-participant-avatars-grid .participant-avatar.glow-thinking::before {
+    width: 158px;
+    height: 158px;
+    margin-left: -79px;
+    margin-top: -79px;
+    border: 1.5px solid transparent;
+    border-top-color: rgba(255, 200, 110, 0.9);
+    border-right-color: rgba(255, 180, 80, 0.55);
+    border-bottom-color: rgba(255, 160, 60, 0.25);
+    border-left-color: rgba(255, 180, 80, 0.15);
+    box-shadow: 0 0 14px 0px rgba(255, 180, 80, 0.5);
+    animation: voice-ring-spin-cw 3.5s linear infinite;
+}
+
+#video-call-screen #video-participant-avatars-grid .participant-avatar.glow-thinking::after {
+    width: 145px;
+    height: 145px;
+    margin-left: -72.5px;
+    margin-top: -72.5px;
+    border: 1px solid transparent;
+    border-top-color: rgba(255, 220, 140, 0.75);
+    border-right-color: rgba(255, 200, 110, 0.4);
+    border-bottom-color: rgba(255, 180, 80, 0.15);
+    border-left-color: rgba(255, 200, 110, 0.1);
+    box-shadow: 0 0 12px 0px rgba(255, 180, 80, 0.4);
+    animation: voice-ring-spin-ccw 2.8s linear infinite;
+}
+
+#video-call-screen #video-participant-avatars-grid .participant-avatar.glow-speaking {
+    animation: voice-avatar-glow-speak 1.6s ease-in-out infinite;
+} */
+
+/* =====================================================
+   v0.2.30.60: user 提供的 AI 思考动画方案 (vortex 流光)
+   暖金色 · 雾化流光 · 顺时针 2s 旋转 + 4.6s 呼吸 · 6 组长尾
+   核心: 内圈隐藏线条, 中段逐渐显现, 外圈与尾端才出现明显流线
+   ===================================================== */
+
+/* v0.2.30.71: vortex wrap 默认 display:none, 只在 .glow-thinking 才 display:flex
+   之前 v0.2.30.70 vortex wrap 始终 display:flex, 配合 wrapper 直接 img 让 AI 头像永远可见
+   但 v0.2.30.70 absolute 定位参照父级错 (wrapper 不是 positioned 父级), 跑到 avatar-area 50% 去了
+   跟 wrapper 内的 img 错位 80px (用户截图反馈)
+   修法: img 放回 wrapper 直接子元素 (v0.2.30.60 之前), vortex wrap 单独嵌套
+   listening/speaking: wrapper 直接 img 显示, vortex display:none
+   thinking: wrapper 直接 img 隐藏, vortex display:flex (内含 .ccw-avatar img 跟流光叠) */
+
+/* vortex wrap 默认隐藏, thinking 才显示 */
+#voice-call-screen #voice-participant-avatars-grid .participant-avatar-wrapper .ccw-vortex-wrap {
+    display: none;
+    position: absolute;  /* 不占 wrapper 空间 */
+    width: 130px;       /* v0.2.30.71: 显式 width/height, 否则 absolute 退回内容尺寸 (100x100) */
+    height: 130px;      /*   wrapper 居中会偏移. line 1825 的 .ccw-vortex-wrap width/height 选择器优先级低, 不会应用到这里 */
+    /* v0.2.30.71: 居中改用精确像素 — 跟 .glow-speaking::before 110 同位置 (img 中心 y=50, 半径 65)
+       之前 top:50% + translate(-50%,-50%) 依赖 wrapper 高度, wrapper 内容变化时居中点会飘 */
+    top: 50px;        /* img 中心 y=50px (img 100/2) */
+    left: 50%;
+    margin-left: -65px;  /* 130/2 */
+    margin-top: -65px;
+    z-index: 1;
+    pointer-events: none;
+    /* v0.2.30.71 修复 2 轮:
+       1. 加 border-radius: 50% (避免 box-shadow 矩形散光, 黑色正方形 bug)
+       2. 去掉 v0.2.30.71 加的双层 box-shadow (200/70 + 80/25), 回归 v0.2.30.62 vortex 旋转动画设计
+       user 反馈: "还一直占据在 AI 头像上 + 多一个黑圈" — box-shadow 200/70 让 vortex 区有大光晕持续占据
+         跟 listening 64x64 按钮的 box-shadow 一样大, 但 vortex 130x130, 散光范围约 285px = 占据整个 vortex 区
+       回归旋转动画: vortex wrap box-shadow 去掉, 只靠 .ccw-glow-base + .ccw-soft-halo + .ccw-soft-streak 加强渲染 */
+    border-radius: 50%;
+}
+
+/* v0.2.30.71 兜底: 任何非 .glow-thinking 状态都强制隐藏 vortex wrap (CSS 缓存/优先级漏过的终极保险)
+   user 反馈 listening 状态下 "AI 头像也在发光" — 怀疑是 v0.2.30.70 之前版本 vortex wrap 默认 display:flex
+   残留, 或者子选择器 (#voice-call-screen .ccw-vortex-wrap .ccw-xxx) 在某些情况下漏过 display: none 父级
+   用 :not(.glow-thinking) 强制覆盖 listening/speaking/transitioning 三种状态 */
+#voice-call-screen #voice-participant-avatars-grid .participant-avatar-wrapper:not(.glow-thinking) .ccw-vortex-wrap {
+    display: none !important;
+}
+#voice-call-screen #voice-participant-avatars-grid .participant-avatar-wrapper:not(.glow-thinking) .ccw-vortex-wrap * {
+    display: none !important;
+}
+#voice-call-screen #voice-participant-avatars-grid .participant-avatar-wrapper.glow-thinking .ccw-vortex-wrap {
+    display: flex;
+    z-index: 3;  /* thinking 状态 vortex 在最前 (覆盖 .participant-avatar z-index 2 之后) */
+    /* v0.2.30.71v: 回滚 v0.2.30.71r 改的 vortex 130→100 — 那次改是基于"误判头像变大"
+       真凶实际是 listening 头像退回 music-player 通用 70x70 (v0.2.30.71s 修了 70→100 统一 4 状态)
+       71r 改 vortex 100 + blur 95px (固定像素) + SVG viewBox 148 → 95/100=95% 散光覆盖, 6 道流线几乎完全模糊 = "一坨光"
+       回滚到 vortex 130 (v0.2.30.62 锁死) + SVG viewBox 148 → 95/130=73% 散光, 流线保留 27% 中心清晰可见
+       嵌套 15px 环宽 (avatar 100 vs vortex 130) = v0.2.30.71h user 之前接受过的"一点点"
+       top: 50px + margin -65 (130/2) 居中不变
+       music-player.css:1970 的 transform: scale(1.05) 删保留 (speaking 真凶, 71r 改) */
+}
+
+/* thinking 状态: 隐藏 wrapper 直接 img (避免双 img 重叠), 显示 vortex 内 .ccw-avatar img
+   用 visibility:hidden (不是 display:none) 保持空间占位, 不影响 .glow-speaking::before top:50px 居中计算 */
+#voice-call-screen #voice-participant-avatars-grid .participant-avatar-wrapper.glow-thinking > .participant-avatar {
+    visibility: hidden;
+}
+
+/* 流光层默认隐藏 — thinking 状态才显示
+   v0.2.30.71e: 加 .ccw-soft-halo / .ccw-soft-streak (SVG <g> 元素) 的 display 规则
+     之前 v0.2.30.71 改的规则只覆盖 .ccw-layer / .ccw-glow-base / .ccw-inner-light / .ccw-svg
+     .ccw-soft-halo / .ccw-soft-streak 是 SVG 内的 <g> 元素, 默认 display: inline
+     thinking 状态下应该显示, 但兜底规则 .ccw-vortex-wrap * 不影响默认 inline 行为
+     user 反馈 "动画效果看不到" — halo + streak 没显示 (因为 <g> 元素没有 display 规则触发) */
+#voice-call-screen .ccw-layer,
+#voice-call-screen .ccw-glow-base,
+#voice-call-screen .ccw-inner-light,
+#voice-call-screen .ccw-svg,
+#voice-call-screen .ccw-soft-halo,
+#voice-call-screen .ccw-soft-streak {
+    display: none;
+}
+#voice-call-screen .ccw-vortex-wrap .ccw-layer,
+#voice-call-screen .ccw-vortex-wrap .ccw-glow-base,
+#voice-call-screen .ccw-vortex-wrap .ccw-inner-light,
+#voice-call-screen .ccw-vortex-wrap .ccw-svg,
+#voice-call-screen .ccw-vortex-wrap .ccw-soft-halo,
+#voice-call-screen .ccw-vortex-wrap .ccw-soft-streak {
+    display: block;
+}
+#voice-call-screen .ccw-vortex-wrap .ccw-svg {
+    display: block;
+}
+
+/* v0.2.30.70: 修 .ccw-svg 在桌面浏览器 (Chrome/Edge) mask-image 兼容性
+   之前 user 反馈"电脑上看不见 vortex 流光" — SVG 元素上 mask-image 部分桌面浏览器渲染失败
+   加 mask-type: alpha + 备份无 mask fallback (用 clip-path 实现类似效果) */
+
+/* talking 状态下隐藏 wrapper 内"非 vortex 区域"的 .participant-avatar (vortex 内的 .participant-avatar 浮在 SVG 之上) */
+/* 注: wrapper 模板里 img 在 .ccw-avatar 内, 不在外层. 外层没有第二个 img 元素, 不用 hide. 模板已经单 img. */
+
+/* v0.2.30.71h: thinking 状态完全重写 — 原封不动照抄 user v0.2.30.60 旋转动画模板
+   之前 v0.2.30.71 多次改了 user 旋转动画代码 (mask-image / halo/streak opacity / glow-base center / avatar box-shadow)
+     → "大光圈" 掩盖 6 道流光旋转 + 用户反馈 "你写好不容易的代码别动"
+   修法: 重新抄 user v0.2.30.60 模板原版所有参数 (除了 .ccw-avatar 100x100 + .ccw-vortex-wrap 130x130 适配 AI 头像)
+   保留 v0.2.30.71 + 71e 加的兜底 (display: none / :not(.glow-thinking) !important / halo/streak display 规则) */
+
+/* 外层容器 — v0.2.30.62 缩 148→130, user 允许改尺寸适配 AI 头像
+   v0.2.30.60 原版 148x148 + 86 头像; v0.2.30.62 改 130x130 + 100 头像 (圆心大小 86→100)
+   border-radius: 50% 避免 v0.2.30.71 矩形 box-shadow bug */
+#voice-call-screen .ccw-vortex-wrap {
+    position: relative;
+    width: 130px;
+    height: 130px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    border-radius: 50%;
+}
+
+/* 呼吸层 (4.6s) — user v0.2.30.60 原版 */
+#voice-call-screen .ccw-layer {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    animation: vortex-breathe 4.6s ease-in-out infinite;
+}
+
+/* 中央暖金雾 — user v0.2.30.60 原版 + v0.2.30.71y 加强 + v0.2.30.71ac 弱化"内圈大光斑"
+   v0.2.30.71y: center alpha 0.18→0.32, 各点 +0.10-0.18, 颜色更亮黄
+   v0.2.30.71ac: 弱化中心背景光团 (user 2026-08-25 太阳神鸟 prompt 第 4 条)
+     中心 0.32→0.20, 各点减 0.08-0.10, blur 24→18 (压低中心亮度和模糊半径)
+     "弱化内圈大光斑, 适当压低中心背景光团的亮度和模糊半径, 把视觉中心让给外圈旋转的 6 道金色神鸟羽翼流光"
+   "这是头像附近最主要的光, 不画明显圆环" — user 原注释 */
+#voice-call-screen .ccw-glow-base {
+    position: absolute;
+    inset: 14px;
+    border-radius: 50%;
+    background: radial-gradient(
+        circle,
+        rgba(255, 252, 230, 0.20) 0%,
+        rgba(255, 240, 185, 0.32) 20%,
+        rgba(255, 215, 110, 0.40) 38%,
+        rgba(255, 175, 50, 0.26) 57%,
+        rgba(255, 120, 10, 0.10) 76%,
+        rgba(255, 60, 0, 0) 94%
+    );
+    filter: blur(18px);
+    z-index: 1;
+}
+
+/* 头像边缘高亮 — user v0.2.30.60 原版 + v0.2.30.71y 加强 + v0.2.30.71ac 弱化"头像边缘光团"
+   v0.2.30.71y: 各点 alpha +0.10-0.14 + drop-shadow 28→38 alpha 0.78→0.95 + opacity 0.82→0.95
+   v0.2.30.71ac: 弱化头像边缘高亮 (user 2026-08-25 太阳神鸟 prompt 第 4 条)
+     各点 alpha 减 0.05-0.10, drop-shadow 38→28 alpha 0.95→0.65, opacity 0.95→0.75
+     "弱化内圈大光斑, 把视觉中心让给外圈旋转的 6 道金色神鸟羽翼流光"
+   "让这里变成亮光团, 而不是让流线变清晰" — user 原注释 */
+#voice-call-screen .ccw-inner-light {
+    position: absolute;
+    inset: 23px;
+    border-radius: 50%;
+    background: radial-gradient(
+        circle,
+        rgba(255, 255, 240, 0.88) 0%,
+        rgba(255, 245, 200, 0.82) 18%,
+        rgba(255, 220, 125, 0.62) 35%,
+        rgba(255, 185, 60, 0.32) 53%,
+        rgba(255, 140, 10, 0.10) 72%,
+        rgba(255, 100, 0, 0) 90%
+    );
+    filter:
+        blur(24px)
+        drop-shadow(
+            0 0 28px
+            rgba(255, 230, 140, 0.65)
+        );
+    opacity: 0.75;
+    z-index: 2;
+}
+
+/* SVG 流光层 — user v0.2.30.60 原版 (mask-image 关键参数 + 2s 旋转)
+   v0.2.30.70 加 mask-type: alpha 修桌面浏览器 (Chrome/Edge) SVG mask 兼容性
+   v0.2.30.71x: 删 mask-type: alpha + -webkit-mask-type: alpha
+     user 反馈"单文件 HTML 完美旋转, voice-call 看不到" — 排查后定位 mask-type 跟 transform: rotate() 冲突
+     单文件 HTML 没有 mask-type: alpha 完美旋转, voice-call 加上后 iOS Safari SVG 旋转被遮罩冲突
+     user 2026-08-25: "反正只在手机上用" — 直接删 mask-type, 接受电脑 Chrome mask 失效
+   "内圈隐藏线条, 中段逐渐显现, 外圈与尾端才出现明显流线" — user 原注释
+   ★★★ 关键遮罩 原封不动照抄 user v0.2.30.60 模板 ★★★ */
+#voice-call-screen .ccw-svg {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    z-index: 3;
+    animation: vortex-spin 2s linear infinite;
+    /* v0.2.30.71x: 删 mask-type: alpha + -webkit-mask-type: alpha (跟 transform: rotate 冲突, 修手机 SVG 旋转看不见) */
+    -webkit-mask-image: radial-gradient(
+        circle,
+        rgba(0,0,0,0) 34%,
+        rgba(0,0,0,0.04) 43%,
+        rgba(0,0,0,0.10) 51%,
+        rgba(0,0,0,0.22) 61%,
+        rgba(0,0,0,0.48) 72%,
+        rgba(0,0,0,0.72) 83%,
+        rgba(0,0,0,0.38) 91%,
+        rgba(0,0,0,0) 98%
+    );
+    mask-image: radial-gradient(
+        circle,
+        rgba(0,0,0,0) 34%,
+        rgba(0,0,0,0.04) 43%,
+        rgba(0,0,0,0.10) 51%,
+        rgba(0,0,0,0.22) 61%,
+        rgba(0,0,0,0.48) 72%,
+        rgba(0,0,0,0.72) 83%,
+        rgba(0,0,0,0.38) 91%,
+        rgba(0,0,0,0) 98%
+    );
+}
+
+/* 6 道核心流线 — user v0.2.30.60 原版 + v0.2.30.71y 加强提亮 + v0.2.30.71ac 太阳神鸟清晰化
+   v0.2.30.71y: blur 95→72 + 3 层 drop-shadow 35/65/165 + opacity 0.70 (看着"糊成一坨")
+   v0.2.30.71ac: 太阳神鸟 prompt 第 2 条 "blur 控制在 8-12px" + 第 3 条 "起始端 0.8-0.9"
+     blur 72→10 (符合 8-12 范围, 6 道流线清晰可辨)
+     opacity 0.70→0.85 (起始端 0.8-0.9 范围, "头亮尾虚"靠 linearGradient 渐变 + 提高 opacity 实现)
+     drop-shadow 3 层→1 层 0 0 18px α0.55 ("适度 drop-shadow 让线条自带温润光晕包裹", 不散)
+     之前 71y 的 3 层叠光 (35/65/165) 太散导致流线糊成一坨, 改成 1 层适度散光
+   "比之前更虚, 不让内圈出现清晰线条" — user 原注释 (71ac 改后这条注释反转, 现在流线清晰) */
+#voice-call-screen .ccw-soft-streak {
+    filter:
+        blur(10px)
+        drop-shadow(
+            0 0 18px
+            rgba(255, 205, 90, 0.55)
+        );
+    opacity: 0.85;
+}
+
+/* 6 道外围扩散长尾 — user v0.2.30.60 原版 + v0.2.30.71y 加强 + v0.2.30.71ac 太阳神鸟清晰化
+   v0.2.30.71y: blur 250→180 + 2 层 drop-shadow 80/200 + opacity 0.50 (看着"糊成一坨")
+   v0.2.30.71ac: 太阳神鸟 prompt 第 2 条 "blur 8-12" + 第 3 条 "起始端 0.8-0.9"
+     blur 180→12 (符合 8-12 范围, 6 道长尾清晰可辨)
+     opacity 0.50→0.75 (起始端 0.8-0.9 范围)
+     drop-shadow 2 层→1 层 0 0 24px α0.40 ("适度 drop-shadow 温润光晕")
+     之前 71y 的 2 层叠光 (80/200) 太散导致长尾糊成一坨, 改成 1 层适度散光
+   soft-glow 3.8s 关键帧保留 (user 模板原版) */
+#voice-call-screen .ccw-soft-halo {
+    filter:
+        blur(12px)
+        drop-shadow(
+            0 0 24px
+            rgba(255, 175, 35, 0.40)
+        );
+    opacity: 0.75;
+    animation: soft-glow 3.8s ease-in-out infinite;
+}
+
+/* 头像 — user v0.2.30.60 原版 box-shadow 4 层 + v0.2.30.71y 加强 + v0.2.30.71ac 弱化
+   v0.2.30.71y: box-shadow 9/24/42→9/32/60 (更宽更厚) + 各层 alpha 大幅提高 + inset 9→12
+   v0.2.30.71ac: 太阳神鸟 prompt 第 4 条 "弱化内圈大光斑"
+     box-shadow 9/32/60→9/24/40 (缩 33%) + 各层 alpha 减 0.10-0.15
+     inset 12→9 (弱化内阴影)
+     "把视觉中心让给外圈旋转的 6 道金色神鸟羽翼流光"
+   圆心大小 100x100 不动 (v0.2.30.71k 锁死)
+   跟 listening/speaking 100x100 头像一致 (v0.2.30.62 锁死) — 跨状态头像大小相同 */
+#voice-call-screen .ccw-avatar {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: #111;
+    overflow: hidden;
+    z-index: 5;
+    border: 1px solid rgba(255, 248, 225, 1);
+    box-shadow:
+        0 0 9px rgba(255, 240, 195, 0.85),
+        0 0 24px rgba(255, 195, 70, 0.70),
+        0 0 40px rgba(255, 165, 35, 0.40),
+        inset 0 0 9px rgba(255, 230, 100, 0.40);
+}
+
+#voice-call-screen .ccw-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+@keyframes vortex-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes vortex-breathe {
+    0%, 100% {
+        transform: scale(0.96);
+        opacity: 0.62;
+        filter: blur(0px) drop-shadow(0 0 22px rgba(255, 175, 35, 0.38));
+    }
+    50% {
+        transform: scale(1.035);
+        opacity: 0.82;
+        filter: blur(0px) drop-shadow(0 0 42px rgba(255, 205, 75, 0.62));
+    }
+}
+
+@keyframes soft-glow {
+    0%, 100% { opacity: 0.16; }
+    50% { opacity: 0.38; }
+}
+
+/* v0.5.x: 隐藏视频通话旧文字气泡容器 (参考 #voice-call-main v0.2.30.24 做法)
+   - 旧聊天框与 AI/ASR/TTS 核心共用 (triggerAiInCallAction 内 7+ 处 callFeed.appendChild/scrollTop/querySelector)
+   - DOM 保留, 容器 hidden 即可让用户视觉上看不到, JS 链路 0 影响 */
+#video-call-main {
+    display: none !important;
+}
+
+/* =========================================================
+   330 · Galgame Glass AI Dialogue Bubble
+   ========================================================= */
+
+#video-call-ai-glass-bubble {
+
+    position: absolute;
+
+    left: 20px;
+    right: 20px;
+
+    bottom: calc(
+        160px + env(safe-area-inset-bottom)
+    );
+
+    width: auto;
+    max-width: 540px;
+
+    margin: 0 auto;
+
+    padding: 15px 20px 17px;
+
+    box-sizing: border-box;
+
+    border-radius: 20px;
+
+    /* 渐变发光细边 (紫→粉→淡蓝) + 主体淡白透明
+       双层 background 叠加:
+         - padding-box 层: 主体淡白透明玻璃
+         - border-box 层: 紫粉淡蓝渐变 (做"发光细边") */
+    border: 1.5px solid transparent;
+    border-image: none;
+
+    background:
+        linear-gradient(
+            rgba(255, 255, 255, 0.12),
+            rgba(255, 255, 255, 0.12)
+        ) padding-box,
+        linear-gradient(
+            135deg,
+            rgba(212, 184, 255, 0.20) 0%,
+            rgba(255, 181, 224, 0.20) 50%,
+            rgba(184, 224, 255, 0.20) 100%
+        ) border-box;
+
+    backdrop-filter:
+        blur(0px)
+        saturate(100%);
+
+    -webkit-backdrop-filter:
+        blur(0px)
+        saturate(100%);
+
+    /* 多层柔光:
+       - 顶部内白高光 (真实玻璃反射)
+       - 底部内淡紫高光
+       - 底阴影 (悬浮感)
+       - 紫近光 → 粉中光 → 淡蓝氛围远光 (边缘发光, 不染主体) */
+    box-shadow:
+
+        inset 0 1px 0 rgba(255, 255, 255, 0.45),
+
+        inset 0 -1px 0 rgba(196, 180, 255, 0.15),
+
+        0 10px 30px rgba(0, 0, 0, 0.18),
+
+        0 0 12px rgba(212, 184, 255, 0.35),
+
+        0 0 24px rgba(255, 181, 224, 0.22),
+
+        0 0 42px rgba(184, 224, 255, 0.14);
+
+    color: rgba(255, 255, 255, 0.97);
+
+    z-index: 50;
+
+    pointer-events: none;
+
+    opacity: 1;
+
+    transform: translateY(0);
+
+    transition:
+        opacity 0.25s ease,
+        transform 0.25s ease,
+        box-shadow 0.3s ease;
+
+    overflow: visible;
+}
+
+
+/* 隐藏 (v0.5.x 临时: 视觉空壳阶段先保持显示, 方便用户检查玻璃质感; 后续接入 AI 时再恢复 is-hidden 隐藏默认) */
+
+#video-call-ai-glass-bubble.is-hidden {
+
+    opacity: 1;
+
+    transform: translateY(0);
+}
+
+/* v0.5.x 撤销: 暂时不再使用玻璃气泡 — 用 display:none !important 彻底隐藏整个气泡根, 不影响通话核心
+   (气泡 HTML 保留, 不再显示; 后续如需重新启用再移除这条) */
+#video-call-ai-glass-bubble {
+
+    display: none !important;
+}
+
+
+/* 顶部发光边 (v0.5.x: 改成更细更白的玻璃反射高光, 配合主体紫粉淡蓝渐变边) */
+
+#video-call-ai-glass-bubble
+.glass-bubble-highlight {
+
+    position: absolute;
+
+    top: -1px;
+    left: 18%;
+    right: 18%;
+
+    height: 1px;
+
+    border-radius: 999px;
+
+    background:
+        linear-gradient(
+            90deg,
+            transparent,
+            rgba(255, 255, 255, 0.55),
+            rgba(255, 255, 255, 0.90),
+            rgba(255, 255, 255, 0.55),
+            transparent
+        );
+
+    box-shadow:
+        0 0 6px rgba(255, 255, 255, 0.50),
+        0 0 14px rgba(220, 205, 255, 0.25);
+
+    pointer-events: none;
+}
+
+
+/* 角色名称 */
+
+#video-call-ai-glass-bubble
+.glass-bubble-name {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 7px;
+
+    margin-bottom: 6px;
+
+    font-size: 12px;
+
+    line-height: 1;
+
+    letter-spacing: 0.6px;
+
+    color:
+        rgba(255, 255, 255, 0.82);
+
+    text-shadow:
+        0 1px 7px rgba(0, 0, 0, 0.30);
+}
+
+
+/* 名字前的小光点 */
+
+#video-call-ai-glass-bubble
+.glass-bubble-status-dot {
+
+    width: 6px;
+    height: 6px;
+
+    flex: 0 0 6px;
+
+    border-radius: 50%;
+
+    background:
+        rgba(222, 247, 255, 0.95);
+
+    box-shadow:
+        0 0 7px rgba(219, 243, 255, 0.95),
+        0 0 14px rgba(201, 192, 255, 0.75);
+}
+
+
+/* AI 台词 */
+
+#video-call-ai-glass-bubble
+.glass-bubble-text {
+
+    min-height: 23px;
+
+    padding-right: 20px;
+
+    font-size: 15px;
+
+    line-height: 1.7;
+
+    font-weight: 400;
+
+    letter-spacing: 0.15px;
+
+    color:
+        rgba(255, 255, 255, 0.97);
+
+    text-shadow:
+        0 1px 8px rgba(0, 0, 0, 0.32);
+
+    white-space: pre-wrap;
+
+    /* v0.5.x 修复: word-break: break-word 非标准, 长中文无空格不换行 → 溢出出横向滚动条
+       改为 overflow-wrap: anywhere + word-break: break-all 强制中文换行, overflow-x: hidden 防滚动条 */
+    overflow-wrap: anywhere;
+
+    word-break: break-all;
+
+    overflow-x: hidden;
+}
+
+
+/* 小星光 */
+
+#video-call-ai-glass-bubble
+.glass-bubble-spark {
+
+    position: absolute;
+
+    color:
+        rgba(231, 229, 255, 0.90);
+
+    text-shadow:
+        0 0 8px rgba(210, 198, 255, 0.90);
+
+    pointer-events: none;
+}
+
+#video-call-ai-glass-bubble
+.spark-one {
+
+    right: 25px;
+    top: 8px;
+
+    font-size: 12px;
+}
+
+#video-call-ai-glass-bubble
+.spark-two {
+
+    right: 11px;
+    bottom: 10px;
+
+    font-size: 9px;
+
+    opacity: 0.75;
+}
+
+
+/* AI 正在说话时的发光效果 (v0.5.x: 紫粉淡蓝发光层同步, 呼吸亮度更明显) */
+
+#video-call-ai-glass-bubble.is-speaking {
+
+    box-shadow:
+
+        inset 0 1px 0 rgba(255, 255, 255, 0.55),
+
+        inset 0 -1px 0 rgba(196, 180, 255, 0.20),
+
+        0 10px 30px rgba(0, 0, 0, 0.18),
+
+        0 0 16px rgba(212, 184, 255, 0.48),
+
+        0 0 32px rgba(255, 181, 224, 0.30),
+
+        0 0 52px rgba(184, 224, 255, 0.18);
+
+    animation:
+        glassBubbleBreath
+        1.8s
+        ease-in-out
+        infinite
+        alternate;
+}
+
+
+@keyframes glassBubbleBreath {
+
+    from {
+        filter: brightness(1);
+    }
+
+    to {
+        filter: brightness(1.06);
+    }
+}
+
+
+/* 矮屏手机 */
+
+@media (max-height: 680px) {
+
+    #video-call-ai-glass-bubble {
+
+        bottom: calc(
+            155px + env(safe-area-inset-bottom)
+        );
+
+        max-height: 23vh;
+
+        overflow-y: auto;
+    }
+}
+
+
+/* 小屏手机 */
+
+@media (max-width: 380px) {
+
+    #video-call-ai-glass-bubble {
+
+        left: 16px;
+        right: 16px;
+
+        bottom: calc(
+            154px + env(safe-area-inset-bottom)
+        );
+
+        padding:
+            13px
+            17px
+            15px;
+
+        border-radius: 18px;
+    }
+
+    #video-call-ai-glass-bubble
+    .glass-bubble-text {
+
+        font-size: 14px;
+
+        line-height: 1.65;
+    }
+
+    #video-call-ai-glass-bubble
+    .glass-bubble-name {
+
+        font-size: 11px;
+    }
+}
+

@@ -1,0 +1,1238 @@
+/* ====================================================================
+   【网易云登录 Modal · 深海军蓝主题】 (新增 0.0.37)
+   加载在所有 CSS 之后, 用 !important 覆盖, 不动任何原 CSS
+   卸载: 删 index.html 引用即可 100% 回滚
+   ==================================================================== */
+
+/* ===== 网易云登录入口 (右上角徽章) ===== */
+#netease-login-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  background: linear-gradient(135deg, #d4577a 0%, #ff8fab 100%) !important;
+  color: #fff !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  padding: 4px 10px !important;
+  border-radius: 12px !important;
+  box-shadow: 0 2px 8px rgba(194, 12, 12, 0.4) !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  text-shadow: 0 1px 1px rgba(0,0,0,0.15) !important;
+}
+#netease-login-btn::before {
+  content: "♪" !important;
+  font-size: 14px !important;
+  margin-right: 2px !important;
+}
+#netease-login-btn:hover {
+  transform: scale(1.08) !important;
+  box-shadow: 0 4px 14px rgba(194, 12, 12, 0.55) !important;
+}
+
+/* ===== 网易云登录 Modal (沿用之前的样式, 这里给个 fallback) ===== */
+.netease-login-modal {
+  position: fixed !important;
+  top: 0; left: 0; right: 0; bottom: 0 !important;
+  background: rgba(0, 0, 0, 0.55) !important;
+  z-index: 10001 !important;
+  /* 【bug 修复 0.0.37】之前误加 display: flex !important 覆盖了 HTML 的 display:none
+     改成 :not(.visible) 才能保持隐藏, JS 显示时加 .visible class */
+  align-items: center !important;
+  justify-content: center !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+}
+.netease-login-modal.visible {
+  display: flex !important;
+}
+.netease-login-sheet {
+  width: 90% !important;
+  max-width: 420px !important;
+  background: linear-gradient(180deg, #FFB6C1 0%, #FFC9D7 100%) !important;
+  color: #5a3d2e !important;
+  border-radius: 18px !important;
+  padding: 22px 20px 18px !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 14px !important;
+  border: 1px solid rgba(74, 144, 226, 0.25) !important;
+}
+.netease-login-title {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  font-size: 17px !important;
+  font-weight: 600 !important;
+  color: #5a3d2e !important;
+}
+.netease-login-close {
+  cursor: pointer !important;
+  font-size: 24px !important;
+  width: 28px !important;
+  height: 28px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 50% !important;
+  color: #b06e30 !important;
+  background: rgba(255,255,255,0.05) !important;
+  transition: all 0.15s !important;
+}
+.netease-login-close:hover {
+  background: rgba(255,255,255,0.12) !important;
+  color: #5a3d2e !important;
+}
+.netease-login-status {
+  font-size: 13px !important;
+  padding: 8px 12px !important;
+  background: rgba(74, 144, 226, 0.15) !important;
+  border-radius: 10px !important;
+  color: #d4577a !important;
+  border: 1px solid rgba(74, 144, 226, 0.3) !important;
+  text-align: center !important;
+}
+.netease-login-section {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+}
+.netease-login-label {
+  font-size: 12px !important;
+  color: #b06e30 !important;
+  font-weight: 500 !important;
+}
+.netease-login-textarea {
+  width: 100% !important;
+  border: 1px solid rgba(107, 155, 199, 0.25) !important;
+  border-radius: 10px !important;
+  padding: 10px 12px !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace !important;
+  font-size: 12px !important;
+  resize: vertical !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #5a3d2e !important;
+  box-sizing: border-box !important;
+}
+.netease-login-textarea::placeholder { color: rgba(232, 240, 248, 0.4) !important; }
+.netease-login-textarea:focus {
+  outline: none !important;
+  border-color: #FFB6C1 !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+.netease-login-hint {
+  font-size: 11px !important;
+  color: #b06e30 !important;
+  line-height: 1.5 !important;
+}
+.netease-login-actions {
+  display: flex !important;
+  gap: 8px !important;
+}
+.netease-login-btn {
+  flex: 1 !important;
+  padding: 9px 0 !important;
+  border: 1px solid rgba(107, 155, 199, 0.2) !important;
+  border-radius: 10px !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #7d5a40 !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  transition: all 0.15s !important;
+}
+.netease-login-btn:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(107, 155, 199, 0.35) !important;
+}
+.netease-login-btn.primary {
+  background: linear-gradient(135deg, #FFB6C1 0%, #FF9DB5 100%) !important;
+  color: #fff !important;
+  border-color: #FFB6C1 !important;
+}
+.netease-login-btn.primary:hover {
+  background: linear-gradient(135deg, #FFC9D7 0%, #FFB0CB 100%) !important;
+}
+.netease-login-btn.danger {
+  color: #d4577a !important;
+  border-color: rgba(255, 112, 102, 0.4) !important;
+}
+.netease-login-btn.danger:hover {
+  background: rgba(255, 112, 102, 0.1) !important;
+}
+.netease-login-select {
+  width: 100% !important;
+  padding: 9px 12px !important;
+  border: 1px solid rgba(107, 155, 199, 0.25) !important;
+  border-radius: 10px !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #5a3d2e !important;
+  font-size: 14px !important;
+  box-sizing: border-box !important;
+}
+.netease-login-select:focus {
+  outline: none !important;
+  border-color: #FFB6C1 !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+.netease-login-foot {
+  display: flex !important;
+  justify-content: flex-end !important;
+  margin-top: 4px !important;
+  color: #b06e30 !important;
+  font-size: 11px !important;
+}
+
+/* ====================================================================
+   【音乐播放器主界面 · 深海军蓝主题】 (新增 0.0.37)
+   ==================================================================== */
+
+/* 主框: 白底玻璃 → 深海军蓝玻璃 */
+.music-player-window {
+  position: relative !important;
+  background: linear-gradient(180deg, rgba(10, 37, 64, 0.92) 0%, rgba(13, 47, 80, 0.92) 100%) !important;
+  border: 1px solid rgba(74, 144, 226, 0.3) !important;
+  color: #5a3d2e !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255,255,255,0.05) !important;
+}
+
+/* 顶栏按钮: 黑/灰 → 浅蓝白 */
+#music-return-btn,
+#music-exit-btn {
+  color: #7d5a40 !important;
+  transition: all 0.2s !important;
+}
+#music-return-btn:hover,
+#music-exit-btn:hover {
+  color: #fff !important;
+  background: rgba(74, 144, 226, 0.15) !important;
+  border-radius: 50% !important;
+}
+
+/* 全屏按钮: 灰 → 浅蓝 */
+#toggle-fullscreen-btn {
+  color: #7d5a40 !important;
+}
+#toggle-fullscreen-btn:hover {
+  color: #fff !important;
+}
+
+/* 模糊切换按钮: 灰底 → 蓝底 */
+#toggle-blur-btn {
+  color: #7d5a40 !important;
+  background-color: rgba(74, 144, 226, 0.15) !important;
+}
+#toggle-blur-btn.active {
+  background-color: #FFB6C1 !important;
+  color: #fff !important;
+}
+
+/* 标题/艺术家/时间: 黑/灰 → 浅蓝白 */
+#music-player-song-title,
+#music-player-artist,
+#music-time-counter,
+#single-lyric-display {
+  color: #5a3d2e !important;
+}
+
+/* 时间计数高亮: 加网易云红 accent */
+#music-time-counter {
+  color: #d4577a !important;
+  font-weight: 600 !important;
+  background: rgba(194, 12, 12, 0.12) !important;
+  padding: 3px 10px !important;
+  border-radius: 8px !important;
+  display: inline-block !important;
+  border: 1px solid rgba(194, 12, 12, 0.25) !important;
+}
+
+/* 头像显示区: 浅灰分隔线 → 蓝 */
+#music-player-avatar-display {
+  border-bottom: 1px solid rgba(74, 144, 226, 0.2) !important;
+  color: #5a3d2e !important;
+}
+#show-avatars-btn {
+  color: #7d5a40 !important;
+  opacity: 0.7 !important;
+}
+#show-avatars-btn:hover,
+#show-avatars-btn.active {
+  opacity: 1 !important;
+  color: #fff !important;
+}
+
+/* 黑胶封面: 阴影加深 */
+#music-player-cover {
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(74, 144, 226, 0.2) !important;
+}
+
+/* 进度条: 灰底 + 黑 fill → 蓝半透底 + 网易云红 fill */
+.progress-bar {
+  background-color: rgba(74, 144, 226, 0.18) !important;
+  height: 6px !important;
+  border-radius: 3px !important;
+}
+.progress-bar-fill {
+  background: linear-gradient(90deg, #d4577a 0%, #ff8fab 100%) !important;
+  border-radius: 3px !important;
+  box-shadow: 0 0 8px rgba(232, 71, 73, 0.5) !important;
+}
+
+/* 时间显示: 灰 → 浅蓝 */
+.time-display {
+  color: #7d5a40 !important;
+  font-weight: 500 !important;
+}
+
+/* 5 个控制按钮: 灰 → 浅蓝白 */
+.music-controls button {
+  color: #7d5a40 !important;
+  transition: all 0.2s !important;
+}
+.music-controls button:hover {
+  color: #fff !important;
+  background: rgba(74, 144, 226, 0.2) !important;
+  transform: scale(1.08) !important;
+}
+.music-controls button:active {
+  transform: scale(0.95) !important;
+}
+
+/* 主播放按钮: 蓝底白字 */
+#music-play-pause-btn {
+  background: linear-gradient(135deg, #FFB6C1 0%, #FF9DB5 100%) !important;
+  color: #fff !important;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4) !important;
+}
+#music-play-pause-btn:hover {
+  background: linear-gradient(135deg, #FFC9D7 0%, #FFB0CB 100%) !important;
+  transform: scale(1.08) !important;
+}
+
+/* 模式按钮: 灰 → 蓝徽章 */
+#music-mode-btn {
+  background: rgba(74, 144, 226, 0.15) !important;
+  color: #d4577a !important;
+  border: 1px solid rgba(74, 144, 226, 0.3) !important;
+  border-radius: 8px !important;
+  padding: 2px 8px !important;
+  font-size: 12px !important;
+}
+#music-mode-btn:hover {
+  background: rgba(74, 144, 226, 0.25) !important;
+  color: #fff !important;
+}
+
+/* 歌词: 灰 → 浅蓝半透; active → 白 */
+.lyric-line {
+  color: rgba(232, 240, 248, 0.45) !important;
+}
+.lyric-line.active {
+  color: #fff !important;
+  text-shadow: 0 0 12px rgba(74, 144, 226, 0.5) !important;
+  font-weight: 500 !important;
+}
+
+/* 单行歌词显示: 灰 → 浅蓝白 */
+#single-lyric-display {
+  background: rgba(74, 144, 226, 0.08) !important;
+  border-radius: 8px !important;
+  padding: 0 12px !important;
+  border: 1px solid rgba(74, 144, 226, 0.15) !important;
+}
+
+/* 来源标签 (search result modal 内) - 网易云真实源徽章 */
+.search-result-info .source {
+  background: rgba(255, 255, 255, 0.9) !important;
+  font-weight: 600 !important;
+}
+
+/* 一起听头像圆形 */
+.participant-display-avatar {
+  border: 2px solid rgba(74, 144, 226, 0.3) !important;
+}
+
+/* ====================================================================
+   【自定义封面】 (新增 0.0.37)
+   ==================================================================== */
+
+/* 标记可点击 */
+#music-player-cover.custom-cover-clickable {
+  cursor: pointer !important;
+  transition: transform 0.2s, box-shadow 0.2s !important;
+}
+
+/* hover 提示 */
+#music-player-cover.custom-cover-clickable::after {
+  content: "点击上传自定义封面" !important;
+  position: absolute !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  padding: 6px 0 !important;
+  background: linear-gradient(180deg, transparent 0%, rgba(10, 37, 64, 0.95) 50%) !important;
+  color: #fff !important;
+  font-size: 11px !important;
+  text-align: center !important;
+  font-weight: 500 !important;
+  border-radius: 0 0 15px 15px !important;
+  opacity: 0 !important;
+  transition: opacity 0.2s !important;
+  pointer-events: none !important;
+}
+#music-visual-container {
+  position: relative !important;
+}
+#music-player-cover.custom-cover-clickable:hover {
+  transform: scale(1.02) !important;
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.7), 0 0 0 2px rgba(74, 144, 226, 0.5) !important;
+}
+#music-visual-container:hover #music-player-cover.custom-cover-clickable::after {
+  opacity: 1 !important;
+}
+
+
+
+
+/* ====================================================================
+   【扫码登录 Tab + QR Code】 (新增 0.0.37)
+   ==================================================================== */
+.netease-login-tabs {
+  display: flex !important;
+  gap: 4px !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  padding: 4px !important;
+  border-radius: 10px !important;
+  border: 1px solid rgba(74, 144, 226, 0.2) !important;
+}
+.netease-login-tab {
+  flex: 1 !important;
+  padding: 7px 0 !important;
+  border: none !important;
+  background: transparent !important;
+  color: #b06e30 !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  border-radius: 7px !important;
+  cursor: pointer !important;
+  transition: all 0.2s !important;
+}
+.netease-login-tab:hover {
+  color: #7d5a40 !important;
+}
+.netease-login-tab.active {
+  background: linear-gradient(135deg, #FFB6C1 0%, #FF9DB5 100%) !important;
+  color: #fff !important;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3) !important;
+}
+
+.netease-login-tab-panel {
+  display: none !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+}
+.netease-login-tab-panel.active {
+  display: flex !important;
+}
+
+/* 扫码 placeholder (未生成时) */
+.netease-qr-placeholder {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 12px !important;
+  padding: 24px 12px !important;
+  background: rgba(74, 144, 226, 0.06) !important;
+  border: 1px dashed rgba(74, 144, 226, 0.25) !important;
+  border-radius: 12px !important;
+  text-align: center !important;
+  color: #7d5a40 !important;
+  font-size: 13px !important;
+  line-height: 1.6 !important;
+}
+.netease-qr-placeholder-icon {
+  font-size: 36px !important;
+  line-height: 1 !important;
+}
+.netease-qr-placeholder-text {
+  font-size: 13px !important;
+}
+.netease-qr-placeholder .netease-login-btn {
+  margin-top: 4px !important;
+  max-width: 200px !important;
+}
+
+/* 扫码 active (生成二维码后) */
+.netease-qr-active {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+.netease-qr-img-wrap {
+  padding: 12px !important;
+  background: #fff !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3) !important;
+}
+.netease-qr-img {
+  width: 180px !important;
+  height: 180px !important;
+  display: block !important;
+}
+.netease-qr-hint {
+  font-size: 13px !important;
+  color: #7d5a40 !important;
+  text-align: center !important;
+}
+.netease-qr-status {
+  font-size: 12px !important;
+  color: #d4577a !important;
+  text-align: center !important;
+  padding: 6px 12px !important;
+  background: rgba(74, 144, 226, 0.1) !important;
+  border-radius: 8px !important;
+  min-width: 200px !important;
+  transition: color 0.2s !important;
+}
+
+
+/* ====================================================================
+   【手机号登录】 (新增 0.0.37)
+   ==================================================================== */
+.netease-login-input {
+  width: 100% !important;
+  border: 1px solid rgba(107, 155, 199, 0.25) !important;
+  border-radius: 10px !important;
+  padding: 9px 12px !important;
+  font-size: 14px !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #5a3d2e !important;
+  box-sizing: border-box !important;
+  font-family: inherit !important;
+  transition: border-color 0.15s, background 0.15s !important;
+}
+.netease-login-input::placeholder {
+  color: rgba(232, 240, 248, 0.35) !important;
+}
+.netease-login-input:focus {
+  outline: none !important;
+  border-color: #FFB6C1 !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* 验证码发送按钮 (倒计时禁用态) */
+#netease-captcha-send-btn:disabled {
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+  background: rgba(74, 144, 226, 0.1) !important;
+  color: #d4577a !important;
+  border-color: rgba(74, 144, 226, 0.2) !important;
+}
+
+/* 登录按钮禁用态 */
+#netease-phone-login-btn:disabled,
+.netease-login-btn.primary:disabled {
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+
+/* ====================================================================
+   Pink-white listen-together refresh
+   Keeps the NetEase app and listen-together player visually aligned.
+   ==================================================================== */
+:root {
+  --listen-pink-50: #fff8fb;
+  --listen-pink-100: #ffeef4;
+  --listen-pink-200: #ffd7e3;
+  --listen-pink-300: #ffb6c9;
+  --listen-pink-400: #ff8fab;
+  --listen-pink-500: #f0648d;
+  --listen-yellow-100: #fff3c9;
+  --listen-yellow-300: #ffd978;
+  --listen-ink: #5a3d46;
+  --listen-muted: #a46b7d;
+  --listen-line: rgba(255, 143, 171, 0.22);
+  --listen-card: rgba(255, 255, 255, 0.82);
+  --listen-shadow: 0 20px 60px rgba(255, 143, 171, 0.26);
+}
+
+#music-player-overlay {
+  background: rgba(255, 214, 226, 0.28) !important;
+  backdrop-filter: blur(10px) saturate(1.08) !important;
+  -webkit-backdrop-filter: blur(10px) saturate(1.08) !important;
+}
+
+.music-player-window {
+  position: relative !important;
+  background:
+    radial-gradient(circle at 18% 10%, rgba(255, 243, 201, 0.78) 0 16%, transparent 34%),
+    linear-gradient(180deg, #fffaf3 0%, #fff0f5 48%, #ffe3ed 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.78) !important;
+  color: var(--listen-ink) !important;
+  box-shadow: var(--listen-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.85) !important;
+  overflow: hidden !important;
+}
+
+.music-player-window::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  pointer-events: none !important;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,0.42), transparent 34%, rgba(255,255,255,0.22)),
+    radial-gradient(circle at 82% 12%, rgba(255, 217, 120, 0.34), transparent 25%) !important;
+  z-index: 0 !important;
+}
+
+.music-player-window > * {
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+.music-player-top-actions,
+#music-player-avatar-display,
+#music-info-top,
+.music-player-controls-wrapper {
+  color: var(--listen-ink) !important;
+}
+
+#music-return-btn,
+#music-exit-btn,
+#music-playlist-btn,
+#toggle-fullscreen-btn,
+#show-avatars-btn,
+#toggle-blur-btn,
+#music-mode-btn,
+.music-controls button,
+.nma-player-entry {
+  color: var(--listen-ink) !important;
+}
+
+#music-return-btn,
+#music-exit-btn,
+#music-playlist-btn,
+.nma-player-entry,
+#show-avatars-btn,
+#toggle-blur-btn,
+#music-mode-btn {
+  background: rgba(255, 255, 255, 0.62) !important;
+  border: 1px solid rgba(255, 182, 201, 0.32) !important;
+  box-shadow: 0 4px 14px rgba(255, 143, 171, 0.16) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+}
+
+#music-return-btn:hover,
+#music-exit-btn:hover,
+#music-playlist-btn:hover,
+.nma-player-entry:hover,
+#show-avatars-btn:hover,
+#show-avatars-btn.active,
+#toggle-blur-btn:hover,
+#toggle-blur-btn.active,
+#music-mode-btn:hover {
+  color: #fff !important;
+  background: linear-gradient(135deg, var(--listen-pink-400), var(--listen-pink-300)) !important;
+  border-color: rgba(255, 255, 255, 0.72) !important;
+  transform: translateY(-1px) !important;
+}
+
+#music-time-counter {
+  color: #9b5a21 !important;
+  background: linear-gradient(135deg, rgba(255, 243, 201, 0.92), rgba(255, 255, 255, 0.72)) !important;
+  border: 1px solid rgba(255, 217, 120, 0.7) !important;
+  box-shadow: 0 6px 18px rgba(255, 217, 120, 0.22) !important;
+}
+
+#music-player-song-title {
+  color: var(--listen-ink) !important;
+  font-weight: 800 !important;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.75) !important;
+}
+
+#music-player-artist,
+.time-display,
+#single-lyric-display,
+.lyric-line {
+  color: var(--listen-muted) !important;
+}
+
+#music-player-avatar-display {
+  border-bottom: 1px solid var(--listen-line) !important;
+}
+
+.participant-display-avatar,
+.participant-avatar {
+  border-color: rgba(255, 182, 201, 0.76) !important;
+  box-shadow: 0 4px 14px rgba(255, 143, 171, 0.18) !important;
+}
+
+#music-visual-container {
+  background: rgba(255, 255, 255, 0.36) !important;
+  border: 1px solid rgba(255, 255, 255, 0.56) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.7), 0 10px 24px rgba(255, 143, 171, 0.1) !important;
+}
+
+#music-player-cover {
+  box-shadow: 0 16px 36px rgba(255, 143, 171, 0.28), 0 0 0 6px rgba(255, 255, 255, 0.72) !important;
+}
+
+#music-player-cover.custom-cover-clickable:hover {
+  box-shadow: 0 18px 42px rgba(255, 143, 171, 0.36), 0 0 0 6px rgba(255, 243, 201, 0.88) !important;
+}
+
+#single-lyric-display {
+  background: rgba(255, 255, 255, 0.58) !important;
+  border: 1px solid var(--listen-line) !important;
+  color: #8e596b !important;
+  box-shadow: 0 6px 18px rgba(255, 143, 171, 0.12) !important;
+}
+
+.lyric-line {
+  color: rgba(164, 107, 125, 0.62) !important;
+}
+
+.lyric-line.active {
+  color: var(--listen-pink-500) !important;
+  text-shadow: 0 0 14px rgba(255, 182, 201, 0.58) !important;
+  font-weight: 700 !important;
+}
+
+.music-progress-bar-container {
+  gap: 10px !important;
+}
+
+.progress-bar {
+  background: rgba(255, 255, 255, 0.72) !important;
+  border: 1px solid rgba(255, 182, 201, 0.34) !important;
+  height: 8px !important;
+  border-radius: 999px !important;
+  box-shadow: inset 0 1px 3px rgba(164, 107, 125, 0.1) !important;
+}
+
+.progress-bar-fill {
+  background: linear-gradient(90deg, var(--listen-pink-500) 0%, var(--listen-pink-400) 64%, var(--listen-yellow-300) 100%) !important;
+  border-radius: 999px !important;
+  box-shadow: 0 0 12px rgba(255, 143, 171, 0.48) !important;
+}
+
+.music-controls button {
+  background: transparent !important;
+  border: none !important;
+  text-shadow: none !important;
+}
+
+.music-controls button:hover {
+  color: var(--listen-pink-500) !important;
+  background: rgba(255, 255, 255, 0.58) !important;
+  transform: translateY(-1px) scale(1.05) !important;
+}
+
+#music-play-pause-btn {
+  background: linear-gradient(135deg, var(--listen-pink-500), var(--listen-pink-300)) !important;
+  color: #fff !important;
+  box-shadow: 0 9px 22px rgba(240, 100, 141, 0.36), inset 0 1px 0 rgba(255,255,255,0.38) !important;
+}
+
+#music-play-pause-btn:hover {
+  background: linear-gradient(135deg, #ff769d, #ffc0d2) !important;
+  color: #fff !important;
+}
+
+/* Playlist panel */
+#music-playlist-panel {
+  background:
+    radial-gradient(circle at 16% 0%, rgba(255, 243, 201, 0.78), transparent 30%),
+    linear-gradient(180deg, #fffaf3 0%, #fff1f6 52%, #ffe2ec 100%) !important;
+  color: var(--listen-ink) !important;
+  box-shadow: 0 20px 60px rgba(255, 143, 171, 0.26) !important;
+}
+
+#music-playlist-panel .playlist-header,
+.playlist-header {
+  background: rgba(255, 255, 255, 0.72) !important;
+  border-bottom: 1px solid var(--listen-line) !important;
+  color: var(--listen-ink) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  box-shadow: 0 8px 22px rgba(255, 143, 171, 0.1) !important;
+}
+
+.playlist-header > span[data-lang-key="playlistTitle"] {
+  color: var(--listen-ink) !important;
+  font-weight: 800 !important;
+}
+
+#music-playlist-panel .panel-btn,
+.playlist-header .panel-btn {
+  background: rgba(255, 255, 255, 0.76) !important;
+  color: var(--listen-muted) !important;
+  border: 1px solid rgba(255, 182, 201, 0.32) !important;
+  border-radius: 999px !important;
+  padding: 6px 10px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  box-shadow: 0 4px 12px rgba(255, 143, 171, 0.12) !important;
+}
+
+#music-playlist-panel .panel-btn:hover,
+.playlist-header .panel-btn:hover {
+  color: #fff !important;
+  background: linear-gradient(135deg, var(--listen-pink-400), var(--listen-pink-300)) !important;
+  transform: translateY(-1px) !important;
+}
+
+.playlist-tabs-container {
+  padding: 12px 14px 8px !important;
+  background: rgba(255, 255, 255, 0.32) !important;
+}
+
+.playlist-tab {
+  background: rgba(255, 255, 255, 0.78) !important;
+  color: var(--listen-muted) !important;
+  border: 1px solid rgba(255, 182, 201, 0.26) !important;
+  border-radius: 999px !important;
+  box-shadow: 0 4px 12px rgba(255, 143, 171, 0.1) !important;
+}
+
+.playlist-tab.active {
+  background: linear-gradient(135deg, var(--listen-pink-400), var(--listen-pink-300)) !important;
+  color: #fff !important;
+  box-shadow: 0 6px 18px rgba(255, 143, 171, 0.28) !important;
+}
+
+.playlist-body {
+  padding: 10px 12px 92px !important;
+}
+
+.playlist-body > p {
+  color: var(--listen-muted) !important;
+  background: rgba(255, 255, 255, 0.58) !important;
+  border: 1px dashed rgba(255, 182, 201, 0.42) !important;
+  border-radius: 14px !important;
+}
+
+.playlist-item {
+  min-height: 58px !important;
+  margin: 0 0 8px !important;
+  padding: 10px 12px !important;
+  border: 1px solid rgba(255, 182, 201, 0.2) !important;
+  border-bottom: 1px solid rgba(255, 182, 201, 0.2) !important;
+  border-radius: 14px !important;
+  background: rgba(255, 255, 255, 0.78) !important;
+  box-shadow: 0 4px 14px rgba(255, 143, 171, 0.1) !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease !important;
+}
+
+.playlist-item:hover {
+  transform: translateY(-1px) !important;
+  background: rgba(255, 255, 255, 0.94) !important;
+  box-shadow: 0 8px 20px rgba(255, 143, 171, 0.16) !important;
+}
+
+.playlist-item.playing {
+  background: linear-gradient(135deg, rgba(255, 238, 244, 0.96), rgba(255, 243, 201, 0.78)) !important;
+  border-color: rgba(255, 143, 171, 0.52) !important;
+  box-shadow: 0 8px 24px rgba(255, 143, 171, 0.22) !important;
+}
+
+.playlist-item-info {
+  min-width: 0 !important;
+}
+
+.playlist-item-info .title {
+  color: var(--listen-ink) !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.playlist-item-info .artist {
+  color: var(--listen-muted) !important;
+  font-size: 12px !important;
+  margin-top: 3px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.playlist-item-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  flex-shrink: 0 !important;
+}
+
+.playlist-action-btn {
+  min-width: 24px !important;
+  height: 24px !important;
+  padding: 0 7px !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.74) !important;
+  color: var(--listen-muted) !important;
+  border: 1px solid rgba(255, 182, 201, 0.3) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+}
+
+.playlist-action-btn:hover {
+  color: #fff !important;
+  background: linear-gradient(135deg, var(--listen-pink-400), var(--listen-pink-300)) !important;
+}
+
+.playlist-item .delete-track-btn,
+.delete-track-btn {
+  color: #e95c7f !important;
+}
+
+#playlist-action-bar {
+  background: rgba(255, 255, 255, 0.78) !important;
+  border-top: 1px solid var(--listen-line) !important;
+  color: var(--listen-ink) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  box-shadow: 0 -8px 24px rgba(255, 143, 171, 0.12) !important;
+}
+
+#playlist-action-bar .select-all-label {
+  color: var(--listen-muted) !important;
+  font-weight: 700 !important;
+}
+
+#playlist-action-bar .action-bar-btn {
+  border: none !important;
+  border-radius: 999px !important;
+  color: #fff !important;
+  font-weight: 800 !important;
+  box-shadow: 0 5px 14px rgba(255, 143, 171, 0.2) !important;
+}
+
+#move-to-playlist-btn {
+  background: linear-gradient(135deg, #ffd978, #ffbf66) !important;
+  color: #6b421f !important;
+}
+
+#delete-selected-songs-btn {
+  background: linear-gradient(135deg, #ff7f9f, #f0648d) !important;
+}
+
+#upload-selected-to-catbox-btn {
+  background: linear-gradient(135deg, #ffb6c9, #ffd978) !important;
+  color: #6b421f !important;
+}
+
+/* Search/add-song modals used by the player */
+#music-search-results-modal .modal-content,
+.music-search-results-content,
+.upload-choice-sheet {
+  background: linear-gradient(180deg, #fffaf3, #ffeaf2) !important;
+  color: var(--listen-ink) !important;
+  border: 1px solid rgba(255, 255, 255, 0.76) !important;
+  box-shadow: 0 20px 54px rgba(255, 143, 171, 0.24) !important;
+}
+
+.search-result-item {
+  background: rgba(255, 255, 255, 0.78) !important;
+  border: 1px solid rgba(255, 182, 201, 0.22) !important;
+  border-radius: 14px !important;
+  margin-bottom: 8px !important;
+  box-shadow: 0 4px 12px rgba(255, 143, 171, 0.1) !important;
+}
+
+.search-result-item:hover {
+  background: rgba(255, 255, 255, 0.94) !important;
+  transform: translateY(-1px) !important;
+}
+
+.search-result-info .title,
+.search-result-info .song-name {
+  color: var(--listen-ink) !important;
+  font-weight: 800 !important;
+}
+
+.search-result-info .artist,
+.search-result-info .source,
+.search-result-info .song-artist {
+  color: var(--listen-muted) !important;
+}
+
+.search-result-info .source {
+  background: rgba(255, 243, 201, 0.78) !important;
+  border: 1px solid rgba(255, 217, 120, 0.58) !important;
+  border-radius: 999px !important;
+  padding: 2px 7px !important;
+}
+
+.netease-login-modal {
+  background: rgba(255, 214, 226, 0.34) !important;
+}
+
+.netease-login-sheet {
+  background: linear-gradient(180deg, #fffaf3 0%, #ffeaf2 100%) !important;
+  color: var(--listen-ink) !important;
+  border: 1px solid rgba(255, 255, 255, 0.78) !important;
+  box-shadow: 0 20px 58px rgba(255, 143, 171, 0.28) !important;
+}
+
+.netease-login-title,
+.netease-login-label,
+.netease-login-hint,
+.netease-login-foot,
+.netease-qr-hint,
+.netease-qr-placeholder,
+.netease-qr-status {
+  color: var(--listen-muted) !important;
+}
+
+.netease-login-status,
+.netease-qr-placeholder,
+.netease-qr-status,
+.netease-login-tabs {
+  background: rgba(255, 255, 255, 0.62) !important;
+  border-color: rgba(255, 182, 201, 0.28) !important;
+}
+
+.netease-login-input,
+.netease-login-textarea,
+.netease-login-select {
+  background: rgba(255, 255, 255, 0.78) !important;
+  color: var(--listen-ink) !important;
+  border-color: rgba(255, 182, 201, 0.34) !important;
+}
+
+.netease-login-input::placeholder,
+.netease-login-textarea::placeholder {
+  color: rgba(164, 107, 125, 0.55) !important;
+}
+
+.netease-login-tab.active,
+.netease-login-btn.primary {
+  background: linear-gradient(135deg, var(--listen-pink-500), var(--listen-pink-300)) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+}
+
+.netease-login-btn,
+.netease-login-tab {
+  background: rgba(255, 255, 255, 0.72) !important;
+  color: var(--listen-muted) !important;
+  border-color: rgba(255, 182, 201, 0.28) !important;
+}
+
+.netease-login-close:hover,
+.netease-login-btn:hover,
+.netease-login-tab:hover {
+  background: rgba(255, 238, 244, 0.92) !important;
+}
+
+/* Clickable music island restore affordance */
+#dynamic-island-content {
+  cursor: pointer !important;
+}
+
+body.frame-mode-active #phone-screen.dynamic-island-active #dynamic-island-content,
+body:not(.frame-mode-active) #phone-screen.dynamic-island-active #dynamic-island-content {
+  cursor: pointer !important;
+}
+
+#phone-screen.dynamic-island-active #dynamic-island-content {
+  background: linear-gradient(135deg, rgba(90, 61, 70, 0.96), rgba(240, 100, 141, 0.92)) !important;
+  box-shadow: 0 8px 22px rgba(240, 100, 141, 0.28), inset 0 1px 0 rgba(255,255,255,0.18) !important;
+}
+
+#phone-screen.dynamic-island-active #dynamic-island-content:hover {
+  transform: translateY(1px) scale(1.03) !important;
+  box-shadow: 0 10px 26px rgba(240, 100, 141, 0.36), inset 0 1px 0 rgba(255,255,255,0.22) !important;
+}
+
+#phone-screen.dynamic-island-active #dynamic-island-content:active {
+  transform: translateY(2px) scale(0.98) !important;
+}
+
+#phone-screen.dynamic-island-active #dynamic-island-content.dragging,
+#phone-screen.dynamic-island-active #dynamic-island-content.dragging:hover,
+#phone-screen.dynamic-island-active #dynamic-island-content.dragging:active {
+  transform: none !important;
+}
+
+/* Final pink-white listen-together player cleanup */
+:root {
+  --listen-yellow-100: #fff8fb;
+  --listen-yellow-300: #ffd7e3;
+}
+
+.music-player-window {
+  background:
+    linear-gradient(180deg, #fff9fc 0%, #fff1f6 48%, #ffe6ef 100%) !important;
+  border-color: rgba(255, 255, 255, 0.82) !important;
+  box-shadow: 0 22px 58px rgba(255, 143, 171, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+}
+
+.music-player-window::before {
+  background:
+    linear-gradient(115deg, rgba(255, 255, 255, 0.58), transparent 42%),
+    radial-gradient(circle at 82% 12%, rgba(255, 214, 226, 0.55), transparent 28%),
+    radial-gradient(circle at 12% 86%, rgba(255, 238, 244, 0.62), transparent 30%) !important;
+}
+
+.music-player-window {
+  justify-content: flex-start !important;
+  gap: 10px !important;
+}
+
+#music-player-avatar-display {
+  order: 1 !important;
+  display: flex !important;
+  margin: 46px 0 2px !important;
+  padding: 8px 14px !important;
+  width: calc(100% - 28px) !important;
+  border: 1px solid rgba(255, 182, 201, 0.28) !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.54) !important;
+  box-shadow: 0 8px 18px rgba(255, 143, 171, 0.1) !important;
+}
+
+#music-player-avatar-display:not(.visible) {
+  display: none !important;
+}
+
+.music-player-window:not(:has(#show-avatars-btn.active)) #music-player-avatar-display {
+  display: flex !important;
+}
+
+.music-player-window:has(#show-avatars-btn.active) #music-player-avatar-display {
+  display: none !important;
+}
+
+.music-player-window #music-player-song-title {
+  margin-top: 8px !important;
+}
+
+#music-info-top {
+  display: contents !important;
+}
+
+#music-player-song-title {
+  order: 2 !important;
+  width: 100% !important;
+  margin: 56px 0 4px !important;
+  text-align: center !important;
+}
+
+#music-player-artist {
+  order: 3 !important;
+  width: 100% !important;
+  margin: 0 0 8px !important;
+  text-align: center !important;
+}
+
+#music-visual-container {
+  order: 4 !important;
+  margin: 4px 0 8px !important;
+  background:
+    linear-gradient(180deg, rgba(255, 249, 252, 0.72), rgba(255, 230, 239, 0.72)) !important;
+  border: 1px solid rgba(255, 238, 244, 0.86) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78), 0 10px 22px rgba(255, 143, 171, 0.08) !important;
+  border-radius: 34px !important;
+}
+
+#vinyl-view {
+  background-color: #222 !important;
+  background-image: repeating-radial-gradient(circle, #333 0 1px, #222 1px 2px) !important;
+}
+
+#music-info-top > div:first-child {
+  order: 5 !important;
+  width: auto !important;
+  max-width: calc(100% - 28px) !important;
+  min-height: 34px !important;
+  margin: 0 auto 2px !important;
+  padding: 4px 6px 4px 12px !important;
+  display: inline-flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  gap: 8px !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+  border: 1px solid rgba(255, 182, 201, 0.34) !important;
+  border-radius: 999px !important;
+  box-shadow: 0 8px 18px rgba(255, 143, 171, 0.12) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+}
+
+#music-time-counter {
+  margin: 0 !important;
+  padding: 0 4px !important;
+  color: #9a4f68 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  white-space: nowrap !important;
+}
+
+#show-avatars-btn {
+  display: inline-flex !important;
+  width: 42px !important;
+  height: 28px !important;
+  padding: 0 !important;
+  flex: 0 0 42px !important;
+  opacity: 1 !important;
+}
+
+#show-avatars-btn.has-inline-avatars {
+  gap: 0 !important;
+  overflow: visible !important;
+  background: rgba(255, 255, 255, 0.7) !important;
+}
+
+#show-avatars-btn .music-inline-avatar {
+  width: 24px !important;
+  height: 24px !important;
+  border-radius: 50% !important;
+  object-fit: cover !important;
+  border: 2px solid rgba(255, 255, 255, 0.92) !important;
+  box-shadow: 0 3px 8px rgba(154, 79, 104, 0.16) !important;
+  background: #fff1f6 !important;
+  flex: 0 0 24px !important;
+}
+
+#show-avatars-btn .music-inline-avatar + .music-inline-avatar {
+  margin-left: -9px !important;
+}
+
+#single-lyric-display {
+  order: 6 !important;
+  margin-top: 4px !important;
+}
+
+.music-player-controls-wrapper {
+  order: 7 !important;
+  width: 100% !important;
+}
+
+.progress-bar-fill {
+  background: linear-gradient(90deg, var(--listen-pink-500) 0%, var(--listen-pink-400) 62%, var(--listen-pink-300) 100%) !important;
+}
+
+#music-player-cover.custom-cover-clickable:hover {
+  box-shadow: 0 18px 42px rgba(255, 143, 171, 0.34), 0 0 0 6px rgba(255, 238, 244, 0.9) !important;
+}
+
+#music-playlist-panel {
+  background: linear-gradient(180deg, #fff9fc 0%, #fff1f6 52%, #ffe6ef 100%) !important;
+}
+
+.playlist-item.playing {
+  background: linear-gradient(135deg, rgba(255, 238, 244, 0.96), rgba(255, 255, 255, 0.84)) !important;
+}

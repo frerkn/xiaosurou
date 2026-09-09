@@ -1,0 +1,257 @@
+/* ============================================================
+   深蓝底 + 浅蓝卡 世界书页美化
+   仅作用于 #world-book-screen + #world-book-editor-screen
+   不动 JS / DOM / class / id / toggle / save-btn / form-button
+   ------------------------------------------------------------
+   配色与 api/wallpaper/chat-settings/chat-list 完全一致：
+   整体底：#0F1626
+   卡片  ：#E8F2FA + 1px rgba(0,229,255,0.18) + 0 2px 12px rgba(0,0,0,0.25)
+   输入框：#DCEAF5 + 1px #B5CFE0（凹陷感）
+   强调  ：#5DADE2 (hover #4A8FBC / active #3D7BA8)
+   顶栏青色呼应：#00E5FF
+   标题文字冷白：#E6F1FF
+   规则：toggle/checkbox 不动，class/id 不动，事件回调不动
+   ============================================================ */
+
+/* ============================================
+ * 一、#world-book-screen 列表页
+ * ============================================ */
+
+/* 1. 整体深蓝底 */
+#world-book-screen {
+    background-color: #0F1626 !important;
+    color: #E6F1FF !important;
+}
+
+/* 2. 顶部标题栏 */
+#world-book-screen .header {
+    background-color: #0F1626 !important;
+    border-bottom: 1px solid rgba(0, 229, 255, 0.12) !important;
+    box-shadow: none !important;
+}
+#world-book-screen .header .back-btn {
+    color: #00E5FF !important;
+}
+#world-book-screen .header > span[data-lang-key] {
+    color: #E6F1FF !important;
+}
+#world-book-screen .header .action-btn {
+    color: #E6F1FF !important;
+    transition: opacity 0.15s, transform 0.15s !important;
+}
+#world-book-screen .header .action-btn:active {
+    opacity: 0.6 !important;
+    transform: scale(0.9) !important;
+}
+
+/* 3. Tab 栏（玻璃感 + 蓝色 active） */
+#world-book-screen #world-book-tabs {
+    background-color: rgba(15, 22, 38, 0.5) !important;
+    border-bottom: 1px solid rgba(0, 229, 255, 0.08) !important;
+    padding: 4px 12px 0 12px !important;
+}
+#world-book-screen .world-book-tab {
+    color: #8896A6 !important;
+    border-bottom-color: transparent !important;
+    font-size: 14px !important;
+    padding: 10px 14px !important;
+    transition: all 0.2s !important;
+}
+#world-book-screen .world-book-tab:hover:not(.active) {
+    color: #B5CFE0 !important;
+}
+#world-book-screen .world-book-tab.active {
+    color: #5DADE2 !important;
+    border-bottom-color: #5DADE2 !important;
+    font-weight: 600 !important;
+}
+
+/* 4. 内容容器：浅卡网格堆叠 */
+#world-book-screen #world-book-content-container {
+    padding: 12px 12px calc(20px + env(safe-area-inset-bottom)) 12px !important;
+}
+#world-book-screen .world-book-category-pane {
+    gap: 12px !important;
+    padding: 0 !important;
+}
+
+/* 5. 单本世界书卡：浅蓝 + 蓝左边条 + 阴影 */
+#world-book-screen .world-book-card {
+    background-color: #E8F2FA !important;
+    border: 1px solid rgba(0, 229, 255, 0.18) !important;
+    border-left: 4px solid #5DADE2 !important;
+    border-radius: 14px !important;
+    padding: 14px 16px !important;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25) !important;
+    color: #2C3E50 !important;
+    min-height: 80px !important;
+}
+#world-book-screen .world-book-card:hover {
+    background-color: #F0F7FC !important;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.32) !important;
+    transform: translateY(-2px) !important;
+}
+#world-book-screen .world-book-card:active {
+    transform: scale(0.98) !important;
+}
+#world-book-screen .world-book-card .card-title {
+    color: #2C3E50 !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+}
+#world-book-screen .world-book-card .card-content-preview {
+    color: #6B7A8F !important;
+    font-size: 13px !important;
+    line-height: 1.5 !important;
+}
+
+/* ============================================
+ * 二、#world-book-editor-screen 编辑页
+ * ============================================ */
+
+/* 6. 整体深蓝底 */
+#world-book-editor-screen {
+    background-color: #0F1626 !important;
+    color: #E6F1FF !important;
+}
+
+/* 7. 顶部标题栏 */
+#world-book-editor-screen .header {
+    background-color: #0F1626 !important;
+    border-bottom: 1px solid rgba(0, 229, 255, 0.12) !important;
+    box-shadow: none !important;
+}
+#world-book-editor-screen .header .back-btn {
+    color: #00E5FF !important;
+}
+#world-book-editor-screen .header #world-book-editor-title {
+    color: #E6F1FF !important;
+}
+/* .save-btn 已经被全局 .header .save-btn 蓝化覆盖 */
+
+/* 8. 表单容器：浅底，padding 加大 */
+#world-book-editor-screen .form-container {
+    background-color: transparent !important;
+    padding: 16px 16px calc(20px + env(safe-area-inset-bottom)) 16px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+}
+
+/* 9. 表单分组：浅蓝卡堆叠 */
+#world-book-editor-screen .form-group {
+    background-color: #E8F2FA !important;
+    border: 1px solid rgba(0, 229, 255, 0.18) !important;
+    border-radius: 14px !important;
+    padding: 14px 16px !important;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25) !important;
+    margin: 0 !important;
+    color: #2C3E50 !important;
+}
+
+/* 10. label 副标题 */
+#world-book-editor-screen .form-group label {
+    color: #6B7A8F !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    display: block !important;
+    margin-bottom: 8px !important;
+}
+#world-book-editor-screen .form-group label > span[style*="font-size: 12px"],
+#world-book-editor-screen .form-group label span[style*="color: var(--text-secondary)"] {
+    color: #8896A6 !important;
+    font-size: 12px !important;
+    font-weight: normal !important;
+    margin-top: 4px !important;
+}
+
+/* 11. 输入框（凹陷感 + 蓝边框 focus） */
+#world-book-editor-screen input[type="text"],
+#world-book-editor-screen input[type="password"],
+#world-book-editor-screen input[type="number"],
+#world-book-editor-screen input[type="email"],
+#world-book-editor-screen select,
+#world-book-editor-screen textarea {
+    background-color: #DCEAF5 !important;
+    border: 1px solid #B5CFE0 !important;
+    color: #34495E !important;
+    border-radius: 8px !important;
+    padding: 8px 12px !important;
+    font-size: 14px !important;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+    outline: none !important;
+    transition: border-color 0.2s !important;
+}
+#world-book-editor-screen input:focus,
+#world-book-editor-screen select:focus,
+#world-book-editor-screen textarea:focus {
+    border-color: #5DADE2 !important;
+}
+#world-book-editor-screen input::placeholder,
+#world-book-editor-screen textarea::placeholder {
+    color: #A0B0C5 !important;
+}
+
+/* 12. 全局开关（自定义 checkbox，不用 toggle-switch） */
+/* 这个 checkbox 是 inline style 控制尺寸的，我们只设颜色 */
+#world-book-editor-screen input[type="checkbox"] {
+    accent-color: #5DADE2 !important;
+}
+
+/* 13. 条目容器 */
+#world-book-editor-screen #world-book-entries-container {
+    background-color: transparent !important;
+    padding: 0 !important;
+    gap: 12px !important;
+}
+
+/* 14. form-button（添加新条目按钮） */
+#world-book-editor-screen .form-button {
+    background-color: #5DADE2 !important;
+    border: 1px solid #5DADE2 !important;
+    color: #FFFFFF !important;
+    border-radius: 10px !important;
+    padding: 12px 16px !important;
+    font-size: 14px !important;
+    box-shadow: 0 2px 8px rgba(93, 173, 226, 0.3) !important;
+    transition: background-color 0.2s, border-color 0.2s !important;
+    cursor: pointer !important;
+}
+#world-book-editor-screen .form-button:hover {
+    background-color: #4A8FBC !important;
+    border-color: #4A8FBC !important;
+}
+#world-book-editor-screen .form-button:active {
+    background-color: #3D7BA8 !important;
+    border-color: #3D7BA8 !important;
+}
+#world-book-editor-screen .form-button-secondary {
+    background-color: rgba(232, 242, 250, 0.7) !important;
+    color: #5DADE2 !important;
+    border: 1px solid #B5CFE0 !important;
+}
+#world-book-editor-screen .form-button-secondary:hover {
+    background-color: rgba(93, 173, 226, 0.15) !important;
+}
+
+/* ============================================
+ * 三、滚动条青色呼应
+ * ============================================ */
+#world-book-screen ::-webkit-scrollbar,
+#world-book-editor-screen ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+#world-book-screen ::-webkit-scrollbar-track,
+#world-book-editor-screen ::-webkit-scrollbar-track {
+    background: transparent;
+}
+#world-book-screen ::-webkit-scrollbar-thumb,
+#world-book-editor-screen ::-webkit-scrollbar-thumb {
+    background: rgba(0, 229, 255, 0.3);
+    border-radius: 3px;
+}
+#world-book-screen ::-webkit-scrollbar-thumb:hover,
+#world-book-editor-screen ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 229, 255, 0.5);
+}

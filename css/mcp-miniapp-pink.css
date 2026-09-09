@@ -1,0 +1,648 @@
+/* ====================================================================
+ * MCP 菜单卡片 — 粉白色系 (浮动按钮 + 全屏 sheet)
+ *
+ * 触发: 任何 server 的 menu/query-meals/searchProduct 类工具调用
+ * 设计: 微信式 iOS 风, 浅粉 (#FFF0F5) + 白色 + 圆角, 不破坏聊天
+ *
+ * 跟 mcp-card.css 旧版的差异: 之前只有骨架, 没具体内容; 现在补
+ * 完整样式 (浮动按钮 / sheet / 餐品卡片 / 分类导航)。
+ * ==================================================================== */
+
+/* ========== 浮动入口按钮 (右下角) ========== */
+
+.mcp-menu-fab {
+    position: fixed;
+    right: 16px;
+    bottom: 96px;
+    z-index: 9998;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #FFB6C1, #FF6B9D);
+    box-shadow: 0 4px 14px rgba(255, 107, 157, 0.45);
+    color: #fff;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+    /* 默认隐藏, JS 检测到菜单数据后显示 */
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(20px);
+}
+.mcp-menu-fab.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+.mcp-menu-fab:active {
+    transform: scale(0.92);
+}
+
+/* ========== FAB 长按关闭 (1.5s 持续按, 视觉反馈) ========== */
+
+/* 长按中: 缩小 + 阴影加强 + 微微抖动, 让用户知道"在识别" */
+.mcp-menu-fab.is-longpressing {
+    transform: scale(0.82);
+    box-shadow: 0 8px 24px rgba(255, 107, 139, 0.5);
+    transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
+}
+
+/* 长按完成: 短暂闪烁 + 准备消失 */
+.mcp-menu-fab.is-longpress-done {
+    transform: scale(0.6);
+    opacity: 0.3;
+    transition: transform 0.2s ease-in, opacity 0.2s ease-in;
+}
+
+/* 隐藏状态 */
+.mcp-menu-fab {
+    transition: opacity 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+}
+.mcp-menu-fab .mcp-menu-fab-badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: #E74C3C;
+    color: #fff;
+    font-size: 11px;
+    line-height: 18px;
+    text-align: center;
+    font-weight: 600;
+    box-shadow: 0 0 0 2px #fff;
+}
+
+/* ========== 全屏 sheet ========== */
+
+.mcp-menu-sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(0, 0, 0, 0.4);
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    animation: mcp-menu-fade-in 0.18s ease-out;
+}
+.mcp-menu-sheet.is-open {
+    display: flex;
+}
+@keyframes mcp-menu-fade-in {
+    from { background: rgba(0, 0, 0, 0); }
+    to { background: rgba(0, 0, 0, 0.4); }
+}
+
+.mcp-menu-sheet-card {
+    width: 100%;
+    max-width: 480px;
+    max-height: 88vh;
+    background: #FFF8FA;
+    border-radius: 18px 18px 0 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.15);
+    animation: mcp-menu-slide-up 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes mcp-menu-slide-up {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+}
+
+.mcp-menu-sheet-header {
+    flex-shrink: 0;
+    background: linear-gradient(135deg, #FFB6C1, #FF6B9D);
+    color: #fff;
+    padding: 16px 18px 14px;
+    position: relative;
+}
+.mcp-menu-sheet-title {
+    font-size: 17px;
+    font-weight: 600;
+    margin: 0 0 2px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.mcp-menu-sheet-subtitle {
+    font-size: 12px;
+    opacity: 0.9;
+    margin: 0;
+}
+.mcp-menu-sheet-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.25);
+    color: #fff;
+    border: none;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.mcp-menu-sheet-close:active {
+    background: rgba(255, 255, 255, 0.4);
+}
+
+/* ========== 分类导航 (横向滚动) ========== */
+
+.mcp-menu-cats {
+    flex-shrink: 0;
+    background: #fff;
+    padding: 10px 0;
+    border-bottom: 1px solid #FFE4EC;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+}
+.mcp-menu-cats::-webkit-scrollbar { display: none; }
+.mcp-menu-cat-chip {
+    display: inline-block;
+    margin: 0 6px;
+    padding: 6px 14px;
+    border-radius: 16px;
+    background: #FFF0F5;
+    color: #FF6B9D;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid #FFE4EC;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.mcp-menu-cat-chip.is-active {
+    background: linear-gradient(135deg, #FFB6C1, #FF6B9D);
+    color: #fff;
+    border-color: transparent;
+}
+
+/* ========== 餐品列表 (滚动区) ========== */
+
+.mcp-menu-body {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 12px 14px 24px;
+}
+
+/* 2026-08-02 v0.1.73: 底部双按钮 (关闭菜单 / 不再显示入口) — 兜底替代 FAB 长按 */
+.mcp-menu-sheet-footer {
+    flex-shrink: 0;
+    display: flex;
+    gap: 10px;
+    padding: 12px 14px 16px;
+    background: #FFF8FA;
+    border-top: 1px solid rgba(255, 182, 193, 0.25);
+}
+.mcp-menu-sheet-footer-btn {
+    flex: 1;
+    padding: 10px 14px;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #FFB6C1, #FF6B9D);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.mcp-menu-sheet-footer-btn:active {
+    opacity: 0.85;
+    transform: scale(0.97);
+}
+.mcp-menu-sheet-footer-btn.secondary {
+    background: #fff;
+    color: #6B7280;
+    border: 1px solid #E5E7EB;
+}
+.mcp-menu-cat-section {
+    margin-bottom: 18px;
+}
+.mcp-menu-cat-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #FF6B9D;
+    margin: 0 0 8px;
+    padding-left: 4px;
+    border-left: 3px solid #FF6B9D;
+    line-height: 1.4;
+}
+
+/* ========== 单个餐品卡片 ========== */
+
+.mcp-menu-item {
+    background: #fff;
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    display: flex;
+    gap: 10px;
+    box-shadow: 0 1px 3px rgba(255, 107, 157, 0.08);
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+.mcp-menu-item:active {
+    transform: scale(0.98);
+    box-shadow: 0 1px 2px rgba(255, 107, 157, 0.15);
+}
+.mcp-menu-item-img {
+    flex-shrink: 0;
+    width: 56px;
+    height: 56px;
+    border-radius: 10px;
+    background: #FFF0F5 center/cover no-repeat;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #FF6B9D;
+    font-size: 22px;
+    overflow: hidden;
+}
+.mcp-menu-item-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.mcp-menu-item-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+.mcp-menu-item-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #1F2937;
+    line-height: 1.3;
+    margin: 0 0 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+.mcp-menu-item-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 4px;
+}
+.mcp-menu-item-tag {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: #FFF0F5;
+    color: #FF6B9D;
+    font-size: 10px;
+    line-height: 1.5;
+    border: 1px solid #FFE4EC;
+}
+.mcp-menu-item-price {
+    font-size: 14px;
+    color: #E74C3C;
+    font-weight: 600;
+    line-height: 1.2;
+}
+.mcp-menu-item-price-original {
+    font-size: 11px;
+    color: #B0B0B0;
+    text-decoration: line-through;
+    margin-left: 4px;
+    font-weight: 400;
+}
+.mcp-menu-empty {
+    text-align: center;
+    color: #999;
+    padding: 32px 16px;
+    font-size: 13px;
+}
+
+/* ========== 错误态 ========== */
+
+.mcp-menu-error {
+    text-align: center;
+    padding: 24px 16px;
+    color: #E74C3C;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+/* ========== inline 支付卡片 (create-order 后系统自动渲染, AI 不要复述) ========== */
+
+.mcp-pay-card {
+    display: inline-block;
+    max-width: 320px;
+    margin: 6px 0 10px;
+    padding: 14px 16px 12px;
+    background: linear-gradient(135deg, #FFF5F7 0%, #FFE4EC 100%);
+    border: 1px solid #FFCDD8;
+    border-radius: 14px;
+    box-shadow: 0 2px 10px rgba(255, 138, 162, 0.12);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 14px;
+    color: #2D2D2D;
+}
+
+.mcp-pay-card .mcp-pay-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+    font-weight: 600;
+    font-size: 15px;
+    color: #C0392B;
+}
+
+.mcp-pay-card .mcp-pay-icon {
+    font-size: 18px;
+}
+
+.mcp-pay-card .mcp-pay-title {
+    color: #C0392B;
+}
+
+.mcp-pay-card .mcp-pay-amount {
+    font-size: 18px;
+    font-weight: 700;
+    color: #E74C3C;
+    margin-bottom: 10px;
+    letter-spacing: 0.5px;
+}
+
+.mcp-pay-card .mcp-pay-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    margin: 6px 0 8px;
+    background: linear-gradient(135deg, #FF8FA3 0%, #FF6B8B 100%);
+    color: #FFFFFF;
+    text-decoration: none;
+    border-radius: 10px;
+    font-weight: 500;
+    font-size: 14px;
+    box-shadow: 0 2px 6px rgba(255, 107, 139, 0.3);
+    transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.mcp-pay-card .mcp-pay-link:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(255, 107, 139, 0.4);
+    color: #FFFFFF;
+}
+
+.mcp-pay-card .mcp-pay-link:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 3px rgba(255, 107, 139, 0.3);
+}
+
+.mcp-pay-card .mcp-pay-link-icon {
+    font-size: 16px;
+}
+
+.mcp-pay-card .mcp-pay-link-text {
+    flex: 1;
+    text-align: center;
+}
+
+.mcp-pay-card .mcp-pay-qr-wrap {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 10px auto 6px;
+    padding: 8px;
+    background: #FFFFFF;
+    border-radius: 10px;
+    width: fit-content;
+    box-shadow: inset 0 0 0 1px #FFCDD8;
+}
+
+.mcp-pay-card .mcp-pay-qr {
+    display: block;
+    width: 160px;
+    height: 160px;
+    object-fit: contain;
+    image-rendering: pixelated;
+}
+
+.mcp-pay-card .mcp-pay-qr-fail {
+    width: 160px;
+    height: 160px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: #999;
+    text-align: center;
+    line-height: 1.5;
+}
+
+.mcp-pay-card .mcp-pay-qr-hint {
+    text-align: center;
+    font-size: 12px;
+    color: #8B6B70;
+    margin-top: 4px;
+}
+
+.mcp-pay-card .mcp-pay-orderid {
+    margin-top: 8px;
+    font-size: 11px;
+    color: #A08285;
+    text-align: center;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    word-break: break-all;
+}
+
+/* ========== 工具调用日志 (覆盖所有通用 MCP, 浅色小字像网易云切歌提示) ========== */
+
+.mcp-tool-log-group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end; /* 默认 AI 消息在右, 日志跟在右侧 */
+    margin: 4px 0 6px;
+    padding: 4px 8px;
+    max-width: 90%;
+    margin-left: auto;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 12px;
+    line-height: 1.7;
+    border-radius: 6px;        /* v0.2.30.8: hover 背景圆角 */
+    cursor: pointer;           /* v0.2.30.8: 提示可点 (点 = 弹确认删除单条 log) */
+    transition: background-color 0.15s ease;
+}
+
+/* v0.2.30.8: hover 浅红, 暗示"这条 log 可点删" */
+.mcp-tool-log-group:hover {
+    background-color: rgba(255, 59, 48, 0.08);
+}
+
+.mcp-tool-log-line {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0;
+    padding: 2px 0;
+    margin: 0;
+    background: transparent;
+    color: #B0B4BC; /* 浅灰主色, 跟网易云切歌提示一样 */
+    border: none;
+    border-radius: 0;
+    font-size: 11px;
+    line-height: 1.5;
+    white-space: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-sizing: border-box;
+    font-weight: 400;
+    letter-spacing: 0.2px;
+    opacity: 0.85;
+    transition: opacity 0.2s;
+}
+
+.mcp-tool-log-line:hover {
+    opacity: 1;
+}
+
+.mcp-tool-log-line .mcp-tool-log-name {
+    color: #8E8E93; /* 角色名, 稍深一点 */
+    font-weight: 500;
+    flex-shrink: 0;
+}
+
+.mcp-tool-log-line .mcp-tool-log-verb {
+    color: #B0B4BC;
+    font-weight: 400;
+    flex-shrink: 0;
+}
+
+.mcp-tool-log-line .mcp-tool-log-tool {
+    color: #6B7280; /* 工具名, 稍深 */
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 10.5px;
+    font-weight: 500;
+    flex-shrink: 0;
+}
+
+.mcp-tool-log-line .mcp-tool-log-summary {
+    color: #B0B4BC;
+    font-weight: 400;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 失败时: 只把"调用失败"几个字变深灰, 整体保持低调不抢眼 */
+.mcp-tool-log-line.mcp-tool-log-err {
+    color: #8B5C5C;
+    opacity: 0.9;
+}
+
+.mcp-tool-log-line.mcp-tool-log-err .mcp-tool-log-verb {
+    color: #B45858;
+    font-weight: 500;
+}
+
+.mcp-tool-log-line.mcp-tool-log-err .mcp-tool-log-tool {
+    color: #6B5C5C;
+}
+
+.mcp-tool-log-line.mcp-tool-log-err .mcp-tool-log-summary {
+    color: #8B5C5C;
+}
+
+/* ========== 工具调用实时进度 (紧跟最近 AI 气泡, 完成后移除) ========== */
+
+.mcp-tool-progress-group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    margin: 4px 0 6px;
+    padding: 4px 8px;
+    max-width: 90%;
+    margin-left: auto;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.mcp-tool-progress-line {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0;
+    padding: 2px 0;
+    margin: 0;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    font-size: 11.5px;
+    line-height: 1.5;
+    white-space: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-sizing: border-box;
+    font-weight: 400;
+    letter-spacing: 0.2px;
+    opacity: 0.95;
+}
+
+.mcp-tool-progress-line .mcp-tool-progress-name {
+    color: #6B7280;
+    font-weight: 500;
+    flex-shrink: 0;
+}
+
+.mcp-tool-progress-line .mcp-tool-progress-verb {
+    color: #6B7280;
+    font-weight: 400;
+    flex-shrink: 0;
+}
+
+.mcp-tool-progress-line .mcp-tool-progress-tool {
+    color: #4B5563;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 10.5px;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.mcp-tool-progress-line .mcp-tool-progress-spinner {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: 4px;
+    flex-shrink: 0;
+}
+
+.mcp-tool-progress-line .mcp-tool-progress-spinner i {
+    display: inline-block;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: #6B7280;
+    opacity: 0.4;
+    animation: mcp-tool-progress-bounce 1.2s infinite ease-in-out;
+}
+
+.mcp-tool-progress-line .mcp-tool-progress-spinner i:nth-child(2) {
+    animation-delay: 0.15s;
+}
+
+.mcp-tool-progress-line .mcp-tool-progress-spinner i:nth-child(3) {
+    animation-delay: 0.3s;
+}
+
+@keyframes mcp-tool-progress-bounce {
+    0%, 60%, 100% { opacity: 0.4; transform: translateY(0); }
+    30% { opacity: 1; transform: translateY(-2px); }
+}

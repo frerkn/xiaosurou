@@ -1,0 +1,144 @@
+// Live2D 模型 IndexedDB 存储 — 朋友 A 上传的模型只有 A 浏览器能看 (跟 330 现有 IDB 模式一致)
+// P1.5 第二步: 接收 uploader 返回的 {files, modelPath, name, config}, 存到 IDB
+// 复用 330 现有 db 全局对象 (init-and-state.js 已经初始化)
+
+(function (global) {
+  'use strict';
+
+  // 330 现有 IDB 命名约定: store 名 = 'live2d_models'
+  // key: modelId (字符串, 调用方生成, 用 crypto.randomUUID)
+  // value: { id, name, modelPath, addedAt, files: [{path, blob}], config: {refs} }
+
+  async function saveModel(modelData) {
+    // modelData = { files: Map<path, Blob>, modelPath, name, config }
+    if (!modelData || !modelData.files || !modelData.modelPath) {
+      throw new Error('saveModel: modelData/files/modelPath 不能为空');
+    }
+    if (!global.db) {
+      throw new Error('saveModel: 330 db 未初始化 (init-and-state.js)');
+    }
+    const id = (global.crypto && global.crypto.randomUUID)
+      ? global.crypto.randomUUID()
+      : 'l2d_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+
+    // Map 转数组 (IDB 不能存 Map)
+    const filesArr = [];
+    for (const [path, blob] of modelData.files.entries()) {
+      filesArr.push({ path, blob });
+    }
+
+    const record = {
+      id,
+      name: modelData.name || '未命名模型',
+      modelPath: modelData.modelPath,
+      addedAt: Date.now(),
+      files: filesArr,
+      config: modelData.config || {},
+    };
+    await global.db.live2d_models.put(record);
+    return id;
+  }
+
+  async function listModels() {
+    if (!global.db) return [];
+    const all = await global.db.live2d_models.toArray();
+    return all
+      .sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0))
+      .map(m => ({
+        id: m.id,
+        name: m.name,
+        modelPath: m.modelPath,
+        addedAt: m.addedAt,
+        fileCount: (m.files || []).length,
+      }));
+  }
+
+  async function getModel(id) {
+    if (!global.db) return null;
+    const rec = await global.db.live2d_models.get(id);
+    if (!rec) return null;
+    // 数组转回 Map (uploader 期望 Map)
+    const filesMap = new Map();
+    for (const f of (rec.files || [])) filesMap.set(f.path, f.blob);
+    return {
+      id: rec.id,
+      name: rec.name,
+      modelPath: rec.modelPath,
+      addedAt: rec.addedAt,
+      files: filesMap,
+      config: rec.config || {},
+    };
+  }
+
+  async function deleteModel(id) {
+    if (!global.db) return false;
+    await global.db.live2d_models.delete(id);
+    return true;
+  }
+
+  async function getActiveModelId() {
+    // 存到 localStorage (跨 session 记住用户上次选的模型)
+    try { return localStorage.getItem('live2d.activeModelId') || null; } catch (e) { return null; }
+  }
+
+  async function setActiveModelId(id) {
+    try { localStorage.setItem('live2d.activeModelId', id || ''); } catch (e) {}
+  }
+
+  // v0.4.3: per-chat 模型绑定 (key = live2d.activeModelId.<chatId>)
+  // fallback 到旧全局 activeModelId (兼容老数据)
+  async function getActiveModelIdForChat(chatId) {
+    if (!chatId || typeof chatId !== 'string') return null;
+    try {
+      const per = localStorage.getItem('live2d.activeModelId.' + chatId);
+      if (per) return per;
+      const glob = localStorage.getItem('live2d.activeModelId');
+      return glob || null;
+    } catch (e) { return null; }
+  }
+
+  async function setActiveModelIdForChat(chatId, modelId) {
+    if (!chatId || typeof chatId !== 'string') return;
+    try { localStorage.setItem('live2d.activeModelId.' + chatId, modelId || ''); } catch (e) {}
+  }
+
+  // v0.5.0 P2.4: 视频通话默认形象配置 (per-chat, localStorage)
+  // 跟 activeModelId 区别: 这里是用户从"形象调试台"点"使用此形象进入视频通话"后保存的完整状态.
+  // 视频通话挂载模型依然用 activeModelId 拿, 这个 appearance 是更细的"起始状态", 未来
+  // AI 改运行时 expression 不覆盖这里. 结构:
+  //   { modelId, modelPath, scale, positionX, positionY, defaultExpression, updatedAt }
+  function _appearanceKey(chatId) {
+    return 'live2d.videoCallAppearance.' + chatId;
+  }
+  async function getVideoCallAppearance(chatId) {
+    if (!chatId || typeof chatId !== 'string') return null;
+    try {
+      const raw = localStorage.getItem(_appearanceKey(chatId));
+      if (!raw) return null;
+      const obj = JSON.parse(raw);
+      return (obj && typeof obj === 'object') ? obj : null;
+    } catch (e) { return null; }
+  }
+  async function setVideoCallAppearance(chatId, appearance) {
+    if (!chatId || typeof chatId !== 'string') return false;
+    if (!appearance || typeof appearance !== 'object') return false;
+    try {
+      const toSave = Object.assign({}, appearance, { updatedAt: Date.now() });
+      localStorage.setItem(_appearanceKey(chatId), JSON.stringify(toSave));
+      return true;
+    } catch (e) { return false; }
+  }
+
+  global.Live2DStorage = {
+    saveModel,
+    listModels,
+    getModel,
+    deleteModel,
+    getActiveModelId,
+    setActiveModelId,
+    getActiveModelIdForChat,
+    setActiveModelIdForChat,
+    getVideoCallAppearance,
+    setVideoCallAppearance,
+  };
+})(typeof window !== 'undefined' ? window : globalThis);

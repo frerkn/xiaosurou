@@ -1,0 +1,425 @@
+/* ============================================================
+   深蓝底 + 浅蓝卡 + 凹陷输入框 科技感清新风格
+   仅作用于 #wallpaper-screen（外观设置页），纯视觉覆盖
+   不改动任何 JS / DOM / class / id / toggle / save-btn
+   ------------------------------------------------------------
+   配色与 api-settings-skyblue.css 完全一致：
+   整体底：#0F1626                          顶栏底：#0F1626
+   卡片  ：#E8F2FA + 1px rgba(0,229,255,0.18) + 0 2px 12px rgba(0,0,0,0.25)
+   标题  ：#2C3E50 / 15px / 600 / letter-spacing 0.3px
+           border-bottom 1px #D6E5F2
+           左侧 3px solid #5DADE2 色块
+   输入框：#DCEAF5 + 1px #B5CFE0（比卡片深一档，自动凹陷感）
+   label ：#6B7A8F / 14px
+   描述  ：#8896A6 / 12px / line-height 1.6
+   强调  ：#5DADE2 (hover #4A8FBC / active #3D7BA8)
+   顶栏青色呼应：#00E5FF
+   标题文字冷白：#E6F1FF
+   提示框：#DCEAF5 / 1px #B5CFE0 / #4A6A8F
+   规则：toggle/checkbox 组件完全不动，save-btn 不动，class/id 不动
+   ============================================================ */
+
+/* ---------- 1. 整体深蓝底（含 dark-mode 覆盖，保证两种模式都是 #0F1626） ---------- */
+#phone-screen.dark-mode #wallpaper-screen.ios-settings-screen,
+#wallpaper-screen.ios-settings-screen,
+#wallpaper-screen {
+    background-color: #0F1626 !important;
+    color: #E6F1FF !important;
+}
+
+/* ---------- 2. 顶部标题栏（在深底上） ---------- */
+#wallpaper-screen .header {
+    background-color: #0F1626 !important;
+    border-bottom: 1px solid rgba(0, 229, 255, 0.12) !important;
+    box-shadow: none !important;
+}
+
+/* 返回箭头：青色 #00E5FF 呼应赛博首页 */
+#wallpaper-screen .header .back-btn {
+    color: #00E5FF !important;
+}
+
+/* 标题文字：冷白 */
+#wallpaper-screen .header > span[data-lang-key] {
+    color: #E6F1FF !important;
+}
+
+/* 注：.save-btn（完成按钮）按约束完全不动，
+   保留其原有 iOS 视觉（蓝底白字胶囊）作为"完成"动作的强提示。 */
+
+/* ---------- 3. 滚动容器（保持原有滚动行为） ---------- */
+#wallpaper-screen .ios-scroll-container {
+    padding: 14px 14px calc(20px + env(safe-area-inset-bottom)) 14px !important;
+}
+
+/* ---------- 4. 分组标题 .settings-header
+   关键：左侧 3px solid #5DADE2 色块 + padding-left 12px ---------- */
+#wallpaper-screen .settings-header {
+    color: #2C3E50 !important;
+    font-weight: 600 !important;
+    font-size: 15px !important;
+    letter-spacing: 0.3px !important;
+    border-bottom: 1px solid #E8EEF5 !important;
+    padding: 0 0 10px 12px !important;
+    margin: 14px 0 10px 0 !important;
+    text-transform: none !important;
+    background-color: #E8F2FA !important;
+    border-left: 3px solid #5DADE2 !important;
+    border-top: 1px solid rgba(0, 229, 255, 0.18) !important;
+    border-right: 1px solid rgba(0, 229, 255, 0.18) !important;
+    border-radius: 12px 12px 0 0 !important;
+    line-height: 36px !important;
+    height: 36px !important;
+    box-sizing: border-box !important;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25) !important;
+    position: relative !important;
+}
+
+/* 让 settings-header 与紧邻 .settings-section 在视觉上拼成一张卡 */
+#wallpaper-screen .settings-header + .settings-section {
+    border-top-left-radius: 0 !important;
+    border-top-right-radius: 0 !important;
+    margin-top: -10px !important;
+}
+
+/* ---------- 5. 卡片容器 .settings-section（紧凑 10px） ---------- */
+#wallpaper-screen .settings-section {
+    background-color: #E8F2FA !important;
+    border: 1px solid rgba(0, 229, 255, 0.18) !important;
+    border-radius: 12px !important;
+    padding: 16px !important;
+    margin-bottom: 10px !important;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25) !important;
+    overflow: visible !important;
+}
+
+/* 列表项分隔：柔和 */
+#wallpaper-screen .settings-item,
+#wallpaper-screen .settings-item-block {
+    background-color: transparent !important;
+    border-bottom: 1px solid #D6E5F2 !important;
+    padding: 10px 0 !important;
+    min-height: auto !important;
+}
+
+#wallpaper-screen .settings-section > .settings-item:last-child,
+#wallpaper-screen .settings-section > .settings-item-block:last-child {
+    border-bottom: none !important;
+}
+
+/* ---------- 6. label 副标题 ---------- */
+#wallpaper-screen .settings-item label,
+#wallpaper-screen .settings-item-block label,
+#wallpaper-screen label {
+    color: #6B7A8F !important;
+    font-size: 14px !important;
+}
+
+/* ---------- 7. 说明文字：p / small / .settings-desc / .settings-description ---------- */
+#wallpaper-screen p,
+#wallpaper-screen small,
+#wallpaper-screen .settings-desc,
+#wallpaper-screen .settings-description,
+#wallpaper-screen .settings-item .settings-desc,
+#wallpaper-screen .settings-item .settings-description {
+    color: #8896A6 !important;
+    font-size: 12px !important;
+    line-height: 1.6 !important;
+}
+
+/* p 元素不被卡片底色压成黑 */
+#wallpaper-screen .settings-section p,
+#wallpaper-screen .settings-section small,
+#wallpaper-screen .settings-section .settings-desc,
+#wallpaper-screen .settings-section .settings-description {
+    color: #8896A6 !important;
+}
+
+/* ---------- 8. 文本/密码/数字/电话输入框 + textarea ---------- */
+#wallpaper-screen .settings-item input[type="text"],
+#wallpaper-screen .settings-item input[type="password"],
+#wallpaper-screen .settings-item input[type="number"],
+#wallpaper-screen input[type="text"],
+#wallpaper-screen input[type="password"],
+#wallpaper-screen input[type="number"],
+#wallpaper-screen input[type="email"],
+#wallpaper-screen input[type="tel"],
+#wallpaper-screen textarea,
+#wallpaper-screen .settings-textarea {
+    background-color: #DCEAF5 !important;
+    border: 1px solid #B5CFE0 !important;
+    color: #34495E !important;
+    border-radius: 8px !important;
+    padding: 8px 12px !important;
+    font-size: 14px !important;
+    text-align: left !important;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+    outline: none !important;
+}
+
+#wallpaper-screen input::placeholder,
+#wallpaper-screen textarea::placeholder {
+    color: #A0B0C5 !important;
+}
+
+/* focus：只换边，不发光 */
+#wallpaper-screen .settings-item input[type="text"]:focus,
+#wallpaper-screen .settings-item input[type="password"]:focus,
+#wallpaper-screen .settings-item input[type="number"]:focus,
+#wallpaper-screen input[type="text"]:focus,
+#wallpaper-screen input[type="password"]:focus,
+#wallpaper-screen input[type="number"]:focus,
+#wallpaper-screen input[type="tel"]:focus,
+#wallpaper-screen textarea:focus,
+#wallpaper-screen .settings-textarea:focus {
+    border-color: #5DADE2 !important;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+#wallpaper-screen .settings-item input:not(:placeholder-shown) {
+    color: #34495E !important;
+}
+
+/* 数字小输入框：套用配色但保留居中与小尺寸（不改行为） */
+#wallpaper-screen .settings-num-input {
+    background-color: #DCEAF5 !important;
+    border: 1px solid #B5CFE0 !important;
+    color: #34495E !important;
+    border-radius: 8px !important;
+    text-align: center !important;
+    padding: 6px 4px !important;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* 范围 slider：webkit thumb 着色 */
+#wallpaper-screen input[type="range"] {
+    accent-color: #5DADE2 !important;
+}
+
+#wallpaper-screen input[type="range"]::-webkit-slider-thumb {
+    background: #5DADE2 !important;
+}
+
+#wallpaper-screen input[type="range"]::-webkit-slider-runnable-track {
+    background: #D8E0EB !important;
+}
+
+/* ---------- 9. select 下拉框 ---------- */
+#wallpaper-screen .settings-select,
+#wallpaper-screen select.settings-select {
+    background-color: #DCEAF5 !important;
+    border: 1px solid #B5CFE0 !important;
+    color: #34495E !important;
+    border-radius: 8px !important;
+    padding: 8px 28px 8px 12px !important;
+    font-size: 14px !important;
+    text-align: left !important;
+    text-align-last: left !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235DADE2' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 10px center !important;
+    background-size: 12px !important;
+}
+
+#wallpaper-screen .settings-select:focus,
+#wallpaper-screen select.settings-select:focus {
+    border-color: #5DADE2 !important;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+#wallpaper-screen .settings-select option,
+#wallpaper-screen select.settings-select option {
+    color: #34495E !important;
+    background-color: #DCEAF5 !important;
+}
+
+/* ---------- 10. 普通按钮（描边风格，不含 .save-btn） ---------- */
+#wallpaper-screen .settings-mini-btn,
+#wallpaper-screen button:not(.save-btn) {
+    background: transparent !important;
+    border: 1px solid #D8E0EB !important;
+    color: #5DADE2 !important;
+    border-radius: 8px !important;
+    padding: 8px 16px !important;
+    font-size: 14px !important;
+    box-shadow: none !important;
+    transition: border-color 0.2s, color 0.2s, background-color 0.2s !important;
+}
+
+#wallpaper-screen .settings-mini-btn:hover,
+#wallpaper-screen button:not(.save-btn):hover {
+    border-color: #5DADE2 !important;
+    color: #4A8FBC !important;
+    background: rgba(93, 173, 226, 0.06) !important;
+}
+
+#wallpaper-screen .settings-mini-btn:active,
+#wallpaper-screen button:not(.save-btn):active {
+    border-color: #3D7BA8 !important;
+    color: #3D7BA8 !important;
+    background: transparent !important;
+}
+
+/* 参数区"重置"类小按钮紧凑 */
+#wallpaper-screen .settings-item .settings-mini-btn[id^="reset-"] {
+    padding: 4px 10px !important;
+    font-size: 12px !important;
+}
+
+/* ---------- 11. 块级全宽主操作按钮 ---------- */
+#wallpaper-screen .settings-full-btn {
+    background-color: #5DADE2 !important;
+    border: 1px solid #5DADE2 !important;
+    color: #FFFFFF !important;
+    border-radius: 8px !important;
+    padding: 8px 16px !important;
+    font-size: 14px !important;
+    text-align: center !important;
+    box-shadow: 0 2px 8px rgba(93, 173, 226, 0.25) !important;
+}
+
+#wallpaper-screen .settings-full-btn:hover {
+    background-color: #4A8FBC !important;
+    border-color: #4A8FBC !important;
+}
+
+#wallpaper-screen .settings-full-btn:active {
+    background-color: #3D7BA8 !important;
+    border-color: #3D7BA8 !important;
+}
+
+/* ---------- 12. 提示框（防御覆盖 wallpaper-screen 内可能出现的所有提示框 class）
+   当前 #wallpaper-screen DOM 内未发现提示框组件，
+   但仍写入防御规则以保持与 #api-settings-screen 视觉一致。覆盖的 class：
+   - .settings-tip-wrapper / .settings-tip-content
+   - .settings-description / .settings-desc
+   - .tips-box / .api-tips / .hint-box        （旧 CSS 备援，无 DOM 但仍写入）
+   - .api-bg-tip / .bg-tips                   （同上） ---------- */
+#wallpaper-screen .settings-tip-wrapper {
+    background-color: transparent !important;
+    border-bottom: none !important;
+    padding: 0 0 10px 0 !important;
+}
+
+#wallpaper-screen .settings-tip-content,
+#wallpaper-screen .tips-box,
+#wallpaper-screen .api-tips,
+#wallpaper-screen .hint-box,
+#wallpaper-screen .api-bg-tip,
+#wallpaper-screen .bg-tips {
+    background-color: #DCEAF5 !important;
+    border: 1px solid #B5CFE0 !important;
+    border-radius: 8px !important;
+    padding: 12px 14px !important;
+    color: #4A6A8F !important;
+    font-size: 12px !important;
+    line-height: 1.6 !important;
+    box-shadow: none !important;
+}
+
+/* 提示框内强调与代码片段 */
+#wallpaper-screen .settings-tip-content strong {
+    color: #4A8FBC !important;
+    font-weight: 600 !important;
+}
+
+#wallpaper-screen .settings-tip-content code,
+#wallpaper-screen .settings-tip-content pre,
+#wallpaper-screen code,
+#wallpaper-screen pre {
+    color: #4A8FBC !important;
+    background-color: #C7DCEB !important;
+    border-radius: 4px !important;
+    padding: 1px 5px !important;
+    font-size: 12px !important;
+}
+
+#wallpaper-screen .settings-tip-content a {
+    color: #5DADE2 !important;
+    text-decoration: none !important;
+}
+
+#wallpaper-screen .settings-tip-content a:hover {
+    color: #4A8FBC !important;
+    text-decoration: underline !important;
+}
+
+/* ---------- 13. 锁屏详情容器（内联灰底）柔化为透明融入卡片 ---------- */
+#wallpaper-screen #lock-screen-settings-detail {
+    background-color: transparent !important;
+    border-top: none !important;
+}
+
+/* ---------- 14. 壁纸预览缩略图（融入浅蓝卡内） ---------- */
+#wallpaper-screen .wallpaper-thumbnail {
+    background-color: #DCEAF5 !important;
+    border: 1px solid #B5CFE0 !important;
+}
+
+/* ---------- 15. 按钮内 svg ---------- */
+#wallpaper-screen button svg {
+    color: #5DADE2 !important;
+    stroke: currentColor !important;
+}
+
+/* ---------- 16. 滚动条（webkit）：青色呼应 ---------- */
+#wallpaper-screen .ios-scroll-container::-webkit-scrollbar,
+#wallpaper-screen ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+#wallpaper-screen .ios-scroll-container::-webkit-scrollbar-track,
+#wallpaper-screen ::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#wallpaper-screen .ios-scroll-container::-webkit-scrollbar-thumb,
+#wallpaper-screen ::-webkit-scrollbar-thumb {
+    background: rgba(0, 229, 255, 0.3);
+    border-radius: 3px;
+}
+
+#wallpaper-screen .ios-scroll-container::-webkit-scrollbar-thumb:hover,
+#wallpaper-screen ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 229, 255, 0.5);
+}
+
+/* ---------- 17. 颜色选择 / 文件选择等特殊控件基本配色（不改行为） ---------- */
+#wallpaper-screen input[type="color"] {
+    border: 1px solid #B5CFE0 !important;
+    border-radius: 6px !important;
+    background-color: #DCEAF5 !important;
+}
+
+/* ---------- 18. 设置模块标题（h 系） ---------- */
+#wallpaper-screen h1,
+#wallpaper-screen h2,
+#wallpaper-screen h3,
+#wallpaper-screen h4 {
+    color: #2C3E50 !important;
+}
+
+/* ---------- 19. 兜底：卡片内 inline 灰色文字 ---------- */
+#wallpaper-screen .settings-section p[style*="color: #888"],
+#wallpaper-screen .settings-section small[style*="color: #888"] {
+    color: #8896A6 !important;
+}
+
+/* ---------- 20. 兜底：提示框内任意子节点文字继承 ---------- */
+#wallpaper-screen .settings-tip-content * {
+    color: inherit !important;
+}
+
+#wallpaper-screen .settings-tip-content strong,
+#wallpaper-screen .settings-tip-content b {
+    color: #4A8FBC !important;
+}
+
+/* ---------- 21. 体积百分比标签（100% 灰文字）柔化 ---------- */
+#wallpaper-screen #notification-volume-label {
+    color: #6B7A8F !important;
+}
