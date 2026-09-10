@@ -1447,15 +1447,26 @@ ${linkedContents}
       callFeed.appendChild(userBubble);
       callFeed.scrollTop = callFeed.scrollHeight;
 
-      // 检查是否启用真实摄像头并获取截图
+      // 构建视觉输入: 真实摄像头帧 / 用户上传的静态图片 (优先级: 摄像头 > 静态图)
+      // 修手机 PWA + 桌面不一致: 之前只判 enableRealCamera, 当用户只上传图片不启摄像头时,
+      // 静态图只进 DOM 显示, 不会进 AI 视觉请求 → AI 看不见这张图.
+      // 现在 enableRealCamera 和 localVideoUrl 任一为真都构造视觉输入, 共用同一条 image_url 链路.
       let userContent = userInput;
-      if (chat.videoOptimization && chat.videoOptimization.enableRealCamera) {
-        const capturedImage = window.getLastCameraCapture ? window.getLastCameraCapture() : null;
-        if (capturedImage) {
+      const vo = chat.videoOptimization;
+      if (vo && (vo.enableRealCamera || vo.localVideoUrl)) {
+        let visionUrl = '';
+        if (vo.enableRealCamera && window.getLastCameraCapture) {
+          visionUrl = window.getLastCameraCapture() || '';
+        }
+        if (!visionUrl && vo.localVideoUrl) {
+          // localVideoUrl 是 FileReader.readAsDataURL 生成的 data URL, 直接可喂 image_url
+          visionUrl = vo.localVideoUrl;
+        }
+        if (visionUrl) {
           // 为支持视觉的模型构建多模态消息
           userContent = [
             { type: 'text', text: userInput },
-            { type: 'image_url', image_url: { url: capturedImage } }
+            { type: 'image_url', image_url: { url: visionUrl } }
           ];
         }
       }
