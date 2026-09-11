@@ -6,7 +6,6 @@ const ForceUpdater = (() => {
   // 需要更新的文件列表（静态资源，不包含用户数据）
   const FILES_TO_UPDATE = [
     'index.html',
-    'style.css',
     'online-app.css',
     'script.js',
     'sw.js',

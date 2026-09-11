@@ -377,34 +377,58 @@
                text-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
            }
 
+           /* v0.5.0 P18: 视频通话状态小字 (AI正在思考… / AI正在说话…) 被模型挡住看不见
+              真凶: Live2D canvas 是内联 z-index:99999 且铺满全屏, 小字原来 z-index:120
+                    → 模型画到哪就把小字盖到哪, 用户看不到状态。
+              用户反馈"光晕太单薄"→ 套一颗【粉色发光小胶囊】:
+                · 靠左贴边: 和 .video-call-controls 的 padding-left(20px) 对齐
+                · 挂在挂断键那排按钮正上方: 底边距屏幕底 124px
+                · 不加 backdrop-filter (会拖累 Live2D canvas 渲染)
+                · 字仍是粉色发光, 加在胶囊上
+              注意: 只作用于视频通话页, 语音通话 (#voice-call-screen) 的样式一个字都没动。 */
            #video-call-screen #video-call-status-text {
                display: block !important;
                position: absolute;
-               left: 50%;
+               left: 20px;
                right: auto;
-               bottom: 245px;
-               z-index: 120;
+               bottom: 124px;
+               z-index: 100000;
                width: auto;
                max-width: calc(100% - 40px);
-               min-height: 20px;
-               padding: 0;
+               padding: 6px 14px 7px;
                box-sizing: border-box;
-               color: rgba(255, 255, 255, 0.96);
+               border-radius: 999px;
+               color: #ffc6e0;
                font-size: 14px;
                font-weight: 500;
                line-height: 20px;
-               text-align: center;
+               text-align: left;
+               white-space: nowrap;
+               overflow: hidden;
+               text-overflow: ellipsis;
                opacity: 1;
                visibility: visible;
                pointer-events: none;
-               transform: translateX(-50%);
-               text-shadow: 0 1px 5px rgba(0, 0, 0, 0.65);
-               background: transparent;
-               border: none;
-               border-radius: 0;
-               box-shadow: none;
-               backdrop-filter: none;
-               -webkit-backdrop-filter: none;
+               transform: none;
+               background: rgba(20, 8, 28, 0.62);
+               border: 1px solid rgba(255, 150, 198, 0.45);
+               box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+               text-shadow:
+                   0 0 6px rgba(255, 138, 190, 0.95),
+                   0 0 14px rgba(255, 105, 180, 0.65),
+                   0 0 26px rgba(255, 105, 180, 0.35);
+               animation: video-call-status-glow 2.6s ease-in-out infinite;
+           }
+
+           /* 没有状态文字时整颗胶囊隐藏 (setVideoCallStatusText 会 textContent='' 清空) */
+           #video-call-screen #video-call-status-text:empty {
+               display: none !important;
+           }
+
+           /* 发光字轻微呼吸 (只动 opacity, 不动 text-shadow — 便宜且不闪) */
+           @keyframes video-call-status-glow {
+               0%, 100% { opacity: 1; }
+               50%      { opacity: 0.82; }
            }
 
            #voice-call-main {
@@ -2692,3 +2716,56 @@
     }
 }
 
+
+/* ============================================================
+   视频通话「玻璃控制框」— 包住 .video-call-controls 里的 3 个按钮
+   ------------------------------------------------------------
+   父容器在 css/music-player.css 里被定义: 满宽 + padding:20px/40px
+   + 底部黑色渐变. 在视频通话页面里, 这条黑色渐变会把按钮底下拉
+   一条很重的黑色横条, 抢 Live2D 视觉.
+   这里只针对视频通话屏内的 .video-call-controls 做"玻璃化"覆盖:
+   1) 收成自适应宽度的圆角矩形, 居中悬浮在屏幕底部
+   2) 半透明白底 + 12-14px backdrop-blur → 能隐约透出 Live2D / 背景
+   3) 1px 浅色/紫色细描边 + 极弱外光
+   4) 三个按钮 (挂断 / 模型管理 / 摄像头翻转) 增加间距 + 内边距,
+      整体像个控制台, 而不是"散在屏幕底部的三个按钮"
+   5) 不动按钮本身的 size / 颜色 / 行为; 不动 JS 任何一行
+   6) 优先级: #video-call-screen .video-call-controls 比 music-player.css
+      的 .video-call-controls 选择器更具体, 必盖过. JS 在挂 Live2D 时
+      会把 inline z-index 抬到 100000 (video-voice-call.js:277-279),
+      那行不依赖容器满宽, 这里不动它.
+   ============================================================ */
+#video-call-screen .video-call-controls {
+    width: fit-content;
+    max-width: 92%;
+    /* 居中: 父 #video-call-screen 是 absolute + flex/column + align-items:stretch,
+       单纯 align-self:center + margin:0 auto 在 puppeteer 实测里被拉成 left:0 + width:312 (x:0)
+       改用绝对定位 left:50% + transform 自我位移, 100% 居中且不依赖父布局 */
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    transform: translateX(-50%);
+    margin: 0;
+    padding: 10px 22px 12px;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    gap: 28px;
+    box-sizing: border-box;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.06) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    backdrop-filter: blur(14px) saturate(140%);
+    box-shadow:
+        0 0 0 1px rgba(180, 150, 220, 0.08) inset,
+        0 8px 24px rgba(120, 80, 160, 0.18),
+        0 2px 6px rgba(0, 0, 0, 0.25);
+    /* 父容器留下的底部黑色渐变去掉: 玻璃框自己就是视觉终点 */
+    background-image: none;
+}
+
+#video-call-screen .video-call-controls .control-btn {
+    /* 按钮在玻璃框里再轻微抬高: 配合 padding 让它"坐在"框里, 不是"贴边" */
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
+}

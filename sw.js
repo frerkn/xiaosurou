@@ -3,12 +3,11 @@
 // CACHE_VERSION bump 强制清缓存
 // 关键约束: URLS_TO_CACHE 增删需同步 sw.js 注释 + ?v= 版本号
 
-const CACHE_VERSION = 'v0.2.31.37';
+const CACHE_VERSION = 'v0.2.31.55';
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [
   './index.html',
-  './style.css',
   './online-app.css',
   './script.js',
   './modules/hot-news.js',
@@ -32,9 +31,17 @@ const URLS_TO_CACHE = [
   './js/mcp-tool-progress.js',
   './css/mcp-miniapp-pink.css',
   // v0.2.0 新增：Live2D 视频通话（PIXI v8 + untitled-pixi-live2d-engine + 视频通话主文件）
-  // Core 5/6 runtime 走 cubism.live2d.com CDN, 不本地缓存 (官方限制再分发)
+  // v0.2.31.53 引擎本地化 + 进预缓存: 引擎原来只靠"运行时缓存"活着, 一旦 CACHE_VERSION bump
+  //   旧 cache 被 activate 删掉, 引擎就得重新走 CDN, 网络一抖就 PIXI.live2d 不存在 → 模型加载不出。
+  //   现在四个引擎文件全在本地 lib/ 且进 URLS_TO_CACHE, 版本 bump / 断网都不影响。
+  './lib/live2dcubismcore.min.js',
+  './lib/live2d.min.js',
+  './lib/pixi.min.js',
+  './lib/pixi-live2d-display.cubism4.min.js',
   './modules/live2d-loader.js',
   './modules/video-voice-call.js',
+  // v0.2.31.43: 视频通话 AI 说话口型 (独立模块)
+  './modules/call-lip-sync.js',
   'https://unpkg.com/dexie/dist/dexie.js',
   'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
   'https://phoebeboo.github.io/mewoooo/pp.js',
@@ -107,7 +114,6 @@ self.addEventListener('fetch', event => {
 
   const isLocalAsset = url.startsWith(self.location.origin) &&
     (url.includes('/index.html') ||
-     url.includes('/style.css') ||
      url.includes('/online-app.css') ||
      url.includes('/script.js') ||
      url.includes('/modules/hot-news.js') ||
@@ -123,7 +129,11 @@ self.addEventListener('fetch', event => {
      url.includes('/js/mcp-tool-bridge.js') ||
      url.includes('/js/mcp-ui-list.js') ||
      // v0.3.2 更新：Live2D 视频通话（loader + 视频通话主文件 + Cubism 4 core 本地；模型走 IDB 不再 fetch assets/）
+     // v0.2.31.53: 引擎四个文件本地化, 一起纳入拦截 (命中预缓存, Netlify/PWA 断网也能起引擎)
      url.includes('/lib/live2dcubismcore.min.js') ||
+     url.includes('/lib/live2d.min.js') ||
+     url.includes('/lib/pixi.min.js') ||
+     url.includes('/lib/pixi-live2d-display.cubism4.min.js') ||
      url.includes('/modules/live2d-loader.js') ||
      url.includes('/modules/video-voice-call.js'));
 

@@ -212,6 +212,7 @@
         if (!confirm('确定删除这个背景？')) return;
         try {
           await global.db.live2d_backgrounds.delete(bgId);
+          forgetBgThumb(bgId);
           if (activeId === bgId) {
             try { localStorage.setItem('live2d.activeBackgroundId', ''); } catch (e) {}
             applyBackgroundToCallScreen('');
@@ -335,6 +336,151 @@
     }
   }
 
+  // v0.5.0 P13: 上传背景前自动缩图
+  // ------------------------------------------------------------
+  // 为什么: 原图直存 → IDB 里一张 12MP 手机照 3-5MB; 更要命的是
+  // applyBackgroundToCallScreen 用 background-size:cover, cover 只负责裁切
+  // 【不省解码成本】—— 浏览器必须把整张 4000x3000 解成位图(约 48MB 内存)再裁。
+  // 目标画质: 手机 3x 全屏(约 1170x2532 物理像素)够用的长边 1600px / q0.8,
+  // 解压后位图约 7.7MB, 体积通常 250-450KB, 画质肉眼看不出差别。
+  // 依赖 index.html 已加载的 browser-image-compression (全局 imageCompression)。
+  // 契约: 【永不抛错、永不返回空】—— 任何失败都回退原文件, 上传流程不受影响。
+  // 注意: useWebWorker 用 false —— 本项目在 file:// 下跑, blob worker 在
+  // file:// origin 上有被拦的历史风险, 上传是一次性操作, 主线程压几百 ms 无妨。
+  // ------------------------------------------------------------
+  const BG_COMPRESS_OPTIONS = {
+    maxWidthOrHeight: 1600,
+    initialQuality: 0.8,
+    maxSizeMB: 0.6,
+    fileType: 'image/jpeg',
+    useWebWorker: false,
+  };
+
+  async function compressBackgroundImage(file) {
+    if (!file) return file;
+    try {
+      if (typeof global.imageCompression !== 'function') {
+        console.warn('[Live2DUI] 压缩库未加载, 背景按原图上传');
+        return file;
+      }
+      // 已经又小又是 JPEG 的就不二次压缩 (白掉画质还费时间)
+      if (/^image\/jpe?g$/i.test(file.type) && file.size <= 300 * 1024) return file;
+
+      const out = await global.imageCompression(file, BG_COMPRESS_OPTIONS);
+      // 压完反而变大 / 返回空 → 保留原图 (跟 data-management.js 同策略)
+      if (!out || !out.size || out.size >= file.size) {
+        console.log('[Live2DUI] 背景压缩后未变小, 保留原图');
+        return file;
+      }
+      console.log('[Live2DUI] 背景压缩: '
+        + Math.round(file.size / 1024) + 'KB → ' + Math.round(out.size / 1024) + 'KB');
+      return out;
+    } catch (e) {
+      console.warn('[Live2DUI] 背景压缩失败, 按原图上传:', e);
+      return file;
+    }
+  }
+
+  // v0.5.0 P14: 背景缩略图 (给选择器/列表用的小图)
+  // ------------------------------------------------------------
+  // 为什么: 选择器原来每个格子直接 background-image: url(原图 blob),
+  // 可见即解码 —— 打开一次 = N 张全尺寸图同时解码(1600px 一张 7.7MB 位图),
+  // 张数一多就是卡顿/白屏尖峰.
+  // 现在: 上传时顺手生成长边 160px 小图存进 bg.thumb (160x120 约 77KB 位图,
+  // 比原图小 100 倍), 选择器只吃小图.
+  // 老数据没有 thumb → 先占位, 后台一张一张补生成并写回 IDB (只补一次).
+  // ------------------------------------------------------------
+  const BG_THUMB_MAX = 160;
+  const BG_THUMB_QUALITY = 0.72;
+  const bgThumbUrls = new Map();   // bgId -> blob URL (本次会话内存缓存, 页面关掉自动释放)
+
+  /** 丢弃某个背景的缩略图缓存 (删背景时调, 别让 URL 钉着 blob) */
+  function forgetBgThumb(bgId) {
+    if (!bgId || !bgThumbUrls.has(bgId)) return;
+    try { URL.revokeObjectURL(bgThumbUrls.get(bgId)); } catch (e) {}
+    bgThumbUrls.delete(bgId);
+  }
+
+  /** 取缩略图 blob URL; 没有 thumb 返回 '' (调用方显示占位). 永不抛错 */
+  function getBgThumbUrl(bg) {
+    if (!bg || !bg.id || !bg.thumb) return '';
+    if (bgThumbUrls.has(bg.id)) return bgThumbUrls.get(bg.id);
+    try {
+      const url = URL.createObjectURL(bg.thumb);
+      bgThumbUrls.set(bg.id, url);
+      return url;
+    } catch (e) {
+      console.warn('[Live2DUI] 缩略图 URL 创建失败:', e);
+      return '';
+    }
+  }
+
+  /** 把一张图缩成长边 160px 的 JPEG blob; 永不抛错, 失败返回 null */
+  async function makeBackgroundThumbnail(blob) {
+    if (!blob) return null;
+    let srcUrl = '';
+    try {
+      srcUrl = URL.createObjectURL(blob);
+      const img = await new Promise((resolve, reject) => {
+        const im = new Image();
+        im.onload = () => resolve(im);
+        im.onerror = () => reject(new Error('缩略图源图解码失败'));
+        im.src = srcUrl;
+      });
+      const iw = img.naturalWidth || 1;
+      const ih = img.naturalHeight || 1;
+      const scale = Math.min(1, BG_THUMB_MAX / Math.max(iw, ih));
+      const w = Math.max(1, Math.round(iw * scale));
+      const h = Math.max(1, Math.round(ih * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      const out = await new Promise(resolve => {
+        canvas.toBlob(b => resolve(b), 'image/jpeg', BG_THUMB_QUALITY);
+      });
+      return out || null;
+    } catch (e) {
+      console.warn('[Live2DUI] 生成背景缩略图失败:', e);
+      return null;
+    } finally {
+      // 已经画进 canvas 了, 这里可以立刻放掉源 URL
+      if (srcUrl) { try { URL.revokeObjectURL(srcUrl); } catch (e) {} }
+    }
+  }
+
+  /** 上传前统一处理: 缩图 + 生成缩略图. 永不抛错, 最坏退回原图 + 无缩略图 */
+  async function prepareBackgroundFile(file) {
+    const blob = await compressBackgroundImage(file);
+    const thumb = await makeBackgroundThumbnail(blob);
+    return { blob: blob || file, thumb: thumb };
+  }
+
+  // 老数据的背景补缩略图: 一张一张顺序来 (避免同时解码多张大图), 只补一次
+  let bgBackfillRunning = false;
+  async function backfillBgThumbs(ids) {
+    if (bgBackfillRunning) return;
+    bgBackfillRunning = true;
+    try {
+      for (const id of ids) {
+        const bg = await global.db.live2d_backgrounds.get(id);
+        if (!bg || !bg.blob || bg.thumb) continue;
+        const thumb = await makeBackgroundThumbnail(bg.blob);
+        if (!thumb) continue;
+        bg.thumb = thumb;
+        await global.db.live2d_backgrounds.put(bg);
+        // 补完立刻贴到已经渲染出来的格子上 (用户可能已经关了 picker, 那就找不到元素)
+        const el = document.querySelector(`.live2d-bg-picker-item[data-bg-id="${id}"]`);
+        const url = getBgThumbUrl(bg);
+        if (el && url) el.style.backgroundImage = `url('${url}')`;
+      }
+    } catch (e) {
+      console.warn('[Live2DUI] 背景缩略图补齐中断:', e);
+    } finally {
+      bgBackfillRunning = false;
+    }
+  }
+
   // 上传背景 (UI 入口)
   async function handleBackgroundUpload(file, containerEl) {
     if (!file) return;
@@ -344,6 +490,8 @@
       return;
     }
     try {
+      // v0.5.0 P13/P14: 先缩图 + 生成缩略图再落库; 名字仍沿用原文件名(只去掉扩展名)
+      const prepared = await prepareBackgroundFile(file);
       const id = (global.crypto && global.crypto.randomUUID)
         ? global.crypto.randomUUID()
         : 'bg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
@@ -351,7 +499,8 @@
         id,
         name: file.name.replace(/\.[^.]+$/, ''),
         addedAt: Date.now(),
-        blob: file,
+        blob: prepared.blob,
+        thumb: prepared.thumb || null,
       });
       showToast('已上传背景', 'success');
       if (containerEl) await renderBackgroundList(containerEl);
@@ -403,94 +552,21 @@
     if (bgBtn && bgInputEl) {
       bgBtn.addEventListener('click', () => bgInputEl.click());
     }
-
-    // 浮动切背景按钮 (通话时用)
-    bindFloatingBgBtn();
   }
 
-  // P1.5 浮动切背景按钮控制 (Live2D 挂载时显示, 卸载时隐藏)
-  function showBackgroundSwitchBtn() {
-    const btn = document.getElementById('live2d-switch-bg-btn');
-    if (btn) btn.style.display = 'flex';
-  }
-  function hideBackgroundSwitchBtn() {
-    const btn = document.getElementById('live2d-switch-bg-btn');
-    if (btn) btn.style.display = 'none';
-    // 顺手关 picker
-    const picker = document.getElementById('live2d-bg-picker');
-    if (picker) { picker.style.display = 'none'; picker.innerHTML = ''; }
-  }
-
-  // 打开背景选择器 (浮动在按钮下方)
-  async function openBgPicker() {
-    const picker = document.getElementById('live2d-bg-picker');
-    if (!picker) return;
-    if (!global.db) { picker.innerHTML = '<div class="live2d-bg-picker-empty">IDB 未初始化</div>'; picker.style.display = 'block'; return; }
-    const all = await global.db.live2d_backgrounds.toArray();
-    const sorted = all.sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
-    const activeId = (() => { try { return localStorage.getItem('live2d.activeBackgroundId') || ''; } catch (e) { return ''; } })();
-
-    if (sorted.length === 0) {
-      picker.innerHTML = '<div class="live2d-bg-picker-empty">还没有背景<br>去设置页 → 通话背景 上传</div>';
-      picker.style.display = 'block';
-      return;
-    }
-
-    // 收集这一轮要 revoke 的 URL
-    const toRevoke = picker._live2dBgPickerUrls || [];
-    picker._live2dBgPickerUrls = [];
-
-    const html = ['<div class="live2d-bg-picker-title">选择通话背景</div>'];
-    for (const bg of sorted) {
-      const url = bg.blob ? URL.createObjectURL(bg.blob) : '';
-      if (url) picker._live2dBgPickerUrls.push(url);
-      const activeClass = bg.id === activeId ? ' live2d-bg-picker-item-active' : '';
-      const style = url ? `background-image:url('${url}')` : 'background:#f5f5f5';
-      html.push(`<div class="live2d-bg-picker-item${activeClass}" data-bg-id="${bg.id}" style="${style}"></div>`);
-    }
-    html.push('<div class="live2d-bg-picker-clear" data-action="clear">清除背景</div>');
-    picker.innerHTML = html.join('');
-    picker.style.display = 'block';
-
-    toRevoke.forEach(u => { try { URL.revokeObjectURL(u); } catch (e) {} });
-
-    picker.onclick = async function (ev) {
-      const item = ev.target.closest('[data-bg-id]');
-      if (item) {
-        const bgId = item.getAttribute('data-bg-id');
-        try {
-          try { localStorage.setItem('live2d.activeBackgroundId', bgId); } catch (e) {}
-          const bg = await global.db.live2d_backgrounds.get(bgId);
-          if (bg && bg.blob) {
-            const url = URL.createObjectURL(bg.blob);
-            applyBackgroundToCallScreen(url);
-          }
-          showToast('已切换背景', 'success');
-          await openBgPicker();  // 重渲染高亮
-        } catch (e) {
-          showToast('切换失败: ' + e.message, 'error');
-        }
-        return;
-      }
-      if (ev.target.getAttribute('data-action') === 'clear') {
-        try { localStorage.setItem('live2d.activeBackgroundId', ''); } catch (e) {}
-        applyBackgroundToCallScreen('');
-        showToast('已清除背景', 'success');
-        await openBgPicker();
-      }
-    };
-  }
-
-  // 绑定浮动按钮 click (页面加载后调一次)
-  function bindFloatingBgBtn() {
-    const btn = document.getElementById('live2d-switch-bg-btn');
-    if (!btn) return;
-    btn.addEventListener('click', function () {
-      const picker = document.getElementById('live2d-bg-picker');
-      if (!picker) return;
-      if (picker.style.display === 'block') picker.style.display = 'none';
-      else openBgPicker();
-    });
+  // v0.5.0 P15: initUI() 的调用点
+  // ------------------------------------------------------------
+  // initUI() 定义了、也导出了, 但【全项目没有任何地方调用它】→ 里面的
+  // input / 列表绑定从来没跑过。这里补上调用点, 只跑一次 (两个分支互斥)。
+  // 注意: initUI 内部所有 DOM 获取都是 if (el) 守卫的, 老屏幕
+  // (#live2d-model-list / #live2d-bg-list 等) 已随旧页面删除, 当前版本
+  // 这些分支都会静默跳过。AI 换背景走的是 applyBackgroundToCallScreen,
+  // 完全不经过这里的任何绑定。
+  // ------------------------------------------------------------
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initUI);
+  } else {
+    initUI();
   }
 
   global.Live2DUI = {
@@ -498,15 +574,15 @@
     renderBackgroundList,
     handleModelUpload,
     handleBackgroundUpload,
+    compressBackgroundImage,
+    prepareBackgroundFile,
+    makeBackgroundThumbnail,
+    forgetBgThumb,
     applyBackgroundToCallScreen,
     applyActiveBackground,
     getActiveBackgroundIdForChat,
     setActiveBackgroundIdForChat,
     syncActiveModelToChat,
-    showBackgroundSwitchBtn,
-    hideBackgroundSwitchBtn,
-    openBgPicker,
-    bindFloatingBgBtn,
     initUI,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

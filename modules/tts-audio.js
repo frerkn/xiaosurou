@@ -205,6 +205,16 @@
     return false;
   }
 
+  // v0.5.0 P12: 视频通话口型 — 让 <audio> 元素旁路接上分析器。
+  // attachElement 内部走 captureStream() 拷一份流做分析, 刻意不接管 <audio> 的原生输出,
+  // 所以即使 AudioContext 被挂起通话也绝不会没声音。iOS/Safari 内部直接返回 false。
+  // 只有 source === 'videoCall' 会走到这里, 语音通话与聊天 TTS 完全不受影响。
+  function bindLipSyncToCallPlayer(source, player) {
+    if (source !== 'videoCall' || !player) return;
+    if (!window.CallLipSync || typeof window.CallLipSync.attachElement !== 'function') return;
+    try { window.CallLipSync.attachElement(player); } catch (e) { /* 口型失败不影响声音 */ }
+  }
+
   async function processNextTts() {
     if (ttsQueue.length === 0) {
       isTtsPlaying = false;
@@ -252,6 +262,12 @@
       callPlayer.src = audioUrl;
       callPlayer.dataset.currentText = text;
 
+      // v0.5.0 P12: 视频通话 AI 说话口型 — 通知口型模块"AI 开始念这句"。
+      // 只有 source === 'videoCall' 会拿到通知; 语音通话(voiceCall)与聊天 TTS 完全不受影响。
+      if (source === 'videoCall' && window.CallLipSync) {
+        try { window.CallLipSync.notifySpeaking(true); } catch (e) {}
+      }
+
       playStartedAt = Date.now();
       if (source === 'voiceCall') {
         logVoiceCallTtsDiag('VOICE_CALL_TTS_PLAY_START', {
@@ -296,7 +312,14 @@
               const audioBuffer = await sharedCtx.decodeAudioData(arrayBuffer);
               webAudioSource = sharedCtx.createBufferSource();
               webAudioSource.buffer = audioBuffer;
-              webAudioSource.connect(sharedCtx.destination);
+              // v0.5.0 P12: 视频通话口型 — 把分析器插进音频链。
+              // AnalyserNode 是直通节点(输入原样输出), 只旁路采样, 不改声音;
+              // 拿到 null (iOS / 创建失败 / 非 videoCall) 时照旧直连 destination。
+              var lipTapNode = (source === 'videoCall' && window.CallLipSync
+                && typeof window.CallLipSync.getTapNode === 'function')
+                ? window.CallLipSync.getTapNode(sharedCtx)
+                : null;
+              webAudioSource.connect(lipTapNode || sharedCtx.destination);
               // BufferSourceNode 没有 onerror, 只能靠 onended + timeout 兜底
               webAudioSource.onended = () => settle(resolve);
               webAudioSource.start();
@@ -304,6 +327,8 @@
               console.warn('[TTS队列] Web Audio 播放失败, 回退到 <audio> 路径:', webAudioErr);
               useWebAudio = false;
               // 失败时回退到 audio 路径
+              // v0.5.0 P12: 回退后同样给视频通话挂上旁路分析器
+              bindLipSyncToCallPlayer(source, callPlayer);
               callPlayer.onended = () => settle(resolve);
               callPlayer.onerror = () => settle(reject, new Error('audio_playback_error'));
               const playPromise = callPlayer.play();
@@ -314,6 +339,8 @@
           })();
         } else {
           // 原 <audio> 路径 (非通话场景 / 共享 AudioContext 不可用时)
+          // v0.5.0 P12: 视频通话口型 — 旁路挂分析器 (不接管声音)
+          bindLipSyncToCallPlayer(source, callPlayer);
           callPlayer.onended = () => settle(resolve);
           callPlayer.onerror = () => settle(reject, new Error('audio_playback_error'));
 
@@ -353,6 +380,10 @@
       }
       logCallTtsDiag('CALL_TTS_FALLBACK_SKIP', source, text, errorType);
     } finally {
+      // v0.5.0 P12: 视频通话口型 — 本句播完/失败都收口, 让嘴停下
+      if (source === 'videoCall' && window.CallLipSync) {
+        try { window.CallLipSync.notifySpeaking(false); } catch (e) {}
+      }
       if (timeoutId) {
         clearTimeout(timeoutId);
         timeoutId = null;

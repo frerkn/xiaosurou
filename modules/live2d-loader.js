@@ -115,8 +115,11 @@
       }
       model.scale.set(finalScale, finalScale);
       model.anchor.set(0.5, 0.5);
-      model.x = app.renderer.width / 2;
-      model.y = app.renderer.height / 2;
+      // v0.3.5: 居中必须用 renderer.screen(逻辑像素); renderer.width 是「设备像素」(逻辑 × devicePixelRatio),
+      // 用它居中会让模型中心跑到 (屏宽 × dpr / 2) —— 实测 iPhone(dpr3) 上模型完全跑到屏幕外,
+      // 电脑 125%/150% 缩放下偏右下并被裁掉。dpr=1 时两者相同, 所以只在电脑 100% 缩放下看不出问题。
+      model.x = app.renderer.screen.width / 2;
+      model.y = app.renderer.screen.height / 2;
       if (options.x !== undefined) model.x = options.x;
       if (options.y !== undefined) model.y = options.y;
 
@@ -136,6 +139,32 @@
 
       canvas._live2dApp = app;
       canvas._live2dModel = model;
+
+      // v0.3.6: 挂载完成时拍一次「参数基线」快照, 给"↺ 默认 / 恢复默认"用。
+      // 为什么必须在【挂载时】拍 (而不是打开管理面板时):
+      //   这是模型刚加载完、任何表情都还没应用过的纯净状态, 相当于"模型出厂表情"。
+      //   如果改成"面板打开那一刻"拍, 那时画面上可能已经有表情生效(比如上次选了还没恢复),
+      //   快照记下的就是"带表情"的脏值 → 之后点恢复默认只是回到那个脏状态 →
+      //   表现为"有的表情能恢复、有的恢复不了"且时好时坏。
+      // 时机与调试台对齐: live2d-manager.js:700 saveInitialParamValues(挂载后立即拍)。
+      // 快照失败不阻塞挂载 (调用方拿不到基线会自己兜底)。
+      try {
+        const core = model.internalModel
+          && (model.internalModel.coreModel || model.internalModel._model);
+        if (core
+            && typeof core.getParameterCount === 'function'
+            && typeof core.getParameterValueByIndex === 'function') {
+          const snap = new Map();
+          const n = core.getParameterCount();
+          for (let i = 0; i < n; i++) {
+            try { snap.set(i, core.getParameterValueByIndex(i)); } catch (e) { /* 跳过该参数 */ }
+          }
+          if (snap.size > 0) {
+            canvas._live2dInitialParams = snap;
+            console.log('[Live2D] 参数基线快照就绪: ' + snap.size + ' 个参数 (↺ 默认 用)');
+          }
+        }
+      } catch (e) { /* 快照失败不阻塞挂载 */ }
 
       console.log('[Live2D v0.3.0] mounted:', modelPath, 'size:', w, 'x', h, 'frames:', frameWait);
       return { success: true, app, model };
@@ -163,6 +192,7 @@
     }
     canvas._live2dApp = null;
     canvas._live2dModel = null;
+    canvas._live2dModelJson = null;
     // P1.5 revoke IDB 模式创建的 blob URL
     if (Array.isArray(canvas._live2dBlobUrls)) {
       canvas._live2dBlobUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (e) {} });
@@ -409,6 +439,9 @@
       // 0.4.0 cubism4 fork 不实例化 expressionManager, setExpression 走 SDK 直改参数时需要
       // 从 data.files 里拿 .exp3.json 的 Parameters 数组.
       canvas._live2dModelData = data;
+      // v0.5.0 P12: 缓存改写后的 model3.json 对象, 给 CallLipSync 读 Groups[LipSync] 兜底
+      // (口型基础档首选 ParamMouthOpenY, 模型没这个参数时才需要这份 Groups)
+      canvas._live2dModelJson = modelJson;
     }
     return result;
   }

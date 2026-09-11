@@ -1062,11 +1062,16 @@
         const waveformHTML = '<div></div><div></div><div></div><div></div><div></div>';
 
         if (isUser) {
-          // 用户的语音消息
+          // 用户的语音消息。
+          // 新生成的 voice_message 不再持久化原始录音,所以不写 data-audio / data-audio-mime。
+          // 老消息(数据库里残留的 audioData)仍然保留 data-audio 兼容,不改动。
+          const hasOriginalAudio = !!(msg.audioData || msg.audioUrl || msg.audioBlob);
           const audioDataAttr = msg.audioData ? `data-audio="${encodeURIComponent(msg.audioData)}"` : '';
           const audioMimeAttr = msg.audioMimeType ? `data-audio-mime="${msg.audioMimeType}"` : '';
           const transcriptText = msg.content || msg.transcript || msg.asrText || '[语音消息]';
-          const transcriptHtml = msg.audioCleared
+          // audioCleared 为 true:数据已清理(无论是老数据被清,还是新消息根本没存) → 文字常显
+          // 新消息永远没有原始录音,所以 transcriptHtml 一律 display:block
+          const transcriptHtml = (msg.audioCleared || !hasOriginalAudio)
             ? `<div class="voice-transcript" style="display:block;">${escapeHTML(transcriptText)}</div>`
             : '<div class="voice-transcript"></div>';
 

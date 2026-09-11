@@ -304,12 +304,16 @@
 
   async function createUserVoiceMessageWithAsr(audioBlob, durationMs) {
     const chat = state.chats[state.activeChatId];
-    if (!chat) return;
+    if (!chat) {
+      // 没有目标聊天时也要确保不再持有 audioBlob 引用(它本来就是参数,
+      // 函数返回即出栈),不创建 Blob URL 就不需要 revoke。
+      return;
+    }
 
-    const audioData = await blobToDataUrl(audioBlob);
-    const audioUrl = URL.createObjectURL(audioBlob);
     const duration = Math.max(1, Math.round(durationMs / 1000));
 
+    // 消息对象里只放文字相关字段 + 轻量元数据。
+    // 原始录音只作为 ASR 的临时输入,识别完成后立即释放,不再持久化到 messageStore / chats 表。
     const msg = {
       role: 'user',
       type: 'voice_message',
@@ -317,11 +321,8 @@
       transcript: '',
       asrText: '',
       asrStatus: 'pending',
-      audioBlob,
-      audioUrl,
-      audioData,
-      audioMimeType: audioBlob.type || 'audio/webm',
       audioDuration: duration,
+      audioCleared: true,
       timestamp: Date.now()
     };
 
@@ -344,6 +345,11 @@
       msg.asrError = error && error.message ? error.message : String(error);
     }
 
+    // ASR 用完录音,确保后续不再有 Blob URL 引用:本函数已不创建 audioUrl,
+    // audioBlob 作为函数参数在返回后即出栈,GC 可回收。保留这一行作为护栏,
+    // 如果未来有人误加回 createObjectURL 也能立即 revoke。
+    releaseVoiceRecordingResources(null);
+
     if (window.messageStore) {
       await window.messageStore.addMessageToChat(chat, msg);
     } else {
@@ -361,13 +367,18 @@
     });
   }
 
-  function blobToDataUrl(blob) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
+  // 主动释放一次普通聊天录音会话的临时音频资源:
+  // - revokeObjectURL 让 Blob URL 引用断开,浏览器释放对应的 blob 存储
+  // - audioBlob / audioData 是闭包内局部变量,函数返回后引用自然出栈,GC 即可回收
+  // (createUserVoiceMessageWithAsr 已经不再把它们写进 msg,这里只兜底 revoke)
+  function releaseVoiceRecordingResources(audioUrl) {
+    try {
+      if (audioUrl && typeof URL !== 'undefined' && String(audioUrl).startsWith('blob:')) {
+        URL.revokeObjectURL(audioUrl);
+      }
+    } catch (error) {
+      console.warn('revoke voice object url failed:', error);
+    }
   }
 
   if (document.readyState === 'loading') {

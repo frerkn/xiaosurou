@@ -361,6 +361,20 @@
     }
     try {
       if (!global.db) throw new Error('IDB 未初始化');
+      // v0.5.0 P13/P14: 跟 live2d-ui.handleBackgroundUpload 一样先缩图 + 生成缩略图
+      // (live2d-ui.js 在 index.html 里先于本文件加载, 正常一定拿得到;
+      //  拿不到就走原图, 不让上传失败)
+      let prepared = { blob: file, thumb: null };
+      try {
+        if (global.Live2DUI && typeof global.Live2DUI.prepareBackgroundFile === 'function') {
+          prepared = await global.Live2DUI.prepareBackgroundFile(file);
+        } else {
+          console.warn('[Live2DBgManager] prepareBackgroundFile 不可用, 按原图上传');
+        }
+      } catch (e) {
+        console.warn('[Live2DBgManager] 背景预处理异常, 按原图上传:', e);
+        prepared = { blob: file, thumb: null };
+      }
       const id = (global.crypto && global.crypto.randomUUID)
         ? global.crypto.randomUUID()
         : 'bg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
@@ -368,7 +382,8 @@
         id,
         name: file.name.replace(/\.[^.]+$/, '') || '背景',
         addedAt: Date.now(),
-        blob: file,
+        blob: prepared.blob,
+        thumb: prepared.thumb || null,
       });
       if (chatId && global.Live2DUI && typeof global.Live2DUI.setActiveBackgroundIdForChat === 'function') {
         global.Live2DUI.setActiveBackgroundIdForChat(chatId, id);

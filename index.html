@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="css/image-nai.css?v=0.0.36">
   <link rel="stylesheet" href="css/memory.css?v=0.0.36">
   <link rel="stylesheet" href="css/music-player.css?v=0.0.37">
-  <link rel="stylesheet" href="css/video-voice-call.css?v=0.0.37">
+  <link rel="stylesheet" href="css/video-voice-call.css?v=0.0.46">
   <link rel="stylesheet" href="css/settings-font.css?v=0.0.36">
   <link rel="stylesheet" href="css/main-ui.css?v=0.0.68">
   <link rel="stylesheet" href="css/voice-recording.css?v=0.0.37">
@@ -113,14 +113,19 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js" defer></script>
   <!-- v0.3.0 Live2D: 回退到 PIXI v6 + pixi-live2d-display 0.4.0 (UMD, 330 v0.1.30 旧栈) -->
+  <!-- v0.2.31.53 引擎本地化: 三个引擎文件全部改成本地 lib/, 彻底不依赖 CDN。
+       真凶: sw.js 的 activate 会删掉所有旧 CACHE_NAME 的 cache, 而引擎原来只靠"运行时缓存"
+       活着 (URLS_TO_CACHE 里没有它们) → CACHE_VERSION 一 bump 缓存就被清空, 必须重新走 CDN;
+       网络一抖 window.PIXI.live2d 就没了, 表现为 "Live2DModel not loaded"、模型加载不出来。
+       本地文件不受网络和 cache 版本影响, 从根上断掉这一类故障。 -->
   <!-- Cubism 4 runtime (本地, 必须先加载) -->
   <script src="lib/live2dcubismcore.min.js"></script>
   <!-- Cubism 2 runtime (0.4.0 cubism4 子入口虽然不依赖, 但保留无副作用) -->
-  <script src="https://cdn.jsdelivr.net/gh/dylanNew/live2d/webgl/Live2D/lib/live2d.min.js"></script>
+  <script src="lib/live2d.min.js"></script>
   <!-- PIXI v6.5.0 UMD (window.PIXI 全局) -->
-  <script src="https://cdn.jsdelivr.net/npm/pixi.js@6.5.0/dist/browser/pixi.min.js"></script>
+  <script src="lib/pixi.min.js"></script>
   <!-- pixi-live2d-display 0.4.0 UMD prebuilt (window.PIXI.live2d.Live2DModel) -->
-  <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/cubism4.min.js"></script>
+  <script src="lib/pixi-live2d-display.cubism4.min.js"></script>
   <script src="prompt-manager.js?v=0.0.37" defer></script>
   <script src="online-chat-manager.js?v=0.0.49" defer></script>
   <script src="online-chat-integration.js?v=0.0.36" defer></script>
@@ -161,8 +166,10 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
   <script src="modules/qzone.js?v=0.0.36" defer></script>
   <script src="modules/sticker-manager.js?v=0.0.36" defer></script>
   <script src="modules/memory-summary.js?v=0.0.40" defer></script>
-  <script src="modules/live2d-loader.js?v=0.3.3" defer></script>
-  <script src="modules/video-voice-call.js?v=0.0.51" defer></script>
+  <script src="modules/live2d-loader.js?v=0.3.6" defer></script>
+  <!-- v0.5.0 P12/P13: 视频通话 AI 说话口型 + 元音嘴型 (独立模块, 无外部依赖; 必须在 tts-audio.js 之前加载) -->
+  <script src="modules/call-lip-sync.js?v=0.0.2" defer></script>
+  <script src="modules/video-voice-call.js?v=0.0.64" defer></script>
   <script src="modules/message-actions.js?v=0.0.36" defer></script>
   <script src="modules/nai-imagen.js?v=0.0.36" defer></script>
   <script src="modules/backup-import-export.js?v=0.0.37" defer></script>
@@ -189,7 +196,7 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
   <script src="src/lib/tts/adapters/openaiCompatible.js?v=0.0.36" defer></script>
   <script src="src/lib/tts/index.js?v=0.0.36" defer></script>
   <script src="src/lib/tts/settings-ui.js?v=0.0.36" defer></script>
-  <script src="modules/tts-audio.js?v=0.0.37" defer></script>
+  <script src="modules/tts-audio.js?v=0.0.38" defer></script>
   <script src="modules/appearance-theme.js?v=0.0.86" defer></script>
   <script src="modules/hot-news.js?v=0.1.2" defer></script>
   <script src="modules/runtime-diagnostics.js?v=0.0.38" defer></script>
@@ -212,12 +219,12 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
   <script src="modules/live2d-config.js?v=0.0.1" defer></script>
   <script src="modules/live2d-uploader.js?v=0.0.1" defer></script>
   <script src="modules/live2d-storage.js?v=0.0.1" defer></script>
-  <script src="modules/live2d-ui.js?v=0.0.1" defer></script>
+  <script src="modules/live2d-ui.js?v=0.0.5" defer></script>
   <script src="modules/live2d-call-prep.js?v=0.0.2" defer></script>
   <script src="modules/live2d-model-picker.js?v=0.0.1" defer></script>
-  <script src="modules/live2d-manager.js?v=0.0.5" defer></script>
+  <script src="modules/live2d-manager.js?v=0.0.7" defer></script>
   <!-- v0.5.0 P11: 通话舞台背景管理页 (依赖 live2d-call-prep.js / live2d-ui.js) -->
-  <script src="modules/live2d-bg-manager.js?v=0.0.1" defer></script>
+  <script src="modules/live2d-bg-manager.js?v=0.0.3" defer></script>
   <script src="modules/api-endpoint-presets.js?v=0.0.36" defer></script>
   <!-- 死锁状态修复（F5 启动时清残留 isGenerating 状态） -->
   <script src="modules/chat-stuck-state-repair.js?v=0.0.36" defer></script>
@@ -230,7 +237,7 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
   <script src="modules/init-pin-city.js?v=0.0.36" defer></script>
   <!-- 事件绑定和功能（依赖 state, db） -->
   <script src="modules/init-event-bindingsA.js?v=0.0.47" defer></script>
-  <script src="modules/init-event-bindingsB.js?v=0.0.38" defer></script>
+  <script src="modules/init-event-bindingsB.js?v=0.0.39" defer></script>
   <script src="modules/init-features.js?v=0.0.40" defer></script>
   <!-- 主入口（最后加载，调用 init） -->
   <script src="modules/init-and-state.js?v=0.0.83" defer></script>
@@ -4498,16 +4505,6 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
     </button>
     <span id="call-timer">00:00</span>
 </div>
-
-<!-- P1.5 Live2D 通话浮动切背景按钮 (Live2D 挂上后才显示) -->
-<button id="live2d-switch-bg-btn" class="live2d-floating-btn" style="display:none;" title="切换背景">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-        <circle cx="8.5" cy="8.5" r="1.5"></circle>
-        <polyline points="21 15 16 10 5 21"></polyline>
-    </svg>
-</button>
-<div id="live2d-bg-picker" class="live2d-bg-picker" style="display:none;"></div>
 
       <!-- 视频画面显示区 (优化模式) -->
       <div id="video-display-area" style="display: none;">

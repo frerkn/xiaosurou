@@ -685,8 +685,10 @@
     if (result.app && result.app.renderer && result.model) {
       try {
         result.model.anchor.set(0.5, 0.5);
-        result.model.x = result.app.renderer.width / 2;
-        result.model.y = result.app.renderer.height / 2;
+        // v0.5.1: 同 live2d-loader 修正 —— renderer.width/height 是设备像素,
+        // 居中必须用 renderer.screen(逻辑像素), 否则 dpr>1 时预览模型偏右下
+        result.model.x = result.app.renderer.screen.width / 2;
+        result.model.y = result.app.renderer.screen.height / 2;
         // 记下初始 scale, zoomResetBtn 用
         modelBaseScale = (result.model.scale && typeof result.model.scale.x === 'number')
           ? result.model.scale.x
@@ -1430,5 +1432,13 @@
     return applied > 0;
   }
 
-  global.Live2DManager = { init, open, close };
+  global.Live2DManager = {
+    init,
+    open,
+    close,
+    // v0.5.2: 把「表情 ID → 中文名」映射一并导出。
+    // 视频通话页要用它给 AI 看"人话版"表情清单 —— 只喂英文 id (cry / cat_paw_up)
+    // AI 看不出该在什么场合用哪个, 结果就是干脆不写表情指令。
+    EXPRESSION_CN_LABELS,
+  };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -4390,18 +4390,28 @@ window.initEventBindingsB = function(state, db) {
           const im = m.internalModel;
           const core = im && (im.coreModel || im._model || (im.coreModel && im.coreModel._model));
           if (core && typeof core.getParameterCount === 'function' && typeof core.getParameterValueByIndex === 'function') {
-            const snap = new Map();
-            const n = core.getParameterCount();
-            for (let i = 0; i < n; i++) {
-              try { snap.set(i, core.getParameterValueByIndex(i)); } catch (e) {}
+            // v0.5.0 P16 修复「恢复默认时好时坏 / 有的表情恢复不了」:
+            // 基线的拍快照时机改成跟调试台一致 —— 在【模型挂载时】拍 (live2d-loader.js 挂载完成处)。
+            // 这里只在"没有基线"时才补拍 (老路径兜底)。
+            // 真凶: 之前是"面板打开那一刻"拍, 若打开面板时画面上已经有表情生效(上次选了还没恢复),
+            // 快照记下的就是"带表情"的脏值 → 点 ↺ 默认 只是回到那个脏状态 → 看起来"恢复不了"。
+            // 基线必须严格早于任何表情生效。
+            if (!c._live2dInitialParams || c._live2dInitialParams.size === 0) {
+              const snap = new Map();
+              const n = core.getParameterCount();
+              for (let i = 0; i < n; i++) {
+                try { snap.set(i, core.getParameterValueByIndex(i)); } catch (e) {}
+              }
+              c._live2dInitialParams = snap;
+              console.log('[ModelManage] ↺ 默认 无挂载时基线, 兜底补拍面板打开态: ' + snap.size + ' 个参数');
+            } else {
+              console.log('[ModelManage] ↺ 默认 沿用挂载时基线: ' + c._live2dInitialParams.size + ' 个参数 (不覆盖)');
             }
-            c._live2dInitialParams = snap;
-            console.log('[ModelManage] ↺ 默认 快照就绪: ' + snap.size + ' 个参数 (用于 ↺ 默认 路径 1)');
             // 关键修复: 快照拍到就强制 enable ↺ 默认, 不依赖 defaultExpression
             // 之前 defaultExpression 读空 → 按钮保持 HTML 默认 disabled → 浏览器不派发 click → "点了没动静"
             if (mmExprResetEl) {
               mmExprResetEl.disabled = false;
-              mmExprResetEl.title = '↺ 默认: 回到面板打开时的表情状态 (快照, 共 ' + snap.size + ' 个参数)';
+              mmExprResetEl.title = '↺ 默认: 回到模型刚挂载时的表情状态 (基线, 共 ' + c._live2dInitialParams.size + ' 个参数)';
             }
           } else {
             console.warn('[ModelManage] 快照失败: 拿不到 coreModel (getParameterCount 不可用)');
