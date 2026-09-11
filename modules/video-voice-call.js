@@ -1138,6 +1138,10 @@
     hideVideoCallManualMicButton();
     document.getElementById('join-call-btn').style.display = videoCallState.isUserParticipating ? 'none' : 'block';
 
+    // 视频通话开始: 显示并重置"启用音频"按钮 (iOS Safari 音频解锁入口)
+    // 跟语音通话 startVoiceCall 顶部 setVoiceCallAudioUnlockBtnVisibility(true) 等价
+    setVideoCallAudioUnlockBtnVisibility(true);
+
     // v0.1.30 挂载 Live2D (异步, 不阻塞通话初始化)
     mountLive2DForCall(chat);
 
@@ -1527,6 +1531,16 @@
   }
 
   async function endVideoCall() {
+    // === 挂断停止背景音乐 START ===
+    // 跟语音通话 endVoiceCall 顶部 if (window.voiceCallBgAudio) ... 等价
+    // 防止挂断后还残留 call-waiting.mp3 在播 (跨通话)
+    stopVideoCallWaitingMusicOnHangup();
+    // === 挂断停止背景音乐 END ===
+
+    // 挂断: 重置视频通话"启用音频"按钮到 unlock-inactive 并显示
+    // 下次再打时按钮要重新出现
+    setVideoCallAudioUnlockBtnVisibility(true);
+
     if (!videoCallState.isActive) return;
     // v0.1.30 卸载 Live2D (释放 PIXI GL 资源)
     unmountLive2DForCall();
@@ -1770,6 +1784,33 @@
     }
 
     const chat = state.chats[videoCallState.activeChatId];
+
+    // v0.5.0 P22: 新轮次基线恢复 — 不依赖 AI 写 [[表情:恢复]]
+    // ----------------------------------------------------------------
+    // 真凶: AI 上一轮切了"吐舌" → 本轮用户怎么说都收不回去, 让 AI 输出
+    //       [[表情:恢复]] 也没用。L2140 那段"切新表情前先卸旧"只在 AI
+    //       本轮【主动选新表情】时触发; AI 一直不选 / 选同一个 / 没轮到他
+    //       选 → 旧表情就留着, 用户体感"卡死"。
+    // 修法: 每个新轮次 (用户消息进来触发 AI 回复) 开头, 系统先帮模型
+    //       卸掉上一轮的表情, 让 AI 看到的是"默认基线"。
+    //       之后 AI 想"吐舌"就再选一次, 不想就维持默认 → 永远不会"卡死"。
+    // 双保险: 即便本轮 AI 又写了某个非默认表情, 切新表情前的 P20
+    //         "先卸旧" 逻辑仍在 (L2140 那段), 两层都不依赖 AI 记规则。
+    // 边界: applyVideoCallExpressionDirective 没模型/没挂载时静默返回 false,
+    //       这种情况下 lastAppliedExpression 本来就一直是空 (P20 L2153
+    //       那里要 ok=true 才记), 兜底天然不触发。
+    const lastExpr = videoCallState.lastAppliedExpression || '';
+    if (lastExpr && lastExpr !== '恢复' && lastExpr !== '默认') {
+      try {
+        console.log('[视频通话表情] 新轮次基线恢复: 旧表情 →', lastExpr, '回到默认');
+        await applyVideoCallExpressionDirective('恢复', chat);
+      } catch (e) {
+        console.warn('[视频通话表情] 新轮次基线恢复失败:', e);
+      }
+      // 清空让 P20 的 needResetBefore 不会重复触发
+      videoCallState.lastAppliedExpression = '';
+    }
+
     // 与主聊天保持一致：实时通过 resolveApiSlotConfig 解析主 API 配置，
     // 否则 state.apiConfig 在使用预设引用 / 切换预设 / 角色独立配置时可能为空或过期，
     // 导致代理 baseUrl 非法、通话接不通
@@ -2047,6 +2088,11 @@ ${linkedContents}
 
       const connectingElement = callFeed.querySelector('em');
       if (connectingElement) connectingElement.remove();
+
+      // AI 文字即将出现：在第一时间立即停止视频通话彩铃 (跟语音通话 stopVoiceCallWaitingMusic 等价)
+      // 不管"启用音频"按钮有没有被点过, AI 文字一出现 = 通话已开始, 按钮历史使命完成
+      stopVideoCallWaitingMusic('ai-text-rendered');
+
       if (videoCallState.isGroupCall) {
         const speechArray = parseAiResponse(aiResponse);
         let renderedAiContentCount = 0;
@@ -2207,6 +2253,8 @@ ${linkedContents}
         role: 'assistant',
         content: `[ERROR: ${error.message}]`
       });
+      // 错误路径也要停彩铃 (跟语音通话 catch 里 stopVoiceCallWaitingMusic('error') 等价)
+      stopVideoCallWaitingMusic('error');
       markVideoCallAiResponseRendered(aiTurnId);
       onVideoCallTtsQueueFinished();
     }
@@ -3855,5 +3903,168 @@ ${worldBookContent}
   // 因此，在脚本加载时就开始尝试绑定
   setupVoiceCallAudioUnlock();
   // --- 启用音频按钮功能结束 ---
+
+  // === 视频通话启用音频按钮功能 ===
+  // 原则: 跟语音通话完全一致的彩铃机制 — 同一份 call-waiting.mp3, 同一个共享 AudioContext
+  //       不动语音通话的 setVoiceCallAudioUnlockBtnVisibility / setupVoiceCallAudioUnlock / stopVoiceCallWaitingMusic
+  //       复用 window.voiceCallBgAudio (同一个 Audio 实例) + window.voiceCallSharedAudioContext (同一个共享 ctx)
+  //       只是按钮的 DOM 节点 (id) 跟语音通话不同, CSS class 跟 setVisibility 逻辑是独立的
+  const VIDEO_AUDIO_UNLOCK_SELECTOR = '#video-audio-unlock-btn';
+  const VIDEO_AUDIO_UNLOCK_AUDIO_URL = 'assets/audio/call-waiting.mp3'; // 跟语音通话完全相同
+
+  // 辅助: 控制视频通话"启用音频"按钮的显示/重置状态
+  // - 彩铃停止(AI 文字出现)后隐藏 — 任务完成, 按钮完成使命
+  // - 挂断/下次通话开始时显示并重置回 unlock-inactive
+  function setVideoCallAudioUnlockBtnVisibility(visible) {
+    const btn = document.querySelector(VIDEO_AUDIO_UNLOCK_SELECTOR);
+    if (!btn) return;
+    if (visible) {
+      btn.style.display = '';
+      // 重置回 unlock-inactive (防御: 挂断后按钮可能停在 connected)
+      btn.classList.remove('unlock-loading', 'unlock-connected');
+      btn.classList.add('unlock-inactive');
+      btn.textContent = '启用音频';
+    } else {
+      btn.style.display = 'none';
+    }
+  }
+
+  // 视频通话彩铃 click handler — 与语音通话 setupVoiceCallAudioUnlock 完全等价
+  // 区别:
+  //   - 操作不同的按钮 (#video-audio-unlock-btn vs #voice-regenerate-call-btn)
+  //   - 复用同一个 window.voiceCallBgAudio / window.voiceCallSharedAudioContext / 同一份音频 URL
+  //   - 复用同一个 window.isVoiceCallAudioUnlocking 状态锁, 防止语音/视频并发激活
+  function setupVideoCallAudioUnlock() {
+    const unlockBtn = document.querySelector(VIDEO_AUDIO_UNLOCK_SELECTOR);
+
+    if (!unlockBtn) {
+      // 按钮可能还未渲染，稍后重试
+      setTimeout(setupVideoCallAudioUnlock, 500);
+      return;
+    }
+
+    // 避免重复绑定
+    if (unlockBtn.dataset.audioUnlockBound) {
+      return;
+    }
+    unlockBtn.dataset.audioUnlockBound = 'true';
+
+    unlockBtn.addEventListener('click', function handleVideoCallAudioUnlock() {
+      // [防叠加] 已有 bgAudio 且在播 → 直接 return, 不创建新实例
+      // 防止用户多次点击 / 语音视频交替点击导致多个 Audio 实例同时播放
+      if (window.voiceCallBgAudio && !window.voiceCallBgAudio.paused) {
+        console.log('[Audio] 彩铃已在播放, 忽略视频通话重复点击');
+        return;
+      }
+
+      // 防重复点击 (跟语音通话共用同一把锁, 防止双通话并发激活)
+      if (window.isVoiceCallAudioUnlocking) {
+        console.log('[Audio] 正在激活中,请勿重复点击');
+        return;
+      }
+      window.isVoiceCallAudioUnlocking = true;
+
+      // 切换到加载状态
+      unlockBtn.classList.remove('unlock-inactive');
+      unlockBtn.classList.add('unlock-loading');
+      unlockBtn.textContent = '连接中…';
+
+      // 复用或创建 bgAudio — 跟语音通话共用同一个 window.voiceCallBgAudio 实例
+      // 只有第一次才 new, 后续失败清理后下次重试也是新的
+      let bgAudio = window.voiceCallBgAudio;
+      if (!bgAudio) {
+        bgAudio = new Audio(VIDEO_AUDIO_UNLOCK_AUDIO_URL);
+        bgAudio.loop = true;
+        bgAudio.volume = 0.25;
+        // 立即记下, 防止并发点击再 new 一个
+        window.voiceCallBgAudio = bgAudio;
+      }
+
+      bgAudio.play()
+        .then(() => {
+          console.log('[Audio] 视频通话彩铃播放成功');
+
+          // [iOS 授权] 在 user gesture 内建一个共享 AudioContext 并 resume
+          // 跟语音通话共用同一个 window.voiceCallSharedAudioContext 实例
+          // 这是 iOS Safari 音频解锁的关键 — user gesture 里 resume 后,
+          // 后续 BufferSourceNode 播放不会被 user gesture 链限制
+          try {
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            if (AudioContextClass && !window.voiceCallSharedAudioContext) {
+              window.voiceCallSharedAudioContext = new AudioContextClass();
+              console.log('[Audio] 视频通话已建共享 AudioContext, state=', window.voiceCallSharedAudioContext.state);
+            }
+            if (window.voiceCallSharedAudioContext && window.voiceCallSharedAudioContext.state === 'suspended') {
+              window.voiceCallSharedAudioContext.resume().then(() => {
+                console.log('[Audio] 视频通话共享 AudioContext 已 resume, state=', window.voiceCallSharedAudioContext.state);
+              }).catch(err => {
+                console.warn('[Audio] 视频通话共享 AudioContext resume 失败:', err);
+              });
+            }
+          } catch (audioCtxErr) {
+            console.warn('[Audio] 视频通话共享 AudioContext 初始化失败(将回退到 <audio> 路径):', audioCtxErr);
+          }
+
+          // 切换到已连接状态
+          unlockBtn.classList.remove('unlock-loading');
+          unlockBtn.classList.add('unlock-connected');
+          unlockBtn.textContent = '已连接';
+
+          // 释放状态锁
+          window.isVoiceCallAudioUnlocking = false;
+        })
+        .catch(err => {
+          console.error('[Audio] 视频通话彩铃播放失败:', err);
+
+          // 失败清理: 允许下次点击重试 (创建新 bgAudio)
+          if (window.voiceCallBgAudio === bgAudio) {
+            try { bgAudio.pause(); bgAudio.currentTime = 0; } catch (e) { /* ignore */ }
+            window.voiceCallBgAudio = null;
+          }
+
+          // 切换回初始状态
+          unlockBtn.classList.remove('unlock-loading');
+          unlockBtn.classList.add('unlock-inactive');
+          unlockBtn.textContent = '启用音频';
+
+          // 释放状态锁
+          window.isVoiceCallAudioUnlocking = false;
+        });
+    });
+  }
+
+  // 立即停止视频通话彩铃 (跟语音通话 stopVoiceCallWaitingMusic 等价)
+  // 1) 先隐藏视频通话"启用音频"按钮 — 任务完成, 按钮消失
+  // 2) 再尝试停止彩铃音频 (复用同一个 window.voiceCallBgAudio)
+  // 用法: 在视频通话 AI 文字即将出现的 hook 点调用 (跟语音通话 line 3334 行为一致)
+  function stopVideoCallWaitingMusic(reason = '') {
+    // 1. 先隐藏视频通话彩铃按钮
+    setVideoCallAudioUnlockBtnVisibility(false);
+
+    // 2. 再尝试停止彩铃音频 (没创建过 bgAudio 就跳过, 跟语音通话等价)
+    if (!window.voiceCallBgAudio) return;
+    try {
+      window.voiceCallBgAudio.pause();
+      window.voiceCallBgAudio.currentTime = 0;
+    } catch (e) {
+      console.warn('[Audio] 停止视频通话背景音乐失败:', e);
+    }
+    window.voiceCallBgAudio = null;
+    console.log('[Audio] 视频通话 AI 文字出现, 立即停止背景音乐' + (reason ? ` (${reason})` : ''));
+  }
+
+  // 视频通话挂断时也要立刻停彩铃 (跟语音通话 endVoiceCall 顶部的"挂断停止背景音乐"等价)
+  function stopVideoCallWaitingMusicOnHangup() {
+    if (window.voiceCallBgAudio) {
+      console.log('[Audio] 视频通话挂断，立刻停止背景音乐');
+      window.voiceCallBgAudio.pause();
+      window.voiceCallBgAudio.currentTime = 0;
+      window.voiceCallBgAudio = null;
+    }
+  }
+
+  // 脚本加载时就尝试绑定 (跟语音通话 setupVoiceCallAudioUnlock 调用时机一致)
+  setupVideoCallAudioUnlock();
+  // === 视频通话启用音频按钮功能结束 ===
 
 })();

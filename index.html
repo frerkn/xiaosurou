@@ -169,7 +169,7 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
   <script src="modules/live2d-loader.js?v=0.3.6" defer></script>
   <!-- v0.5.0 P12/P13: 视频通话 AI 说话口型 + 元音嘴型 (独立模块, 无外部依赖; 必须在 tts-audio.js 之前加载) -->
   <script src="modules/call-lip-sync.js?v=0.0.2" defer></script>
-  <script src="modules/video-voice-call.js?v=0.0.64" defer></script>
+  <script src="modules/video-voice-call.js?v=0.0.65" defer></script>
   <script src="modules/message-actions.js?v=0.0.36" defer></script>
   <script src="modules/nai-imagen.js?v=0.0.36" defer></script>
   <script src="modules/backup-import-export.js?v=0.0.37" defer></script>
@@ -4546,6 +4546,10 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
           <span class="glass-bubble-spark spark-one">✦</span>
           <span class="glass-bubble-spark spark-two">✧</span>
       </div>
+
+      <!-- 视频通话"启用音频"按钮 — 复用语音通话彩铃机制 (iOS Safari 音频解锁)
+           跟语音通话 #voice-regenerate-call-btn 完全等价: 同一份 call-waiting.mp3, 同一个共享 AudioContext -->
+      <button id="video-audio-unlock-btn" class="unlock-inactive" style="display: none;">启用音频</button>
 
       <div class="video-call-controls"> <button id="user-speak-btn" class="control-btn speak-btn"></button> <button id="hang-up-btn" class="control-btn hangup-btn"></button> <button id="model-manage-btn" class="control-btn model-manage-btn" title="模型管理" aria-label="模型管理"></button> <button id="regenerate-call-btn" class="control-btn regenerate-btn camera-switch-btn" title="切换前/后摄像头" aria-label="切换前/后摄像头"></button> <button id="join-call-btn"
           class="control-btn join-btn" style="display: none;"></button> </div>

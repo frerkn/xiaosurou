@@ -2769,3 +2769,15 @@
     /* 按钮在玻璃框里再轻微抬高: 配合 padding 让它"坐在"框里, 不是"贴边" */
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
 }
+
+/* 视频通话"启用音频"按钮 — 复用语音通话的 .unlock-inactive/.unlock-loading/.unlock-connected 样式
+   这里只决定位置: 屏幕右下角, 不进玻璃控制框, 跟语音通话 #voice-regenerate-call-btn 风格一致 */
+#video-call-screen #video-audio-unlock-btn {
+    position: absolute;
+    bottom: 43px;
+    right: 30px;
+    width: 50px;
+    height: 50px;
+    font-size: 10px;
+    z-index: 70;
+}
