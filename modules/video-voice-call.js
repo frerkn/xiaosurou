@@ -909,24 +909,65 @@
       if (!canvas || !canvas._live2dModel) return false;
       if (!window.Live2DLoader || typeof window.Live2DLoader.setExpression !== 'function') return false;
 
-      // 恢复默认 / 保持 → 重新应用用户在该角色上保存的起始表情 (跟挂载时同一套来源)
+      // 恢复默认 / 保持 → 回"模型刚挂载时的表情基线" (跟模型管理页「↺ 默认」同一套来源)
       // 包含 P17 引入的 "保持/不变" 词: 用户/AI 想让表情回到"无情绪默认态"都走这条
+      //
+      // v0.5.0 P24 修复「AI 怎么要求都恢复不了」:
+      //   真凶: 旧实现只有 setExpression(canvas, defaultExpression) 一条路。
+      //         没设 defaultExpression 时传空串 → 落到 fork 的 em.resetExpression 分支,
+      //         而这个 0.4.0 cubism4 fork 根本不实例化 expressionManager → return false,
+      //         一个参数都没动 (实测: 换表情有效, 恢复是彻底的空操作)。
+      //         即便设了 defaultExpression, 也只是把那份 .exp3.json 声明过的参数写回去,
+      //         旧表情写在别的参数上的值仍残留 → "有的能恢复, 有的恢复不了"。
+      //   修法: 首选跟模型管理页「↺ 默认」完全同一套 —— 参数快照还原。
+      //         canvas._live2dInitialParams 是 live2d-loader.js 在【模型挂载完成时】
+      //         拍的"出厂表情"基线 (严格早于任何表情生效), 逐参数写回 = 真卸干净。
       if (isVideoCallExpressionReset(rawName)) {
-        let def = '';
+        let okReset = false;
+        let how = '(无可用路径)';
+
+        // 路径 1 (首选): 快照还原 —— 跟模型管理页 init-event-bindingsB.js 路径 1 同一套
         try {
-          if (chat && chat.id && window.Live2DStorage
-              && typeof window.Live2DStorage.getVideoCallAppearance === 'function') {
-            const appearance = await window.Live2DStorage.getVideoCallAppearance(chat.id);
-            def = (appearance && appearance.defaultExpression) || '';
+          const im = canvas._live2dModel && canvas._live2dModel.internalModel;
+          const core = im && (im.coreModel || im._model || (im.coreModel && im.coreModel._model));
+          const snap = canvas._live2dInitialParams;
+          if (snap && snap.size > 0 && core && typeof core.setParameterValueByIndex === 'function') {
+            let n = 0;
+            snap.forEach((val, idx) => {
+              try { core.setParameterValueByIndex(idx, val); n++; } catch (e) { /* 跳过该参数 */ }
+            });
+            if (n > 0) { okReset = true; how = '快照还原 ' + n + ' 个参数'; }
           }
-        } catch (e) { /* 读不到就按无默认处理 */ }
-        const okReset = await window.Live2DLoader.setExpression(canvas, def);
-        // 命中 "保持/不变" 时打另一条 log, 区分 "回默认" 和 "维持当前"
-        if (/^(保持|不变|none|keep)$/i.test(String(rawName || '').trim())) {
-          console.log('[视频通话表情] AI 维持当前表情 (走默认)', def ? '(default=' + def + ')' : '(无 default)', 'ok=' + okReset);
-        } else {
-          console.log('[视频通话表情] AI 恢复默认表情', def ? '(default=' + def + ')' : '(无 default)', 'ok=' + okReset);
+        } catch (e) {
+          console.warn('[视频通话表情] 快照还原异常:', e);
         }
+
+        // 路径 2 (兜底): 没有基线快照 → 重新应用用户在该角色保存的起始表情
+        if (!okReset) {
+          let def = '';
+          try {
+            if (chat && chat.id && window.Live2DStorage
+                && typeof window.Live2DStorage.getVideoCallAppearance === 'function') {
+              const appearance = await window.Live2DStorage.getVideoCallAppearance(chat.id);
+              def = (appearance && appearance.defaultExpression) || '';
+            }
+          } catch (e) { /* 读不到就按无默认处理 */ }
+          if (def) {
+            okReset = await window.Live2DLoader.setExpression(canvas, def);
+            how = '重应用起始表情 ' + def;
+          }
+        }
+
+        // 路径 3 (最后兜底): 库 resetExpression (该 fork 上通常返回 false, 保留以防换库)
+        if (!okReset) {
+          okReset = await window.Live2DLoader.setExpression(canvas, '');
+          how = '库 resetExpression';
+        }
+
+        // 命中 "保持/不变" 时打另一条 log, 区分 "回默认" 和 "维持当前"
+        const isKeep = /^(保持|不变|none|keep)$/i.test(String(rawName || '').trim());
+        console.log('[视频通话表情] AI ' + (isKeep ? '维持当前表情 (走默认)' : '恢复默认表情')
+          + ' | ' + how + ' | ok=' + okReset);
         return !!okReset;
       }
 
@@ -1080,6 +1121,11 @@
     document.querySelector('#outgoing-call-screen .caller-text').textContent = chat.isGroup ? "正在呼叫所有成员..." : "正在呼叫...";
     showScreen('outgoing-call-screen');
 
+    // v0.5.0 P25: 进入呼叫等待页时把"启用音频"按钮的外观重置回初始态
+    // (按钮 DOM 就在本屏内部, 显示与否由 .screen 自己管 — 用户点它是为了解锁 iOS Safari
+    //  的自动播放限制并播彩铃 call-waiting.mp3; AI 接受通话切到正式通话页后它自然消失)
+    resetVideoCallAudioUnlockBtn();
+
 
     const requestMessage = {
       role: 'system',
@@ -1138,9 +1184,8 @@
     hideVideoCallManualMicButton();
     document.getElementById('join-call-btn').style.display = videoCallState.isUserParticipating ? 'none' : 'block';
 
-    // 视频通话开始: 显示并重置"启用音频"按钮 (iOS Safari 音频解锁入口)
-    // 跟语音通话 startVoiceCall 顶部 setVoiceCallAudioUnlockBtnVisibility(true) 等价
-    setVideoCallAudioUnlockBtnVisibility(true);
+    // v0.5.0 P25: 本屏不需要管"启用音频"按钮 — 它 DOM 在呼叫等待页内部, 切屏时自动隐藏。
+    // (用户若已点开彩铃, 彩铃会继续播到 AI 文字出现, 由 stopVideoCallWaitingMusic() 停)
 
     // v0.1.30 挂载 Live2D (异步, 不阻塞通话初始化)
     mountLive2DForCall(chat);
@@ -1537,9 +1582,7 @@
     stopVideoCallWaitingMusicOnHangup();
     // === 挂断停止背景音乐 END ===
 
-    // 挂断: 重置视频通话"启用音频"按钮到 unlock-inactive 并显示
-    // 下次再打时按钮要重新出现
-    setVideoCallAudioUnlockBtnVisibility(true);
+    // v0.5.0 P25: 挂断不需要管"启用音频"按钮 — 它 DOM 在呼叫等待页内部, 切屏时自动隐藏。
 
     if (!videoCallState.isActive) return;
     // v0.1.30 卸载 Live2D (释放 PIXI GL 资源)
@@ -1785,31 +1828,15 @@
 
     const chat = state.chats[videoCallState.activeChatId];
 
-    // v0.5.0 P22: 新轮次基线恢复 — 不依赖 AI 写 [[表情:恢复]]
-    // ----------------------------------------------------------------
-    // 真凶: AI 上一轮切了"吐舌" → 本轮用户怎么说都收不回去, 让 AI 输出
-    //       [[表情:恢复]] 也没用。L2140 那段"切新表情前先卸旧"只在 AI
-    //       本轮【主动选新表情】时触发; AI 一直不选 / 选同一个 / 没轮到他
-    //       选 → 旧表情就留着, 用户体感"卡死"。
-    // 修法: 每个新轮次 (用户消息进来触发 AI 回复) 开头, 系统先帮模型
-    //       卸掉上一轮的表情, 让 AI 看到的是"默认基线"。
-    //       之后 AI 想"吐舌"就再选一次, 不想就维持默认 → 永远不会"卡死"。
-    // 双保险: 即便本轮 AI 又写了某个非默认表情, 切新表情前的 P20
-    //         "先卸旧" 逻辑仍在 (L2140 那段), 两层都不依赖 AI 记规则。
-    // 边界: applyVideoCallExpressionDirective 没模型/没挂载时静默返回 false,
-    //       这种情况下 lastAppliedExpression 本来就一直是空 (P20 L2153
-    //       那里要 ok=true 才记), 兜底天然不触发。
-    const lastExpr = videoCallState.lastAppliedExpression || '';
-    if (lastExpr && lastExpr !== '恢复' && lastExpr !== '默认') {
-      try {
-        console.log('[视频通话表情] 新轮次基线恢复: 旧表情 →', lastExpr, '回到默认');
-        await applyVideoCallExpressionDirective('恢复', chat);
-      } catch (e) {
-        console.warn('[视频通话表情] 新轮次基线恢复失败:', e);
-      }
-      // 清空让 P20 的 needResetBefore 不会重复触发
-      videoCallState.lastAppliedExpression = '';
-    }
+    // v0.5.0 P24: 每轮强制"基线恢复"已按用户要求移除。
+    // 移除原因 (两条, 缺一不可):
+    //   ① 用户要真人感: 表情该不该回到平静, 由 AI 自己判断, 不要系统每轮硬重置
+    //      (真人视频里不会每说一句就先"清零"一次脸)。
+    //   ② 那段兜底依赖的"恢复"执行层本身是空操作 ——
+    //      fork 里 motionManager.expressionManager 未实例化, 空 id 的 setExpression
+    //      直接 return false, 一个参数都不会动 (P24 已修, 见 applyVideoCallExpressionDirective)。
+    // 现在"回默认"完全由 AI 自主写 [[表情:恢复]] 驱动;
+    // 切新表情前的"先卸旧"仍在 P20, 两者互不影响。
 
     // 与主聊天保持一致：实时通过 resolveApiSlotConfig 解析主 API 配置，
     // 否则 state.apiConfig 在使用预设引用 / 切换预设 / 角色独立配置时可能为空或过期，
@@ -3912,21 +3939,15 @@ ${worldBookContent}
   const VIDEO_AUDIO_UNLOCK_SELECTOR = '#video-audio-unlock-btn';
   const VIDEO_AUDIO_UNLOCK_AUDIO_URL = 'assets/audio/call-waiting.mp3'; // 跟语音通话完全相同
 
-  // 辅助: 控制视频通话"启用音频"按钮的显示/重置状态
-  // - 彩铃停止(AI 文字出现)后隐藏 — 任务完成, 按钮完成使命
-  // - 挂断/下次通话开始时显示并重置回 unlock-inactive
-  function setVideoCallAudioUnlockBtnVisibility(visible) {
+  // 辅助: 重置视频通话"启用音频"按钮的外观 (回到 unlock-inactive 初始态)
+  // v0.5.0 P25: 按钮 DOM 在呼叫等待页 (#outgoing-call-screen) 内部, 显隐由屏幕自己管 —
+  // 这里只负责"进等待页时把上一次留下的 已连接/连接中 状态清掉", 不再碰 display。
+  function resetVideoCallAudioUnlockBtn() {
     const btn = document.querySelector(VIDEO_AUDIO_UNLOCK_SELECTOR);
     if (!btn) return;
-    if (visible) {
-      btn.style.display = '';
-      // 重置回 unlock-inactive (防御: 挂断后按钮可能停在 connected)
-      btn.classList.remove('unlock-loading', 'unlock-connected');
-      btn.classList.add('unlock-inactive');
-      btn.textContent = '启用音频';
-    } else {
-      btn.style.display = 'none';
-    }
+    btn.classList.remove('unlock-loading', 'unlock-connected');
+    btn.classList.add('unlock-inactive');
+    btn.textContent = '启用音频';
   }
 
   // 视频通话彩铃 click handler — 与语音通话 setupVoiceCallAudioUnlock 完全等价
@@ -4034,14 +4055,11 @@ ${worldBookContent}
   }
 
   // 立即停止视频通话彩铃 (跟语音通话 stopVoiceCallWaitingMusic 等价)
-  // 1) 先隐藏视频通话"启用音频"按钮 — 任务完成, 按钮消失
-  // 2) 再尝试停止彩铃音频 (复用同一个 window.voiceCallBgAudio)
+  // v0.5.0 P25: 不再需要手动隐藏按钮 — 按钮 DOM 在呼叫等待页内部, 进入正式通话页就已随屏隐藏。
+  // 这里只负责停彩铃音频 (复用同一个 window.voiceCallBgAudio)。
   // 用法: 在视频通话 AI 文字即将出现的 hook 点调用 (跟语音通话 line 3334 行为一致)
   function stopVideoCallWaitingMusic(reason = '') {
-    // 1. 先隐藏视频通话彩铃按钮
-    setVideoCallAudioUnlockBtnVisibility(false);
-
-    // 2. 再尝试停止彩铃音频 (没创建过 bgAudio 就跳过, 跟语音通话等价)
+    // 尝试停止彩铃音频 (没创建过 bgAudio 就跳过, 跟语音通话等价)
     if (!window.voiceCallBgAudio) return;
     try {
       window.voiceCallBgAudio.pause();
@@ -4065,6 +4083,9 @@ ${worldBookContent}
 
   // 脚本加载时就尝试绑定 (跟语音通话 setupVoiceCallAudioUnlock 调用时机一致)
   setupVideoCallAudioUnlock();
+
+  // v0.5.0 P25: 按钮显隐不再需要 JS 干预 (DOM 在 #outgoing-call-screen 内部, 随屏幕显隐),
+  // 所以不再往 window 挂 setVideoCallAudioUnlockBtnVisibility。
   // === 视频通话启用音频按钮功能结束 ===
 
 })();

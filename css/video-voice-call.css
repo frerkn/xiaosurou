@@ -294,10 +294,97 @@
                text-align: left;
            }
 
+           /* v0.2.31.55 P20: 呼叫等待页视觉美化
+              固定暖黄奶油色背景 + 绿色装饰头像框 (只针对 #outgoing-call-screen 这一屏)
+              硬约束:
+                - 不动 .caller-avatar / .call-action-btn 全局 (来电页在用)
+                - 不动 voice-call-screen / video-call-screen / 任何通话控制
+                - 背景图来自 assets/live2d-call/video-call-waiting-bg.png (固定内置, 不做设置项)
+                - 头像框来自 assets/live2d-call/video-call-avatar-frame-green.png (透明 RGBA 装饰层) */
            #outgoing-call-screen {
-               background-color: #1c1c1e;
-               color: white;
+               background-color: #fff5dc;
+               background-image: url('../assets/live2d-call/video-call-waiting-bg.png');
+               background-size: cover;
+               background-position: center center;
+               background-repeat: no-repeat;
+               color: #5c3a1e;
                justify-content: center;
+               /* 兜底: 屏常被 inline style 顶成 relative 推出视口, 这里锁死 */
+               position: absolute !important;
+               top: 0;
+               left: 0;
+               right: 0;
+               bottom: 0;
+           }
+
+           /* 背景上的暗色薄纱, 保证文字 + 白色被单始终可读 (不影响背景氛围) */
+           #outgoing-call-screen::before {
+               content: '';
+               position: absolute;
+               top: 0;
+               left: 0;
+               right: 0;
+               bottom: 0;
+               background: rgba(60, 40, 20, 0.18);
+               pointer-events: none;
+               z-index: 0;
+           }
+
+           /* 文字内容浮在遮罩之上 */
+           #outgoing-call-screen .outgoing-call-content {
+               position: relative;
+               z-index: 1;
+           }
+
+           /* 头像 + 头像框组合容器 (固定尺寸, 头像在中央, 头像框铺满) */
+           #outgoing-call-screen .outgoing-call-avatar-wrap {
+               position: relative;
+               width: 200px;
+               height: 200px;
+               margin-bottom: 18px;
+           }
+
+           /* 等待页头像放大 + 去原白边 + 加阴影 (不影响 .caller-avatar 全局, 因为只作用域本屏) */
+           #outgoing-call-screen .caller-avatar {
+               position: absolute;
+               top: 50%;
+               left: 50%;
+               transform: translate(-50%, -50%);
+               width: 120px;
+               height: 120px;
+               border-radius: 50%;
+               border: 0;
+               object-fit: cover;
+               box-shadow: 0 8px 24px rgba(80, 50, 20, 0.28);
+               z-index: 1;
+           }
+
+           /* 绿色装饰头像框 (透明 RGBA 素材, 铺满 wrap, 居中铺开装饰) */
+           #outgoing-call-screen .outgoing-call-avatar-frame {
+               position: absolute;
+               top: 0;
+               left: 0;
+               width: 100%;
+               height: 100%;
+               object-fit: contain;
+               pointer-events: none;
+               user-select: none;
+               z-index: 2;
+           }
+
+           /* 文字深棕, 加轻微白色 text-shadow 防背景复杂区域看花 */
+           #outgoing-call-screen .caller-name {
+               color: #4a2c12;
+               text-shadow: 0 1px 2px rgba(255, 250, 235, 0.6);
+           }
+
+           #outgoing-call-screen .caller-text {
+               color: #6a4a2a;
+               text-shadow: 0 1px 2px rgba(255, 250, 235, 0.6);
+           }
+
+           #outgoing-call-screen .outgoing-call-actions span {
+               color: #4a2c12;
            }
 
            /* 语音通话样式 */
@@ -2718,25 +2805,23 @@
 
 
 /* ============================================================
-   视频通话「玻璃控制框」— 包住 .video-call-controls 里的 3 个按钮
+   视频通话「控制按钮区」— 跟 .video-call-controls 一起, 装饰外框由
+   #video-call-controls-frame (绿色长方形透明 PNG 素材) 提供.
    ------------------------------------------------------------
-   父容器在 css/music-player.css 里被定义: 满宽 + padding:20px/40px
-   + 底部黑色渐变. 在视频通话页面里, 这条黑色渐变会把按钮底下拉
-   一条很重的黑色横条, 抢 Live2D 视觉.
-   这里只针对视频通话屏内的 .video-call-controls 做"玻璃化"覆盖:
-   1) 收成自适应宽度的圆角矩形, 居中悬浮在屏幕底部
-   2) 半透明白底 + 12-14px backdrop-blur → 能隐约透出 Live2D / 背景
-   3) 1px 浅色/紫色细描边 + 极弱外光
-   4) 三个按钮 (挂断 / 模型管理 / 摄像头翻转) 增加间距 + 内边距,
-      整体像个控制台, 而不是"散在屏幕底部的三个按钮"
-   5) 不动按钮本身的 size / 颜色 / 行为; 不动 JS 任何一行
-   6) 优先级: #video-call-screen .video-call-controls 比 music-player.css
-      的 .video-call-controls 选择器更具体, 必盖过. JS 在挂 Live2D 时
-      会把 inline z-index 抬到 100000 (video-voice-call.js:277-279),
-      那行不依赖容器满宽, 这里不动它.
+   之前: 这里写成「玻璃胶囊」— 椭圆 (border-radius:999px) + 半透明白底 +
+   边框 + backdrop-blur. 视觉上像一颗「椭圆胶囊」, 但用户希望
+   装饰外框换成专门的绿色长方形美术素材 (assets/live2d-call/
+   视频通话正式页按钮框.png).
+   现在: .video-call-controls 退化为「无装饰的定位容器」, 只保留
+   三个按钮的绝对定位 + flex 布局. 视觉外框完全交给
+   #video-call-controls-frame (sibling 元素).
+   不动:
+   - 三个按钮的 size / 颜色 / 图标 / 点击行为
+   - JS 把 controls 抬到 inline z-index:100000 那行
+   - 父 #video-call-screen 的 flex column 布局
    ============================================================ */
 #video-call-screen .video-call-controls {
-    width: fit-content;
+    width: 380px;
     max-width: 92%;
     /* 居中: 父 #video-call-screen 是 absolute + flex/column + align-items:stretch,
        单纯 align-self:center + margin:0 auto 在 puppeteer 实测里被拉成 left:0 + width:312 (x:0)
@@ -2746,33 +2831,148 @@
     bottom: 0;
     transform: translateX(-50%);
     margin: 0;
-    padding: 10px 22px 12px;
+    /* v0.5.x: 尺寸跟 #video-call-controls-frame 完全一致 (380x220 + 同 bottom:0),
+       容器只做「把三个按钮摆到外框几何中心」这件事:
+       · height 220 (= frame 高) + align-items:center → 按钮组中心 y = 外框中心,
+         也就是素材开口 (洞) 的中心。实测素材开口中心在素材高度的 49.3% 处,
+         跟 50% 只差 1.45px, 肉眼不可见。
+       · 之前是 height:180 + padding:55px 35px + bottom:0 → 按钮组中心比开口中心
+         低 21px, 按钮贴近下方花边。
+       · justify-content 从 space-around 改 center: 三个按钮固定 266 宽
+         (3x70 + 2x28 gap), 在开口 (335 宽) 里居中, 左右各留 ~35px。
+       注意: 这里不再画任何东西, 半透明玻璃底板已挪到
+       #video-call-controls-frame::before (只有挂在素材元素上才能精确贴合
+       开口的圆角形状, 挂在容器上会变成一个大方块铺出花边之外) */
+    height: 220px;
+    padding: 0;
     display: flex;
-    justify-content: space-around;
+    justify-content: center;
     align-items: center;
     gap: 28px;
     box-sizing: border-box;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.06) 100%);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: 999px;
-    -webkit-backdrop-filter: blur(14px) saturate(140%);
-    backdrop-filter: blur(14px) saturate(140%);
-    box-shadow:
-        0 0 0 1px rgba(180, 150, 220, 0.08) inset,
-        0 8px 24px rgba(120, 80, 160, 0.18),
-        0 2px 6px rgba(0, 0, 0, 0.25);
-    /* 父容器留下的底部黑色渐变去掉: 玻璃框自己就是视觉终点 */
-    background-image: none;
+    /* 清掉 music-player.css:1911 .video-call-controls 的整条规则残留
+       (满宽 + padding 20px/40px + 底部黑色渐变) 以及上一版写在这里的玻璃底色 */
+    background: none;
+    border: none;
+    border-radius: 0;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: none;
 }
 
 #video-call-screen .video-call-controls .control-btn {
-    /* 按钮在玻璃框里再轻微抬高: 配合 padding 让它"坐在"框里, 不是"贴边" */
+    /* 按钮在视觉外框里再轻微抬高: 配合 padding 让它"坐在"框里, 不是"贴边" */
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
 }
 
+/* v0.5.x: 视频通话「控制外框」— 绿色长方形透明 PNG 装饰
+   ------------------------------------------------------------
+   位置: #video-call-screen 内部, .video-call-controls 之前 (sibling)
+   尺寸: 380x140 (宽高比 ≈2.71, 接近素材原始比例 2.625, 拉伸不严重)
+   素材内自带椭圆形透明洞 (宽 ≈75%, 高 ≈80%), 容纳三个 70x70 按钮
+   居中: 跟 .video-call-controls 同 left:50% + transform translateX(-50%) + bottom:0
+   优先级:
+     - pointer-events: none  → 鼠标穿透到三个按钮, 不拦截任何点击
+     - z-index: 0            → 跟父 .video-call-controls (z-index:100) 同 stacking context,
+                                DOM 顺序在 controls 之前 paint, 自然在按钮之下
+   不影响: 视频画面 / Live2D canvas / 摄像头 / 状态文字 / 任何其他 UI */
+#video-call-screen #video-call-controls-frame {
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    transform: translateX(-50%);
+    width: 380px;
+    /* max-width 跟 .video-call-controls 保持一致 → 窄屏时两者被同一个
+       92% 上限收窄, 中心仍然重合 */
+    max-width: 92%;
+    /* height 保持 220: 素材原始宽高比 2.625 (2032x774), 380x220 的比值是
+       1.727, 属于非等比拉伸 (纵向拉伸 ≈1.52 倍)。这样做的目的是让上下花边
+       有足够高度、且开口 (61.24% 高 = 134.7px) 能容纳 70px 高的按钮。 */
+    height: 220px;
+    /* 花边素材本身不画在这里, 交给 ::after (必须画在玻璃底板之上, 见下面注释) */
+    background: none;
+    border-radius: 0;
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* v0.5.x: 半透明玻璃底板 (::before) + 花边素材 (::after, 压在玻璃上面)
+   ============================================================
+   要解决的问题: 「透明底板远远超出装饰花边」
+   ------------------------------------------------------------
+   真凶 (pngjs 逐像素量出来的, 不是猜):
+     素材 2032x774 的中间透明「开口」不是长方形, 是**透镜形** ——
+       · 最宽处 (y≈310)  x 124..1916  → 占素材宽 88.2%
+       · 最上端 (y=145)   x 470..1572  → 只占 54.1%
+       · 最下端 (y=610)   x 420..1606  → 只占 58.4%
+     也就是开口的上、下两头会往中间收窄。
+     之前把玻璃底板做成 358.8x180 的**直角方块**铺在 .video-call-controls 上,
+     方块四角必然盖住并越过花边内缘 → 用户看到的就是底板超出花边。
+
+   解法 (不靠"拟合形状", 让素材自己裁):
+     把叠放顺序倒过来 —— 玻璃垫在最下面, 花边素材盖在玻璃上面。
+       ::before (z-index 1) = 半透明玻璃, 一个略大于开口的方块
+       ::after  (z-index 2) = 花边素材, 它不透明的地方 (花边) 直接盖住玻璃
+     于是**可见的玻璃 = 方块 ∩ 素材透明区 = 开口本身的形状**, 一分不差。
+     素材在开口内缘有 1px 抗锯齿半透明像素, 玻璃在那圈会自然透出来,
+     边界平滑过渡, 不会出现硬边或缝隙。
+
+   玻璃方块比开口略大 (四周各外扩约 1% 元素尺寸), 多出来的部分反正被
+   花边盖住, 这样开口边缘绝不会露出没铺到玻璃的缝。
+   开口实测值 (素材 2032x774): x 124..1916 (6.102%..94.341%), y 145..618 (18.734%..79.974%)
+   → 外扩 1% 后 inset: 上 17.734%  右 4.659%  下 19.026%  左 5.102%
+
+   为什么不用 border-radius 去拟合开口:
+     试过"大圆角矩形" (rx 19.3% / ry 32.7%), 实测仍有 1394 个像素压在
+     花边上 —— 开口的收窄比椭圆更陡, CSS 的圆角表达不出来。
+     现在这套只靠叠放顺序, 素材换成任何形状都不用再调数值。
+
+   pointer-events: 两个伪元素都显式 none (父元素也是 none), 完全穿透不挡点击 */
+#video-call-screen #video-call-controls-frame::before {
+    content: '';
+    position: absolute;
+    inset: 17.734% 4.659% 19.026% 5.102%;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.06) 100%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    backdrop-filter: blur(14px) saturate(140%);
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* 花边素材 — 必须画在玻璃之上 (z-index 2 > 1), 由它把玻璃裁成开口形状。
+   以前这行是写在父元素 background 里的 (background 永远在 ::before 之下),
+   那样玻璃就只能靠自身形状去贴合开口, 才会出现超出花边的问题。 */
+#video-call-screen #video-call-controls-frame::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url('../assets/live2d-call/视频通话正式页按钮框.png');
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    background-position: center center;
+    pointer-events: none;
+    z-index: 2;
+}
+
+/* v0.5.x: 视频通话挂断键 — 跟 #outgoing-call-screen #cancel-call-btn
+   (.call-action-btn.decline, css/music-player.css:1858) 样式一致:
+   红色 #ff3b30 + Material phone path rotate(135°) 听筒朝下
+   之前是 iOS 风"信封 X 交叉线"图标 (line 265), 视觉上跟
+   呼叫等待页的取消按钮不一致
+   尺寸保持 70x70 (跟 #model-manage-btn / #regenerate-call-btn 一致,
+   跟外框 #video-call-controls-frame 协调), 不动 width/height */
+#video-call-screen #hang-up-btn {
+    background-color: #ff3b30;
+    background-size: 50%;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path transform="rotate(135 12 12)" d="M20 15.5c-1.25 0-2.45-.2-3.57-.57-.35-.12-.74-.03-1.01.24l-2.2 2.2a15.045 15.045 0 0 1-6.59-6.58l2.2-2.21a.96.96 0 0 0 .25-1A11.36 11.36 0 0 1 8.5 4c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1 0 9.39 7.61 17 17 17 .55 0 1-.45 1-1v-3.5c0-.55-.45-1-1-1z"/></svg>');
+}
+
 /* 视频通话"启用音频"按钮 — 复用语音通话的 .unlock-inactive/.unlock-loading/.unlock-connected 样式
-   这里只决定位置: 屏幕右下角, 不进玻璃控制框, 跟语音通话 #voice-regenerate-call-btn 风格一致 */
-#video-call-screen #video-audio-unlock-btn {
+   v0.5.0 P25: 按钮 DOM 已放回呼叫等待页 (#outgoing-call-screen) 内部 (见 index.html),
+   显隐完全跟着 .screen 的 active 走, 不再需要 JS 在每个出口手动管显隐。
+   这里只负责位置/尺寸: 等待页右下角, 跟语音通话 #voice-regenerate-call-btn 风格一致。
+   z-index 70: 高于 #outgoing-call-screen 的 ::before(0) 和 .outgoing-call-content(1)。 */
+#video-audio-unlock-btn {
     position: absolute;
     bottom: 43px;
     right: 30px;

@@ -418,11 +418,15 @@
     }
     // 动态渲染 (fire-and-forget, 异步填充模型/背景名字)
     try { render(chat); } catch (e) { console.warn('Live2DCallPrep render error:', e); }
+
+    // v0.5.0 P25: 准备页不需要管"启用音频"按钮 — 它的 DOM 在呼叫等待页
+    // (#outgoing-call-screen) 内部, 显隐跟着屏幕走, 这里不做任何显隐动作。
   }
 
   function close() {
     if (screenEl) screenEl.style.display = 'none';
     onStartCallback = null;
+    // v0.5.0 P25: 退出准备页不需要管"启用音频"按钮 (DOM 在呼叫等待页内部, 随屏幕显隐)。
     // v0.5.0 P2.3: 退回当前聊天框 (user 反馈 P1.7 退到 chat-detail/chat-list 不对, 应该是 chat-interface)
     // 兜底: 没 active chat 时退 chat-list; showScreen 不存在就保持 display:none
     try {

@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="css/image-nai.css?v=0.0.36">
   <link rel="stylesheet" href="css/memory.css?v=0.0.36">
   <link rel="stylesheet" href="css/music-player.css?v=0.0.37">
-  <link rel="stylesheet" href="css/video-voice-call.css?v=0.0.46">
+  <link rel="stylesheet" href="css/video-voice-call.css?v=0.0.48">
   <link rel="stylesheet" href="css/settings-font.css?v=0.0.36">
   <link rel="stylesheet" href="css/main-ui.css?v=0.0.68">
   <link rel="stylesheet" href="css/voice-recording.css?v=0.0.37">
@@ -169,7 +169,7 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
   <script src="modules/live2d-loader.js?v=0.3.6" defer></script>
   <!-- v0.5.0 P12/P13: 视频通话 AI 说话口型 + 元音嘴型 (独立模块, 无外部依赖; 必须在 tts-audio.js 之前加载) -->
   <script src="modules/call-lip-sync.js?v=0.0.2" defer></script>
-  <script src="modules/video-voice-call.js?v=0.0.65" defer></script>
+  <script src="modules/video-voice-call.js?v=0.0.68" defer></script>
   <script src="modules/message-actions.js?v=0.0.36" defer></script>
   <script src="modules/nai-imagen.js?v=0.0.36" defer></script>
   <script src="modules/backup-import-export.js?v=0.0.37" defer></script>
@@ -220,7 +220,7 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
   <script src="modules/live2d-uploader.js?v=0.0.1" defer></script>
   <script src="modules/live2d-storage.js?v=0.0.1" defer></script>
   <script src="modules/live2d-ui.js?v=0.0.5" defer></script>
-  <script src="modules/live2d-call-prep.js?v=0.0.2" defer></script>
+  <script src="modules/live2d-call-prep.js?v=0.0.3" defer></script>
   <script src="modules/live2d-model-picker.js?v=0.0.1" defer></script>
   <script src="modules/live2d-manager.js?v=0.0.7" defer></script>
   <!-- v0.5.0 P11: 通话舞台背景管理页 (依赖 live2d-call-prep.js / live2d-ui.js) -->
@@ -4547,9 +4547,14 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
           <span class="glass-bubble-spark spark-two">✧</span>
       </div>
 
-      <!-- 视频通话"启用音频"按钮 — 复用语音通话彩铃机制 (iOS Safari 音频解锁)
-           跟语音通话 #voice-regenerate-call-btn 完全等价: 同一份 call-waiting.mp3, 同一个共享 AudioContext -->
-      <button id="video-audio-unlock-btn" class="unlock-inactive" style="display: none;">启用音频</button>
+      <!-- 视频通话"启用音频"按钮 (按钮 DOM 已在 body 顶层, 见 </body> 前) -->
+
+      <!-- v0.5.x: 视频通话控制按钮「装饰外框」— 绿色长方形透明 PNG
+           (assets/live2d-call/视频通话正式页按钮框.png)
+           独立装饰层: pointer-events:none, z-index:0, 不会拦截按钮点击,
+           也不会盖在按钮上面。位置 / 尺寸见 css/video-voice-call.css
+           #video-call-screen #video-call-controls-frame -->
+      <div id="video-call-controls-frame" aria-hidden="true"></div>
 
       <div class="video-call-controls"> <button id="user-speak-btn" class="control-btn speak-btn"></button> <button id="hang-up-btn" class="control-btn hangup-btn"></button> <button id="model-manage-btn" class="control-btn model-manage-btn" title="模型管理" aria-label="模型管理"></button> <button id="regenerate-call-btn" class="control-btn regenerate-btn camera-switch-btn" title="切换前/后摄像头" aria-label="切换前/后摄像头"></button> <button id="join-call-btn"
           class="control-btn join-btn" style="display: none;"></button> </div>
@@ -4769,11 +4774,22 @@ a.hot-news-title:hover { color:#c1272d; text-decoration:underline; }
       </div>
     </div>
     <div id="outgoing-call-screen" class="screen">
-      <div class="outgoing-call-content"> <img id="outgoing-call-avatar" class="caller-avatar" src="">
+      <div class="outgoing-call-content">
+        <div class="outgoing-call-avatar-wrap">
+          <img id="outgoing-call-avatar" class="caller-avatar" src="">
+          <img class="outgoing-call-avatar-frame" src="assets/live2d-call/video-call-avatar-frame-green.png" alt="">
+        </div>
         <div id="outgoing-call-name" class="caller-name"></div>
         <div class="caller-text">正在呼叫...</div>
         <div class="outgoing-call-actions"> <button id="cancel-call-btn" class="call-action-btn decline"></button> <span data-lang-key="cancel">取消</span> </div>
       </div>
+      <!-- 视频通话"启用音频"按钮 — 复用语音通话彩铃机制 (iOS Safari 音频解锁)
+           v0.5.0 P25: 放在呼叫等待页 (#outgoing-call-screen) 内部、.outgoing-call-content 之外 —
+             · 在屏内 → 显隐跟着 .screen 的 active/opacity 走, 不再需要 JS 在每个出口手动管显隐
+             · 在 content 之外 → position:absolute 的定位基准是本屏 (跟原 #video-call-screen 内那颗等价),
+               不会被 .outgoing-call-content(被撑成"内容高度") 把 bottom:43px 抬到取消按钮附近
+           跟语音通话 #voice-regenerate-call-btn 等价: 同一份 call-waiting.mp3, 同一个共享 AudioContext -->
+      <button id="video-audio-unlock-btn" class="unlock-inactive">启用音频</button>
     </div>
     <div id="call-history-screen" class="screen">
       <div class="header"> <span class="back-btn" id="call-history-back-btn">‹</span> <span id="call-history-title">通话记录</span> <span style="width: 30px;"></span> </div>
