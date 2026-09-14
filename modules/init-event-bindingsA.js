@@ -2461,7 +2461,22 @@ window.initEventBindingsA = async function(state, db) {
       let _diagDataJson = '';
       let _diagParseError = '';
       let _diagModelsMissing = false;
-      // ===== 诊断变量声明结束 =====
+      // ===== [2026-09-14 诊断] FETCH_START / FETCH_RETURNED / FETCH_THROWN 相关变量 =====
+      let _diagFetchStart = false;
+      let _diagFetchThrown = false;
+      let _diagFetchErrorName = '';
+      let _diagFetchErrorMessage = '';
+      let _diagFetchErrorStack = '';
+      let _diagResponseStatus = 0;
+      let _diagResponseOk = false;
+      let _diagResponseType = '';
+      let _diagResponseUrl = '';
+      let _diagRequestUrl = '';
+      let _diagRequestMethod = '';
+      let _diagRequestKeyType = '';
+      let _diagRequestKeyExists = false;
+      let _diagRequestHeaderXGoogApiKey = false;
+      // ===== FETCH 诊断变量声明结束 =====
 
       try {
         let isGemini = url === GEMINI_API_URL;
@@ -2504,10 +2519,55 @@ window.initEventBindingsA = async function(state, db) {
           }
         };
 
-        const response = await fetch(
-          isGemini ? `${GEMINI_API_URL}` : (presetSelectId === 'slot-main-endpoint-preset' ? `${url.replace(/\/+$/, '')}/models` : `${url.replace(/\/+$/, '')}/models`),
-          fetchOptions
-        );
+        // ===== [2026-09-14 诊断] FETCH_START 前置诊断(只读 fetchOptions, 不改) =====
+        const _reqUrl = isGemini ? `${GEMINI_API_URL}` : (presetSelectId === 'slot-main-endpoint-preset' ? `${url.replace(/\/+$/, '')}/models` : `${url.replace(/\/+$/, '')}/models`);
+        const _reqMethod = (fetchOptions && fetchOptions.method) || 'GET';
+        const _reqHeaders = (fetchOptions && fetchOptions.headers) || {};
+        _diagRequestUrl = _reqUrl;
+        _diagRequestMethod = _reqMethod;
+        _diagRequestKeyType = _diagKeyType;
+        _diagRequestKeyExists = !!(_diagKeyStart && _diagKeyStart !== 'N/A');
+        _diagRequestHeaderXGoogApiKey = !!(_reqHeaders['x-goog-api-key']);
+        if (isGemini) {
+          console.error('[Gemini Debug] === FETCH_START ===');
+          console.error('[Gemini Debug] url:', _reqUrl);
+          console.error('[Gemini Debug] method:', _reqMethod);
+          console.error('[Gemini Debug] key type:', _diagKeyType);
+          console.error('[Gemini Debug] key exists:', _diagRequestKeyExists);
+          console.error('[Gemini Debug] has x-goog-api-key:', _diagRequestHeaderXGoogApiKey);
+        }
+        // ===== FETCH_START 诊断结束 =====
+
+        // ===== [2026-09-14 诊断] 包裹 fetch, 区分 FETCH_RETURNED 和 FETCH_THROWN =====
+        let response;
+        try {
+          response = await fetch(_reqUrl, fetchOptions);
+          _diagFetchStart = true;
+          _diagResponseStatus = response.status;
+          _diagResponseOk = response.ok;
+          _diagResponseType = response.type || 'N/A';
+          _diagResponseUrl = response.url || _reqUrl;
+          if (isGemini) {
+            console.error('[Gemini Debug] === FETCH_RETURNED ===');
+            console.error('[Gemini Debug] status:', response.status);
+            console.error('[Gemini Debug] ok:', response.ok);
+            console.error('[Gemini Debug] type:', response.type);
+            console.error('[Gemini Debug] url:', response.url);
+          }
+        } catch (fetchErr) {
+          _diagFetchThrown = true;
+          _diagFetchErrorName = (fetchErr && fetchErr.name) || 'Unknown';
+          _diagFetchErrorMessage = (fetchErr && fetchErr.message) || String(fetchErr);
+          _diagFetchErrorStack = (fetchErr && fetchErr.stack) || '(无 stack)';
+          if (isGemini) {
+            console.error('[Gemini Debug] === FETCH_THROWN: fetch 本身没有返回 Response ===');
+            console.error('[Gemini Debug] error.name:', _diagFetchErrorName);
+            console.error('[Gemini Debug] error.message:', _diagFetchErrorMessage);
+            console.error('[Gemini Debug] error.stack:', _diagFetchErrorStack);
+          }
+          throw fetchErr;
+        }
+        // ===== FETCH 返回/抛出诊断结束 =====
 
         // ===== [2026-09-14 诊断] Gemini 响应元信息 =====
         if (isGemini) {
@@ -2609,6 +2669,32 @@ window.initEventBindingsA = async function(state, db) {
         const _errStack = error.stack || '(无 stack)';
         const _lines = [];
         _lines.push('拉取模型失败: ' + _errMsg);
+        _lines.push('');
+        _lines.push('=== Gemini FETCH 网络诊断 ===');
+        _lines.push('URL: ' + (_diagRequestUrl || 'N/A'));
+        _lines.push('Method: ' + (_diagRequestMethod || 'N/A'));
+        _lines.push('Key 类型: ' + (_diagRequestKeyType || 'unknown'));
+        _lines.push('Key 是否存在: ' + (_diagRequestKeyExists ? 'true' : 'false'));
+        _lines.push('Header x-goog-api-key 存在: ' + (_diagRequestHeaderXGoogApiKey ? 'true' : 'false'));
+        _lines.push('');
+        _lines.push('[fetch 前]');
+        _lines.push('FETCH_START');
+        _lines.push('');
+        _lines.push('[fetch 结果]');
+        if (_diagFetchThrown) {
+          _lines.push('FETCH_THROWN: fetch 本身没有返回 Response');
+          _lines.push('Error.name: ' + _diagFetchErrorName);
+          _lines.push('Error.message: ' + _diagFetchErrorMessage);
+          _lines.push('Error.stack: ' + _diagFetchErrorStack);
+        } else if (_diagFetchStart) {
+          _lines.push('FETCH_RETURNED');
+          _lines.push('HTTP Status: ' + _diagResponseStatus);
+          _lines.push('Response OK: ' + _diagResponseOk);
+          _lines.push('Response Type: ' + _diagResponseType);
+          _lines.push('Response URL: ' + _diagResponseUrl);
+        } else {
+          _lines.push('FETCH 状态: 未开始 (异常路径)');
+        }
         _lines.push('');
         _lines.push('=== Gemini 诊断信息 ===');
         if (_diagUrl) _lines.push('URL: ' + _diagUrl);
