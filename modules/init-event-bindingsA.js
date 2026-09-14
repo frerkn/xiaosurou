@@ -2502,12 +2502,17 @@ window.initEventBindingsA = async function(state, db) {
         }
         // ===== 诊断结束 =====
         // [2026-09-14 AQ. 凭证兼容] 删除 ?key= URL 参数; 改用 x-goog-api-key header
+        // [2026-09-14 浏览器直连兼容] AQ. 凭证改用 Authorization Bearer (OAuth 风格);
+        // AIza 保持 x-goog-api-key header; 中转 URL 保持 Bearer(原状)
+        const _isAqKey = typeof key === 'string' && key.startsWith('AQ.');
         const fetchOptions = isGemini ? {
           method: 'GET',
           mode: 'cors',
           cache: 'no-cache',
           credentials: 'omit',
-          headers: { 'x-goog-api-key': getRandomValue(key) }
+          headers: _isAqKey
+            ? { 'Authorization': `Bearer ${getRandomValue(key)}` }
+            : { 'x-goog-api-key': getRandomValue(key) }
         } : {
           method: 'GET',
           mode: 'cors',
