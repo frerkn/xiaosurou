@@ -47,10 +47,12 @@ const URLS_TO_CACHE = [
   'https://phoebeboo.github.io/mewoooo/pp.js',
   'https://cdn.jsdelivr.net/npm/streamsaver@2.0.6/StreamSaver.min.js',
   'https://img.baidu.re/i/2026/07/w6p47e.png',
-  // v0.2.15.1 新增: �?ByteString 涉及�?3 �?modules (之前漏了, 现在加进白名�? SW 主动缓存)
+  // v0.2.15.1 新增:  ByteString 涉及 3 个 modules (之前漏了, 现在加进白名? SW 主动缓存)
   './modules/proactive-wake.js',
   './modules/notification-battery.js',
-  './modules/background-activity.js'
+  './modules/background-activity.js',
+  // v0.2.31.57 新增: Gemini 主 API Key 轮询 (第一阶段: UI + 状态管理, 尚未接入实际请求)
+  './modules/gemini-key-pool.js'
 ];
 
 self.addEventListener('install', event => {

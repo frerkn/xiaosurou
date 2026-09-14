@@ -1816,12 +1816,40 @@
         };
       }
 
+      // [2026-09-14 GeminiKeyPool] main slot + Gemini 原生 + 轮询开启: 用 GeminiMainKeyPool 接管
+      // 关闭 / 非 Gemini / chat.apiOverride 启用: 零行为变化, 继续用现有 apiConfig
+      let acquiredPresetId = null;
+      if (
+        !(chat.apiOverride && chat.apiOverride.enabled) &&
+        isGeminiNativeUrl(apiConfig.proxyUrl) &&
+        typeof window.GeminiMainKeyPool === 'object' &&
+        typeof window.GeminiMainKeyPool.getConfig === 'function'
+      ) {
+        try {
+          const poolConfig = window.GeminiMainKeyPool.getConfig();
+          if (poolConfig && poolConfig.enabled) {
+            const acquired = await window.GeminiMainKeyPool.acquire();
+            if (acquired && acquired.presetId) {
+              acquiredPresetId = acquired.presetId;
+              apiConfig = {
+                ...apiConfig,
+                proxyUrl: acquired.proxyUrl,
+                apiKey: acquired.apiKey,
+                model: acquired.model || apiConfig.model
+              };
+            }
+          }
+        } catch (poolErr) {
+          // acquire() 异常时静默 fallback 到原 apiConfig, 不影响聊天
+        }
+      }
+
       const {
         proxyUrl,
         apiKey,
         model
       } = apiConfig;
-      
+
       if (!proxyUrl || !apiKey || !model) {
         throw new Error('API未配置，无法生成对话。');
       }
@@ -2001,7 +2029,16 @@ ${linkedContents}
             message: response.statusText
           }
         }));
+        // [2026-09-14 GeminiKeyPool] 上报错误状态
+        if (acquiredPresetId && typeof window.GeminiMainKeyPool?.reportStatus === 'function') {
+          try { window.GeminiMainKeyPool.reportStatus(acquiredPresetId, response.status, errorData); } catch (e) {}
+        }
         throw new Error(`API 请求失败: ${response.status} - ${errorData.error?.message || '未知错误'}`);
+      }
+
+      // [2026-09-14 GeminiKeyPool] 上报成功
+      if (acquiredPresetId && typeof window.GeminiMainKeyPool?.reportStatus === 'function') {
+        try { window.GeminiMainKeyPool.reportStatus(acquiredPresetId, 200); } catch (e) {}
       }
 
       const data = await response.json();
@@ -2200,12 +2237,40 @@ ${linkedContents}
         };
       }
 
+      // [2026-09-14 GeminiKeyPool] main slot + Gemini 原生 + 轮询开启: 用 GeminiMainKeyPool 接管
+      // 关闭 / 非 Gemini / chat.apiOverride 启用: 零行为变化, 继续用现有 apiConfig
+      let acquiredPresetId = null;
+      if (
+        !(chat.apiOverride && chat.apiOverride.enabled) &&
+        isGeminiNativeUrl(apiConfig.proxyUrl) &&
+        typeof window.GeminiMainKeyPool === 'object' &&
+        typeof window.GeminiMainKeyPool.getConfig === 'function'
+      ) {
+        try {
+          const poolConfig = window.GeminiMainKeyPool.getConfig();
+          if (poolConfig && poolConfig.enabled) {
+            const acquired = await window.GeminiMainKeyPool.acquire();
+            if (acquired && acquired.presetId) {
+              acquiredPresetId = acquired.presetId;
+              apiConfig = {
+                ...apiConfig,
+                proxyUrl: acquired.proxyUrl,
+                apiKey: acquired.apiKey,
+                model: acquired.model || apiConfig.model
+              };
+            }
+          }
+        } catch (poolErr) {
+          // acquire() 异常时静默 fallback 到原 apiConfig, 不影响聊天
+        }
+      }
+
       const {
         proxyUrl,
         apiKey,
         model
       } = apiConfig;
-      
+
       if (!proxyUrl || !apiKey || !model) {
         alert('请先在API设置中配置反代地址、密钥并选择模型。');
         if (chat.isGroup) {
@@ -2300,8 +2365,17 @@ ${linkedContents}
 
           if (!response.ok) {
             let errMsg = `HTTP ${response.status}`;
-            try { const errData = await response.json(); errMsg = errData?.error?.message || errData?.message || errData?.detail || JSON.stringify(errData); } catch(e) { errMsg += ` (${response.statusText})`; }
+            let errData = null;
+            try { errData = await response.json(); errMsg = errData?.error?.message || errData?.message || errData?.detail || JSON.stringify(errData); } catch(e) { errMsg += ` (${response.statusText})`; }
+            // [2026-09-14 GeminiKeyPool] 上报错误状态
+            if (acquiredPresetId && typeof window.GeminiMainKeyPool?.reportStatus === 'function') {
+              try { window.GeminiMainKeyPool.reportStatus(acquiredPresetId, response.status, errData); } catch (e) {}
+            }
             throw new Error(`API失败: ${errMsg}`);
+          }
+          // [2026-09-14 GeminiKeyPool] 上报成功
+          if (acquiredPresetId && typeof window.GeminiMainKeyPool?.reportStatus === 'function') {
+            try { window.GeminiMainKeyPool.reportStatus(acquiredPresetId, 200); } catch (e) {}
           }
 
           const data = await response.json();
@@ -2466,8 +2540,17 @@ ${linkedContents}
 
           if (!response.ok) {
             let errMsg = `HTTP ${response.status}`;
-            try { const errData = await response.json(); errMsg = errData?.error?.message || errData?.message || errData?.detail || JSON.stringify(errData); } catch(e) { errMsg += ` (${response.statusText})`; }
+            let errData = null;
+            try { errData = await response.json(); errMsg = errData?.error?.message || errData?.message || errData?.detail || JSON.stringify(errData); } catch(e) { errMsg += ` (${response.statusText})`; }
+            // [2026-09-14 GeminiKeyPool] 上报错误状态
+            if (acquiredPresetId && typeof window.GeminiMainKeyPool?.reportStatus === 'function') {
+              try { window.GeminiMainKeyPool.reportStatus(acquiredPresetId, response.status, errData); } catch (e) {}
+            }
             throw new Error(`API失败: ${errMsg}`);
+          }
+          // [2026-09-14 GeminiKeyPool] 上报成功
+          if (acquiredPresetId && typeof window.GeminiMainKeyPool?.reportStatus === 'function') {
+            try { window.GeminiMainKeyPool.reportStatus(acquiredPresetId, 200); } catch (e) {}
           }
 
           const data = await response.json();
@@ -2676,7 +2759,16 @@ ${linkedContents}
           markFirstAiChunk(aiRequestState);
 
           if (!response.ok) {
-            throw new Error(`API失败: ${(await response.json()).error.message}`);
+            // [2026-09-14 GeminiKeyPool] 上报错误状态
+            const errBody = await response.json().catch(() => null);
+            if (acquiredPresetId && typeof window.GeminiMainKeyPool?.reportStatus === 'function') {
+              try { window.GeminiMainKeyPool.reportStatus(acquiredPresetId, response.status, errBody); } catch (e) {}
+            }
+            throw new Error(`API失败: ${(errBody && errBody.error && errBody.error.message) || '未知错误'}`);
+          }
+          // [2026-09-14 GeminiKeyPool] 上报成功
+          if (acquiredPresetId && typeof window.GeminiMainKeyPool?.reportStatus === 'function') {
+            try { window.GeminiMainKeyPool.reportStatus(acquiredPresetId, 200); } catch (e) {}
           }
           const data = await response.json();
 
@@ -4933,8 +5025,9 @@ ${getActiveThoughtsPrompt()}
         if (!response.ok) {
           const errorText = await response.text().catch(() => response.statusText);
           let errorSummary = errorText;
+          let errorData = null;
           try {
-            const errorData = JSON.parse(errorText);
+            errorData = JSON.parse(errorText);
             if (errorData?.error?.message) {
               errorSummary = errorData.error.message;
             } else if (errorData?.message) {
@@ -4942,6 +5035,10 @@ ${getActiveThoughtsPrompt()}
             }
           } catch (jsonError) {
             // 保持一次读取到的文本摘要
+          }
+          // [2026-09-14 GeminiKeyPool] 上报错误状态
+          if (acquiredPresetId && typeof window.GeminiMainKeyPool?.reportStatus === 'function') {
+            try { window.GeminiMainKeyPool.reportStatus(acquiredPresetId, response.status, errorData); } catch (e) {}
           }
           aiRuntimeLog('AI_RESPONSE_NON_2XX_HANDLED', {
             status: response.status,
@@ -4954,6 +5051,10 @@ ${getActiveThoughtsPrompt()}
             streamMode: 'non-stream'
           });
           throw new Error(`API 返回错误: ${response.status} ${response.statusText} - ${String(errorSummary || '').substring(0, 500)}`);
+        }
+        // [2026-09-14 GeminiKeyPool] 上报成功 (在 markRequestFirstChunk 之后, response.json 之前)
+        if (acquiredPresetId && typeof window.GeminiMainKeyPool?.reportStatus === 'function') {
+          try { window.GeminiMainKeyPool.reportStatus(acquiredPresetId, 200); } catch (e) {}
         }
 
         if (response) {
