@@ -906,6 +906,73 @@
     return context;
   }
 
+  // [2026-09-14 GeminiKeyPool Failover] 单请求级 Key Failover
+  // 循环 acquire() + fetch() 直到: 成功 / 400 (不换 Key) / attemptedPresetIds 绕完一圈 / 池空
+  // buildConfig: (acquired) => { url, data }  —— 每次 acquire 后用新 key/model 重建 Gemini request
+  // signal: AbortSignal (来自 currentAiGenerationController 或 getCurrentAiSignal())
+  // 返回: Response 对象 (成功 200 / 400 时), 或 throw Error (全部 Key 都失败)
+  async function fetchGeminiMainWithFailover(buildConfig, attemptedPresetIds, signal) {
+    if (typeof window.GeminiMainKeyPool !== 'object' || typeof window.GeminiMainKeyPool.acquire !== 'function') {
+      throw new Error('GeminiMainKeyPool 未加载');
+    }
+    let lastError = null;
+    while (true) {
+      const acquired = await window.GeminiMainKeyPool.acquire();
+      if (!acquired || !acquired.presetId) {
+        // 池不可用 (disabled / 池空 / 全部 cooldown 或 invalid)
+        throw lastError || new Error('GeminiMainKeyPool 暂无可用 Key');
+      }
+      if (attemptedPresetIds.has(acquired.presetId)) {
+        // 绕完一圈: 所有 Key 都尝试过了
+        throw lastError || new Error('GeminiMainKeyPool 所有 Key 已尝试');
+      }
+      attemptedPresetIds.add(acquired.presetId);
+
+      let geminiConfig;
+      try {
+        geminiConfig = buildConfig(acquired);
+      } catch (buildErr) {
+        // buildConfig 失败 (说明 pool 数据有问题), 不应继续 failover
+        throw buildErr;
+      }
+
+      const fetchInit = signal ? { ...geminiConfig.data, signal: signal } : geminiConfig.data;
+      let resp;
+      try {
+        resp = await fetch(geminiConfig.url, fetchInit);
+      } catch (networkErr) {
+        // 网络错误: 临时 cooldown 30s (statusCode=0 由 gemini-key-pool.js 处理)
+        try { window.GeminiMainKeyPool.reportStatus(acquired.presetId, 0, null); } catch (e) {}
+        lastError = new Error('网络错误 (presetId=' + acquired.presetId + '): ' + (networkErr.message || 'fetch failed'));
+        continue;
+      }
+
+      if (resp.ok) {
+        try { window.GeminiMainKeyPool.reportStatus(acquired.presetId, 200); } catch (e) {}
+        return resp;
+      }
+
+      // 失败: 用 clone 读 errBody (不消耗原始 resp), 供 reportStatus 分类
+      let errBody = null;
+      try {
+        const cloned = resp.clone();
+        const errorText = await cloned.text();
+        try { errBody = JSON.parse(errorText); } catch (e) {}
+      } catch (e) {}
+
+      try { window.GeminiMainKeyPool.reportStatus(acquired.presetId, resp.status, errBody); } catch (e) {}
+
+      if (resp.status === 400) {
+        // 400: 请求体错误, 换 Key 无意义, 把 resp 返回给调用点处理
+        // 原 resp.body 未消耗 (用了 clone), 后续 resp.json() 仍可读
+        return resp;
+      }
+
+      // 429 / 503 / 401 / 403 / 其它 5xx: 换下一个 Key
+      lastError = new Error('Key ' + acquired.presetId + ' 失败: HTTP ' + resp.status);
+    }
+  }
+
   function toGeminiRequestData(model, apiKey, systemInstruction, messagesForDecision) {
     const apiTemperature = state.globalSettings.apiTemperature || 0.8;
     const apiTopP = state.globalSettings.apiTopP !== undefined ? state.globalSettings.apiTopP : 1.0;
@@ -1814,37 +1881,7 @@
           apiKey: chat.apiOverride.apiKey || mainApiConfig.apiKey,
           model: chat.apiOverride.model || mainApiConfig.model
         };
-      }
-
-      // [2026-09-14 GeminiKeyPool] main slot + Gemini 原生 + 轮询开启: 用 GeminiMainKeyPool 接管
-      // 关闭 / 非 Gemini / chat.apiOverride 启用: 零行为变化, 继续用现有 apiConfig
-      let acquiredPresetId = null;
-      if (
-        !(chat.apiOverride && chat.apiOverride.enabled) &&
-        isGeminiNativeUrl(apiConfig.proxyUrl) &&
-        typeof window.GeminiMainKeyPool === 'object' &&
-        typeof window.GeminiMainKeyPool.getConfig === 'function'
-      ) {
-        try {
-          const poolConfig = window.GeminiMainKeyPool.getConfig();
-          if (poolConfig && poolConfig.enabled) {
-            const acquired = await window.GeminiMainKeyPool.acquire();
-            if (acquired && acquired.presetId) {
-              acquiredPresetId = acquired.presetId;
-              apiConfig = {
-                ...apiConfig,
-                proxyUrl: acquired.proxyUrl,
-                apiKey: acquired.apiKey,
-                model: acquired.model || apiConfig.model
-              };
-            }
-          }
-        } catch (poolErr) {
-          // acquire() 异常时静默 fallback 到原 apiConfig, 不影响聊天
-        }
-      }
-
-      const {
+      }      const {
         proxyUrl,
         apiKey,
         model
@@ -1993,8 +2030,13 @@ ${linkedContents}
       let response;
 
       if (isGemini) {
-        let geminiConfig = toGeminiRequestData(model, apiKey, systemPrompt, messagesPayload);
-        response = await fetch(geminiConfig.url, withCurrentAiSignal(geminiConfig.data));
+        // [2026-09-14 GeminiKeyPool Failover] main slot + Gemini 原生: 单请求级 Key Failover
+        const attemptedPresetIds = new Set();
+        response = await fetchGeminiMainWithFailover(
+          (acquired) => toGeminiRequestData(acquired.model || model, acquired.apiKey, systemPrompt, messagesPayload),
+          attemptedPresetIds,
+          getCurrentAiSignal()
+        );
       } else {
         response = await fetch(`${proxyUrl}/v1/chat/completions`, {
           method: 'POST',
@@ -2028,20 +2070,8 @@ ${linkedContents}
           error: {
             message: response.statusText
           }
-        }));
-        // [2026-09-14 GeminiKeyPool] 上报错误状态
-        if (acquiredPresetId && typeof window.GeminiMainKeyPool?.reportStatus === 'function') {
-          try { window.GeminiMainKeyPool.reportStatus(acquiredPresetId, response.status, errorData); } catch (e) {}
-        }
-        throw new Error(`API 请求失败: ${response.status} - ${errorData.error?.message || '未知错误'}`);
-      }
-
-      // [2026-09-14 GeminiKeyPool] 上报成功
-      if (acquiredPresetId && typeof window.GeminiMainKeyPool?.reportStatus === 'function') {
-        try { window.GeminiMainKeyPool.reportStatus(acquiredPresetId, 200); } catch (e) {}
-      }
-
-      const data = await response.json();
+        }));        throw new Error(`API 请求失败: ${response.status} - ${errorData.error?.message || '未知错误'}`);
+      }      const data = await response.json();
       const aiResponseContent = getGeminiResponseText(data);
       lastRawAiResponse = aiResponseContent;
       const messagesArray = hookProactiveWakeInMessages(parseAiResponse(aiResponseContent), chat);
@@ -2235,37 +2265,7 @@ ${linkedContents}
           apiKey: chat.apiOverride.apiKey || mainApiConfig.apiKey,
           model: chat.apiOverride.model || mainApiConfig.model
         };
-      }
-
-      // [2026-09-14 GeminiKeyPool] main slot + Gemini 原生 + 轮询开启: 用 GeminiMainKeyPool 接管
-      // 关闭 / 非 Gemini / chat.apiOverride 启用: 零行为变化, 继续用现有 apiConfig
-      let acquiredPresetId = null;
-      if (
-        !(chat.apiOverride && chat.apiOverride.enabled) &&
-        isGeminiNativeUrl(apiConfig.proxyUrl) &&
-        typeof window.GeminiMainKeyPool === 'object' &&
-        typeof window.GeminiMainKeyPool.getConfig === 'function'
-      ) {
-        try {
-          const poolConfig = window.GeminiMainKeyPool.getConfig();
-          if (poolConfig && poolConfig.enabled) {
-            const acquired = await window.GeminiMainKeyPool.acquire();
-            if (acquired && acquired.presetId) {
-              acquiredPresetId = acquired.presetId;
-              apiConfig = {
-                ...apiConfig,
-                proxyUrl: acquired.proxyUrl,
-                apiKey: acquired.apiKey,
-                model: acquired.model || apiConfig.model
-              };
-            }
-          }
-        } catch (poolErr) {
-          // acquire() 异常时静默 fallback 到原 apiConfig, 不影响聊天
-        }
-      }
-
-      const {
+      }      const {
         proxyUrl,
         apiKey,
         model
@@ -2326,7 +2326,6 @@ ${linkedContents}
         }];
 
         try {
-          let geminiConfig = toGeminiRequestData(model, apiKey, callDecisionPrompt, messagesForCallDecision);
           let isGemini = isGeminiNativeUrl(proxyUrl);
           // 判断是否使用后端代理
           const useMainApiProxy = !isGemini
@@ -2341,7 +2340,11 @@ ${linkedContents}
           };
 
           const response = isGemini
-            ? await fetch(geminiConfig.url, withCurrentAiSignal(geminiConfig.data))
+            ? await fetchGeminiMainWithFailover(
+                (acquired) => toGeminiRequestData(acquired.model || model, acquired.apiKey, callDecisionPrompt, messagesForCallDecision),
+                new Set(),
+                getCurrentAiSignal()
+              )
             : useMainApiProxy
               ? await window.fetchViaOpenAICompatibleProxy({
                 baseUrl: proxyUrl,
@@ -2366,19 +2369,8 @@ ${linkedContents}
           if (!response.ok) {
             let errMsg = `HTTP ${response.status}`;
             let errData = null;
-            try { errData = await response.json(); errMsg = errData?.error?.message || errData?.message || errData?.detail || JSON.stringify(errData); } catch(e) { errMsg += ` (${response.statusText})`; }
-            // [2026-09-14 GeminiKeyPool] 上报错误状态
-            if (acquiredPresetId && typeof window.GeminiMainKeyPool?.reportStatus === 'function') {
-              try { window.GeminiMainKeyPool.reportStatus(acquiredPresetId, response.status, errData); } catch (e) {}
-            }
-            throw new Error(`API失败: ${errMsg}`);
-          }
-          // [2026-09-14 GeminiKeyPool] 上报成功
-          if (acquiredPresetId && typeof window.GeminiMainKeyPool?.reportStatus === 'function') {
-            try { window.GeminiMainKeyPool.reportStatus(acquiredPresetId, 200); } catch (e) {}
-          }
-
-          const data = await response.json();
+            try { errData = await response.json(); errMsg = errData?.error?.message || errData?.message || errData?.detail || JSON.stringify(errData); } catch(e) { errMsg += ` (${response.statusText})`; }            throw new Error(`API失败: ${errMsg}`);
+          }          const data = await response.json();
           const aiResponseContent = getGeminiResponseText(data);
           const responseArray = hookProactiveWakeInMessages(parseAiResponse(aiResponseContent), chat);
 
@@ -2501,7 +2493,6 @@ ${linkedContents}
         }];
 
         try {
-          let geminiConfig = toGeminiRequestData(model, apiKey, callDecisionPrompt, messagesForCallDecision);
           let isGemini = isGeminiNativeUrl(proxyUrl);
           // 判断是否使用后端代理
           const useMainApiProxy = !isGemini
@@ -2516,7 +2507,11 @@ ${linkedContents}
           };
 
           const response = isGemini
-            ? await fetch(geminiConfig.url, withCurrentAiSignal(geminiConfig.data))
+            ? await fetchGeminiMainWithFailover(
+                (acquired) => toGeminiRequestData(acquired.model || model, acquired.apiKey, callDecisionPrompt, messagesForCallDecision),
+                new Set(),
+                getCurrentAiSignal()
+              )
             : useMainApiProxy
               ? await window.fetchViaOpenAICompatibleProxy({
                 baseUrl: proxyUrl,
@@ -2541,19 +2536,8 @@ ${linkedContents}
           if (!response.ok) {
             let errMsg = `HTTP ${response.status}`;
             let errData = null;
-            try { errData = await response.json(); errMsg = errData?.error?.message || errData?.message || errData?.detail || JSON.stringify(errData); } catch(e) { errMsg += ` (${response.statusText})`; }
-            // [2026-09-14 GeminiKeyPool] 上报错误状态
-            if (acquiredPresetId && typeof window.GeminiMainKeyPool?.reportStatus === 'function') {
-              try { window.GeminiMainKeyPool.reportStatus(acquiredPresetId, response.status, errData); } catch (e) {}
-            }
-            throw new Error(`API失败: ${errMsg}`);
-          }
-          // [2026-09-14 GeminiKeyPool] 上报成功
-          if (acquiredPresetId && typeof window.GeminiMainKeyPool?.reportStatus === 'function') {
-            try { window.GeminiMainKeyPool.reportStatus(acquiredPresetId, 200); } catch (e) {}
-          }
-
-          const data = await response.json();
+            try { errData = await response.json(); errMsg = errData?.error?.message || errData?.message || errData?.detail || JSON.stringify(errData); } catch(e) { errMsg += ` (${response.statusText})`; }            throw new Error(`API失败: ${errMsg}`);
+          }          const data = await response.json();
           const aiResponseContent = getGeminiResponseText(data);
 
           const jsonMatch = aiResponseContent.match(/(\[[\s\S]*?\])/);
@@ -2732,13 +2716,16 @@ ${linkedContents}
           ];
 
           let isGemini = isGeminiNativeUrl(proxyUrl);
-          let geminiConfig = toGeminiRequestData(model, apiKey, decisionPrompt, [{
-            role: 'user',
-            content: "请根据以上设定，立即做出你的决定。"
-          }]);
 
           const response = isGemini ?
-            await fetch(geminiConfig.url, withCurrentAiSignal(geminiConfig.data)) :
+            await fetchGeminiMainWithFailover(
+              (acquired) => toGeminiRequestData(acquired.model || model, acquired.apiKey, decisionPrompt, [{
+                role: 'user',
+                content: "请根据以上设定, 立即做出你的决定。"
+              }]),
+              new Set(),
+              getCurrentAiSignal()
+            ) :
             await fetch(`${proxyUrl}/v1/chat/completions`, {
               method: 'POST',
               headers: {
@@ -2758,19 +2745,9 @@ ${linkedContents}
 
           markFirstAiChunk(aiRequestState);
 
-          if (!response.ok) {
-            // [2026-09-14 GeminiKeyPool] 上报错误状态
-            const errBody = await response.json().catch(() => null);
-            if (acquiredPresetId && typeof window.GeminiMainKeyPool?.reportStatus === 'function') {
-              try { window.GeminiMainKeyPool.reportStatus(acquiredPresetId, response.status, errBody); } catch (e) {}
-            }
+          if (!response.ok) {            const errBody = await response.json().catch(() => null);
             throw new Error(`API失败: ${(errBody && errBody.error && errBody.error.message) || '未知错误'}`);
-          }
-          // [2026-09-14 GeminiKeyPool] 上报成功
-          if (acquiredPresetId && typeof window.GeminiMainKeyPool?.reportStatus === 'function') {
-            try { window.GeminiMainKeyPool.reportStatus(acquiredPresetId, 200); } catch (e) {}
-          }
-          const data = await response.json();
+          }          const data = await response.json();
 
           const rawContent = getGeminiResponseText(data).replace(/^```json\s*/, '').replace(/```$/, '').trim();
           const decisionObj = JSON.parse(rawContent);
@@ -4846,7 +4823,8 @@ ${getActiveThoughtsPrompt()}
       }
 
       let isGemini = isGeminiNativeUrl(proxyUrl);
-      let geminiConfig = toGeminiRequestData(model, apiKey, systemPrompt, messagesPayload)
+      // geminiConfig 由 fetchGeminiMainWithFailover 内部 buildConfig 重建 (main slot Gemini Failover)
+      const geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
       const currentApiController = currentAiGenerationController;
       const stopBtn = getStopGenerationButton();
       updateStopGenerationButtonVisibility();
@@ -4869,7 +4847,7 @@ ${getActiveThoughtsPrompt()}
         presence_penalty: state.globalSettings.apiPresencePenalty !== undefined ? state.globalSettings.apiPresencePenalty : 0.0,
         frequency_penalty: state.globalSettings.apiFrequencyPenalty !== undefined ? state.globalSettings.apiFrequencyPenalty : 0.0,
         isGemini: isGemini,
-        apiUrl: isGemini ? geminiConfig.url : mainChatCompletionsUrl
+        apiUrl: isGemini ? geminiApiUrl : mainChatCompletionsUrl
       };
 
       let response;
@@ -4889,7 +4867,12 @@ ${getActiveThoughtsPrompt()}
       
       try {
         if (isGemini) {
-          response = await fetch(geminiConfig.url, withCurrentAiSignal(geminiConfig.data));
+          // [2026-09-14 GeminiKeyPool Failover] main slot + Gemini 原生: 单请求级 Key Failover
+          response = await fetchGeminiMainWithFailover(
+            (acquired) => toGeminiRequestData(acquired.model || model, acquired.apiKey, systemPrompt, messagesPayload),
+            new Set(),
+            getCurrentAiSignal()
+          );
           markFirstAiChunk(aiRequestState);
         } else {
           const enableStreaming = state.globalSettings.enableStreaming === true;
@@ -5035,12 +5018,7 @@ ${getActiveThoughtsPrompt()}
             }
           } catch (jsonError) {
             // 保持一次读取到的文本摘要
-          }
-          // [2026-09-14 GeminiKeyPool] 上报错误状态
-          if (acquiredPresetId && typeof window.GeminiMainKeyPool?.reportStatus === 'function') {
-            try { window.GeminiMainKeyPool.reportStatus(acquiredPresetId, response.status, errorData); } catch (e) {}
-          }
-          aiRuntimeLog('AI_RESPONSE_NON_2XX_HANDLED', {
+          }          aiRuntimeLog('AI_RESPONSE_NON_2XX_HANDLED', {
             status: response.status,
             bodyLength: String(errorText || '').length,
             contentType: response.headers.get('Content-Type') || '',
@@ -5051,13 +5029,7 @@ ${getActiveThoughtsPrompt()}
             streamMode: 'non-stream'
           });
           throw new Error(`API 返回错误: ${response.status} ${response.statusText} - ${String(errorSummary || '').substring(0, 500)}`);
-        }
-        // [2026-09-14 GeminiKeyPool] 上报成功 (在 markRequestFirstChunk 之后, response.json 之前)
-        if (acquiredPresetId && typeof window.GeminiMainKeyPool?.reportStatus === 'function') {
-          try { window.GeminiMainKeyPool.reportStatus(acquiredPresetId, 200); } catch (e) {}
-        }
-
-        if (response) {
+        }        if (response) {
           markRequestFirstChunk();
         }
 

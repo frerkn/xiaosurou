@@ -227,6 +227,11 @@
     } else if (statusCode === 401 || statusCode === 403) {
       state.status = 'invalid';
       state.cooldownUntil = 0;
+    } else if (statusCode === 0) {
+      // [2026-09-14 Failover] 网络错误 (fetch throw): 临时 cooldown 30s
+      // 避免 acquire() 反复选中同一 Key, 让 failover 能继续走下一个
+      state.status = 'cooldown';
+      state.cooldownUntil = now + 30 * 1000;
     } else {
       // 未知错误: 不改变状态, 避免误杀
     }
