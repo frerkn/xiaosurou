@@ -3837,10 +3837,11 @@ ${membersList}
             }))
         ];
         return {
-            url: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${getRandomValue(apiKey)}`,
+            // [2026-09-14 AQ. 凭证兼容] 删除 ?key= URL 参数; AIza/AQ 都走 x-goog-api-key header
+            url: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
             data: {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'x-goog-api-key': getRandomValue(apiKey) },
                 body: JSON.stringify({
                     contents: contents,
                     generationConfig: { temperature: (window.state && window.state.globalSettings && window.state.globalSettings.apiTemperature) || 0.8 }

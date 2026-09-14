@@ -1724,10 +1724,12 @@ ${updatePrompt}
           }
         };
 
-        response = await fetch(`${apiConfig.proxyUrl}/${apiConfig.model}:generateContent?key=${apiConfig.apiKey}`, {
+        // [2026-09-14 AQ. 凭证兼容] 删除 ?key= URL 参数; 改用 x-goog-api-key header
+        response = await fetch(`${apiConfig.proxyUrl}/${apiConfig.model}:generateContent`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiConfig.apiKey
           },
           body: JSON.stringify(payload)
         });

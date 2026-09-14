@@ -2448,11 +2448,13 @@ window.initEventBindingsA = async function(state, db) {
 
       try {
         let isGemini = url === GEMINI_API_URL;
+        // [2026-09-14 AQ. 凭证兼容] 删除 ?key= URL 参数; 改用 x-goog-api-key header
         const fetchOptions = isGemini ? {
           method: 'GET',
           mode: 'cors',
           cache: 'no-cache',
-          credentials: 'omit'
+          credentials: 'omit',
+          headers: { 'x-goog-api-key': getRandomValue(key) }
         } : {
           method: 'GET',
           mode: 'cors',
@@ -2465,7 +2467,7 @@ window.initEventBindingsA = async function(state, db) {
         };
 
         const response = await fetch(
-          isGemini ? `${GEMINI_API_URL}?key=${getRandomValue(key)}` : (presetSelectId === 'slot-main-endpoint-preset' ? `${url.replace(/\/+$/, '')}/models` : `${url.replace(/\/+$/, '')}/models`),
+          isGemini ? `${GEMINI_API_URL}` : (presetSelectId === 'slot-main-endpoint-preset' ? `${url.replace(/\/+$/, '')}/models` : `${url.replace(/\/+$/, '')}/models`),
           fetchOptions
         );
 

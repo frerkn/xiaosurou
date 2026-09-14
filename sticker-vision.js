@@ -88,10 +88,12 @@ async function callVisionAPI(imageUrl) {
         }]
       };
 
-      response = await fetch(`${proxyUrl}/${model}:generateContent?key=${apiKey}`, {
+      // [2026-09-14 AQ. 凭证兼容] 删除 ?key= URL 参数; 改用 x-goog-api-key header
+      response = await fetch(`${proxyUrl}/${model}:generateContent`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey
         },
         body: JSON.stringify(payload)
       });

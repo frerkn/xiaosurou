@@ -1538,7 +1538,9 @@ async function executeVectorExtraction(chat, messages, updateTimestamp = false) 
 
   const isGemini = proxyUrl && (proxyUrl.includes('generativelanguage.googleapis.com') || proxyUrl.includes('generativelanguage'));
   // 如果是原生 Gemini URL（不是 /v1beta/openai），走原生协议；OpenAI 兼容地址走 chat/completions
-  const isNativeGemini = isGemini && !proxyUrl.includes('/v1beta/openai') && !proxyUrl.endsWith('/openai');
+  // [2026-09-14 AQ. 凭证兼容] AQ. 不能用 OpenAI 兼容 Bearer, 强制走原生 (toGeminiRequestData 已配 x-goog-api-key header)
+  const isAqKey = typeof apiKey === 'string' && apiKey.startsWith('AQ.');
+  const isNativeGemini = isGemini && (!proxyUrl.includes('/v1beta/openai') && !proxyUrl.endsWith('/openai') || isAqKey);
   let response;
   if (isNativeGemini && typeof toGeminiRequestData === 'function') {
     const geminiConfig = toGeminiRequestData(model, apiKey, prompt, [{ role: 'user', content: '请开始提取。' }]);

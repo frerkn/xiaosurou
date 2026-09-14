@@ -491,9 +491,11 @@ class VariableMemoryManager {
 
       // ===== 端点规范化（自定义 + 默认两条路都生效） =====
       // 谷歌：任何形式的地址都统一改写为 OpenAI 兼容 baseURL（避免用户填了裸地址导致 404）
+      // [2026-09-14 AQ. 凭证兼容] AQ. 凭证不能用 OpenAI 兼容 Bearer, 保留原生 URL, 走 embedContent + x-goog-api-key
       if (endpoint && (endpoint.includes('generativelanguage.googleapis.com') || endpoint.includes('googleapis.com'))) {
+        const isAqKey = typeof apiKey === 'string' && apiKey.startsWith('AQ.');
         const isAlreadyOpenAI = endpoint.includes('/v1beta/openai') || endpoint.endsWith('/openai');
-        if (!isAlreadyOpenAI) {
+        if (!isAqKey && !isAlreadyOpenAI) {
           endpoint = 'https://generativelanguage.googleapis.com/v1beta/openai';
         }
         if (!model) model = 'text-embedding-004';
@@ -514,16 +516,32 @@ class VariableMemoryManager {
         return null; // 降级为BM25纯本地模式
       }
 
-      // ===== URL 拼接：处理 /v1 后缀 + 避免重复 + 特殊平台 =====
-      // 纯字符串拼接：用户填啥就在后面接 /embeddings（不识别任何平台）
+      // ===== URL 拼接 + headers：按密钥类型分流 =====
+      // AQ. + 原生 Gemini: 走原生 embedContent 端点 + x-goog-api-key header
+      //   (Bearer 模式 Google 服务端不识别 AQ. 凭证, 会 400/401)
+      // AIza / 第三方 / OpenAI 兼容: 走 /v1/embeddings + Authorization Bearer (原逻辑不动)
+      const isAqKey = typeof apiKey === 'string' && apiKey.startsWith('AQ.');
+      const isNativeGemini = endpoint.includes('generativelanguage.googleapis.com') && !endpoint.includes('/v1beta/openai');
+      const useNativeEmbed = isAqKey && isNativeGemini;
       const base = endpoint.replace(/\/+$/, '');
-      const url = base + '/embeddings';
+      let url, fetchOptions;
+      if (useNativeEmbed) {
+        url = `${base}/${model}:embedContent`;
+        fetchOptions = {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+          body: JSON.stringify({ content: { parts: [{ text: text.trim() }] } })
+        };
+      } else {
+        url = base + '/embeddings';
+        fetchOptions = {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+          body: JSON.stringify({ model, input: text.trim() })
+        };
+      }
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-        body: JSON.stringify({ model, input: text.trim() })
-      });
+      const response = await fetch(url, fetchOptions);
 
       if (!response.ok) {
         const errText = await response.text().catch(() => '');
@@ -531,7 +549,11 @@ class VariableMemoryManager {
         return null;
       }
       const data = await response.json();
-      const embedding = data?.data?.[0]?.embedding || null;
+      // Gemini 原生 embedContent 响应: { embedding: { values: [...] } }
+      // OpenAI 兼容 /embeddings 响应: { data: [{ embedding: [...] }] }
+      const embedding = useNativeEmbed
+        ? (data?.embedding?.values || null)
+        : (data?.data?.[0]?.embedding || null);
       if (embedding) {
         this.embeddingCache.set(cacheKey, embedding);
         // 软清理：超过上限 500 时一次性删最老的 100 条（Map 按插入顺序遍历）
@@ -1479,9 +1501,11 @@ ${formattedHistory}
         apiKey = apiConfig.secondaryApiKey || apiConfig.apiKey;
       }
       // 自动修正 Google AI Studio endpoint 为 OpenAI 兼容 baseURL
+      // [2026-09-14 AQ. 凭证兼容] AQ. 凭证不能用 OpenAI 兼容 Bearer, 保留原生 URL
       if (endpoint && (endpoint.includes('generativelanguage.googleapis.com') || endpoint.includes('googleapis.com'))) {
+        const isAqKey = typeof apiKey === 'string' && apiKey.startsWith('AQ.');
         const isAlreadyOpenAI = endpoint.includes('/v1beta/openai') || endpoint.endsWith('/openai');
-        if (!isAlreadyOpenAI) {
+        if (!isAqKey && !isAlreadyOpenAI) {
           endpoint = 'https://generativelanguage.googleapis.com/v1beta/openai';
         }
       }
@@ -1502,24 +1526,48 @@ ${formattedHistory}
         return models;
       }
 
-      // 纯字符串拼接：用户填啥就在后面接 /models（不识别任何平台）
+      // 纯字符串拼接 + 按密钥类型分流:
+      //   AQ. + 原生 Gemini: x-goog-api-key header, 响应 { models: [{name: 'models/xxx'}] }
+      //   AIza / 第三方 / OpenAI 兼容: Authorization Bearer, 响应 { data: [{id: 'xxx'}] }
+      const isAqKey = typeof apiKey === 'string' && apiKey.startsWith('AQ.');
+      const isNativeGemini = endpoint.includes('generativelanguage.googleapis.com') && !endpoint.includes('/v1beta/openai');
+      const useNativeModels = isAqKey && isNativeGemini;
       const base = endpoint.replace(/\/+$/, '');
       const url = base + '/models';
-      const response = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${apiKey}` }
-      });
+      const fetchHeaders = useNativeModels
+        ? { 'x-goog-api-key': apiKey }
+        : { 'Authorization': `Bearer ${apiKey}` };
+      const response = await fetch(url, { headers: fetchHeaders });
       if (!response.ok) throw new Error(`HTTP ${response.status} @ ${url}`);
       const data = await response.json();
-      if (!data || !data.data) throw new Error('API 返回格式异常');
 
-      models = data.data.map(m => m.id).sort((a, b) => {
-        // 将含有 embedding 的模型排在前面
-        const aEmb = a.toLowerCase().includes('embed') || a.toLowerCase().includes('bge');
-        const bEmb = b.toLowerCase().includes('embed') || b.toLowerCase().includes('bge');
-        if (aEmb && !bEmb) return -1;
-        if (!aEmb && bEmb) return 1;
-        return a.localeCompare(b);
-      });
+      if (useNativeModels) {
+        // Gemini 原生 models 端点: { models: [{name: 'models/xxx', ...}] }
+        if (!data || !data.models) throw new Error('API 返回格式异常');
+        models = data.models
+          .map(m => {
+            const name = m.name || '';
+            return name.startsWith('models/') ? name.slice('models/'.length) : name;
+          })
+          .filter(Boolean)
+          .sort((a, b) => {
+            const aEmb = a.toLowerCase().includes('embed') || a.toLowerCase().includes('bge');
+            const bEmb = b.toLowerCase().includes('embed') || b.toLowerCase().includes('bge');
+            if (aEmb && !bEmb) return -1;
+            if (!aEmb && bEmb) return 1;
+            return a.localeCompare(b);
+          });
+      } else {
+        if (!data || !data.data) throw new Error('API 返回格式异常');
+        models = data.data.map(m => m.id).sort((a, b) => {
+          // 将含有 embedding 的模型排在前面
+          const aEmb = a.toLowerCase().includes('embed') || a.toLowerCase().includes('bge');
+          const bEmb = b.toLowerCase().includes('embed') || b.toLowerCase().includes('bge');
+          if (aEmb && !bEmb) return -1;
+          if (!aEmb && bEmb) return 1;
+          return a.localeCompare(b);
+        });
+      }
 
       // ===== 谷歌 OpenAI 兼容端点特殊处理 =====
       // /v1/models 不列出 embedding 模型（Google API 设计），手动追加常见 embedding 模型
