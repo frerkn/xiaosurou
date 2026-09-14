@@ -2502,13 +2502,24 @@ window.initEventBindingsA = async function(state, db) {
         }
         // ===== 诊断结束 =====
         // [2026-09-14 AQ. 凭证兼容] 删除 ?key= URL 参数; 改用 x-goog-api-key header
-        // [2026-09-14 AQ. 凭证兼容] 删除 ?key= URL 参数; 改用 x-goog-api-key header
+        // [2026-09-14 修复 iOS 复制污染 + AIza/AQ. 通用] 改回 ?key=URL 模式
+        // 1. iOS 复制会自动把 - 替换为 ‑ (U+2011 non-breaking hyphen), 需过滤 ASCII 之外字符
+        // 2. ?key=URL 模式无自定义 header, 不会触发 CORS preflight
+        // 3. AIza + AQ. 都用同一模式 (Authorization key 跟 Standard API key 用法类似)
+        const _keyForReq = (typeof key === 'string') ? key.replace(/[^A-Za-z0-9_\-.]/g, '') : '';
+        const _keyStart = _keyForReq ? _keyForReq.slice(0, 4) : '';
+        const _keyEnd = _keyForReq ? _keyForReq.slice(-4) : '';
+        // 弹窗显示用"前 4...后 4"遮蔽完整 key, 实际请求用完整 key
+        const _urlSafe = `${GEMINI_API_URL}?key=${_keyStart}…${_keyEnd}`;
+        const _urlActual = `${GEMINI_API_URL}?key=${_keyForReq}`;
+        const _reqUrl = isGemini ? _urlActual : (presetSelectId === 'slot-main-endpoint-preset' ? `${url.replace(/\/+$/, '')}/models` : `${url.replace(/\/+$/, '')}/models`);
+        const _reqMethod = 'GET';
         const fetchOptions = isGemini ? {
           method: 'GET',
           mode: 'cors',
           cache: 'no-cache',
-          credentials: 'omit',
-          headers: { 'x-goog-api-key': getRandomValue(key) }
+          credentials: 'omit'
+          // [2026-09-14] AIza + AQ. 统一走 ?key=URL, 不设自定义 header
         } : {
           method: 'GET',
           mode: 'cors',
@@ -2521,14 +2532,11 @@ window.initEventBindingsA = async function(state, db) {
         };
 
         // ===== [2026-09-14 诊断] FETCH_START 前置诊断(只读 fetchOptions, 不改) =====
-        const _reqUrl = isGemini ? `${GEMINI_API_URL}` : (presetSelectId === 'slot-main-endpoint-preset' ? `${url.replace(/\/+$/, '')}/models` : `${url.replace(/\/+$/, '')}/models`);
-        const _reqMethod = (fetchOptions && fetchOptions.method) || 'GET';
-        const _reqHeaders = (fetchOptions && fetchOptions.headers) || {};
-        _diagRequestUrl = _reqUrl;
+        _diagRequestUrl = _urlSafe;
         _diagRequestMethod = _reqMethod;
         _diagRequestKeyType = _diagKeyType;
-        _diagRequestKeyExists = !!(_diagKeyStart && _diagKeyStart !== 'N/A');
-        _diagRequestHeaderXGoogApiKey = !!(_reqHeaders['x-goog-api-key']);
+        _diagRequestKeyExists = !!(_keyForReq);
+        _diagRequestHeaderXGoogApiKey = false;  // [2026-09-14] 改为 ?key=URL 模式, 不再使用 x-goog-api-key header
         if (isGemini) {
           console.error('[Gemini Debug] === FETCH_START ===');
           console.error('[Gemini Debug] url:', _reqUrl);
