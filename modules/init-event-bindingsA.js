@@ -2446,8 +2446,46 @@ window.initEventBindingsA = async function(state, db) {
       const url = resolved.proxyUrl.trim();
       const key = resolved.apiKey.trim();
 
+      // ===== [2026-09-14 诊断] UI 显示用的诊断变量(catch 块会读取并显示) =====
+      let _diagUrl = '';
+      let _diagKeyType = 'unknown';
+      let _diagKeyStart = 'N/A';
+      let _diagKeyEnd = 'N/A';
+      let _diagStatus = '';
+      let _diagStatusText = '';
+      let _diagOk = '';
+      let _diagContentType = '';
+      let _diagHttpErrorText = '';
+      let _diagRawText = '';
+      let _diagDataKeys = '';
+      let _diagDataJson = '';
+      let _diagParseError = '';
+      let _diagModelsMissing = false;
+      // ===== 诊断变量声明结束 =====
+
       try {
         let isGemini = url === GEMINI_API_URL;
+        // ===== [2026-09-14 诊断] Gemini listModels 诊断日志(不动原有逻辑) =====
+        if (isGemini) {
+          const _k = getRandomValue(key) || '';
+          const _start = _k ? _k.slice(0, 4) : 'N/A';
+          const _end = _k ? _k.slice(-4) : 'N/A';
+          const _type = !_k ? 'missing' : (_k.startsWith('AQ.') ? 'AQ' : (_k.startsWith('AIza') ? 'AIza' : 'unknown'));
+          _diagUrl = GEMINI_API_URL;
+          _diagKeyType = _type;
+          _diagKeyStart = _start;
+          _diagKeyEnd = _end;
+          console.error('[Gemini Debug] === fetchModelsFromSlot Gemini listModels ===');
+          console.error('[Gemini Debug] url:', GEMINI_API_URL);
+          console.error('[Gemini Debug] user-configured-url:', url);
+          console.error('[Gemini Debug] isGemini strict-equal:', url === GEMINI_API_URL);
+          console.error('[Gemini Debug] auth header name: x-goog-api-key');
+          console.error('[Gemini Debug] key exists:', !!_k);
+          console.error('[Gemini Debug] key prefix(4):', _start);
+          console.error('[Gemini Debug] key suffix(4):', _end);
+          console.error('[Gemini Debug] key type:', _type);
+        }
+        // ===== 诊断结束 =====
         // [2026-09-14 AQ. 凭证兼容] 删除 ?key= URL 参数; 改用 x-goog-api-key header
         const fetchOptions = isGemini ? {
           method: 'GET',
@@ -2471,12 +2509,72 @@ window.initEventBindingsA = async function(state, db) {
           fetchOptions
         );
 
+        // ===== [2026-09-14 诊断] Gemini 响应元信息 =====
+        if (isGemini) {
+          const _ct = (response.headers && typeof response.headers.get === 'function') ? response.headers.get('content-type') : 'N/A';
+          _diagStatus = response.status;
+          _diagStatusText = response.statusText;
+          _diagOk = response.ok;
+          _diagContentType = _ct;
+          console.error('[Gemini Debug] === response received ===');
+          console.error('[Gemini Debug] status:', response.status);
+          console.error('[Gemini Debug] statusText:', response.statusText);
+          console.error('[Gemini Debug] ok:', response.ok);
+          console.error('[Gemini Debug] content-type:', _ct);
+        }
+        // ===== 诊断结束 =====
+
         if (!response.ok) {
           const errorText = await response.text();
+          // ===== [2026-09-14 诊断] HTTP 错误时打印详情 =====
+          if (isGemini) {
+            _diagHttpErrorText = String(errorText).slice(0, 2000);
+            console.error('[Gemini Debug] === HTTP ERROR ===');
+            console.error('[Gemini Debug] status:', response.status);
+            console.error('[Gemini Debug] statusText:', response.statusText);
+            console.error('[Gemini Debug] errorText (前 2000 字符):', _diagHttpErrorText);
+          }
+          // ===== 诊断结束 =====
           throw new Error(`无法获取模型列表 (${response.status}): ${errorText}`);
         }
 
-        const data = await response.json();
+        // ===== [2026-09-14 诊断] 用 text() + JSON.parse 替代 response.json() 以便打印 raw =====
+        const rawText = await response.text();
+        if (isGemini) {
+          _diagRawText = rawText;
+          console.error('[Gemini Debug] === raw response ===');
+          console.error('[Gemini Debug] raw length:', rawText.length);
+        }
+        let data;
+        try {
+          data = JSON.parse(rawText);
+          if (isGemini) {
+            _diagDataKeys = data ? Object.keys(data).join(',') : 'N/A';
+            _diagDataJson = JSON.stringify(data, null, 2).slice(0, 2000);
+            console.error('[Gemini Debug] === response JSON 解析成功 ===');
+            console.error('[Gemini Debug] data keys:', _diagDataKeys);
+            console.error('[Gemini Debug] data (前 3000 字符):', JSON.stringify(data, null, 2).slice(0, 3000));
+          }
+        } catch (parseErr) {
+          if (isGemini) {
+            _diagParseError = parseErr.message;
+            console.error('[Gemini Debug] === response is NOT valid JSON ===');
+            console.error('[Gemini Debug] parse error:', parseErr.message);
+            console.error('[Gemini Debug] raw (前 2000 字符):', rawText.slice(0, 2000));
+          }
+          throw parseErr;
+        }
+        // ===== 诊断结束 =====
+
+        // ===== [2026-09-14 诊断] 检查 data.models 缺失情况(不修复,只打印) =====
+        if (isGemini && (!data || !data.models)) {
+          _diagModelsMissing = true;
+          console.error('[Gemini Debug] === models missing ===');
+          console.error('[Gemini Debug] data keys:', data ? Object.keys(data) : 'N/A');
+          console.error('[Gemini Debug] data (前 3000 字符):', JSON.stringify(data, null, 2).slice(0, 3000));
+        }
+        // ===== 诊断结束 =====
+
         let models = isGemini ? data.models.map(model => ({
           id: model.name.split('/')[1] || model.name
         })) : data.data;
@@ -2505,8 +2603,55 @@ window.initEventBindingsA = async function(state, db) {
         });
         alert('模型列表已更新');
       } catch (error) {
+        // ===== [2026-09-14 诊断] 把诊断信息组装后用 showCustomAlert 显示给手机 PWA 用户 =====
         console.error('拉取模型失败:', error);
-        alert(`拉取模型失败: ${error.message}`);
+        const _errMsg = error.message || String(error);
+        const _errStack = error.stack || '(无 stack)';
+        const _lines = [];
+        _lines.push('拉取模型失败: ' + _errMsg);
+        _lines.push('');
+        _lines.push('=== Gemini 诊断信息 ===');
+        if (_diagUrl) _lines.push('URL: ' + _diagUrl);
+        if (_diagKeyType !== 'unknown' || _diagKeyStart !== 'N/A') {
+          _lines.push('Key 类型: ' + _diagKeyType);
+          if (_diagKeyStart !== 'N/A') {
+            _lines.push('Key: ' + _diagKeyStart + '...' + _diagKeyEnd);
+          }
+        }
+        if (_diagStatus !== '') _lines.push('HTTP status: ' + _diagStatus);
+        if (_diagStatusText) _lines.push('statusText: ' + _diagStatusText);
+        if (_diagOk !== '') _lines.push('ok: ' + _diagOk);
+        if (_diagContentType) _lines.push('Content-Type: ' + _diagContentType);
+        if (_diagModelsMissing) _lines.push('⚠️ models missing (data.models 不存在)');
+        if (_diagParseError) _lines.push('JSON.parse 错误: ' + _diagParseError);
+        if (_diagHttpErrorText) {
+          _lines.push('');
+          _lines.push('--- HTTP 错误响应 (前 2000 字符) ---');
+          _lines.push(_diagHttpErrorText);
+        }
+        if (_diagDataJson) {
+          _lines.push('');
+          _lines.push('--- 解析后 data (前 2000 字符) ---');
+          _lines.push(_diagDataJson);
+        }
+        if (_diagRawText && !_diagDataJson && !_diagHttpErrorText) {
+          _lines.push('');
+          _lines.push('--- Raw 响应 (前 2000 字符) ---');
+          _lines.push(_diagRawText.slice(0, 2000));
+        }
+        _lines.push('');
+        _lines.push('--- Error.message ---');
+        _lines.push(_errMsg);
+        _lines.push('');
+        _lines.push('--- Error.stack ---');
+        _lines.push(_errStack);
+        const _diagText = _lines.join('\n');
+        if (typeof showCustomAlert === 'function') {
+          showCustomAlert('拉取模型失败 (含诊断)', _diagText).catch(() => alert('拉取模型失败: ' + _errMsg + '\n\n' + _diagText));
+        } else {
+          alert('拉取模型失败: ' + _errMsg + '\n\n' + _diagText);
+        }
+        // ===== 诊断结束 =====
       }
     }
 
