@@ -1446,7 +1446,7 @@
       </div>
     `;
           } else {
-            const placeholderPrimaryUrl = 'https://img.baidu.re/i/2026/05/pe63yj.webp';
+            const placeholderPrimaryUrl = 'assets/placeholder-256.png';
             const placeholderFallbackUrl = getClearedImagePlaceholderSvgDataUri();
             const placeholderDescription = encodeURIComponent(getImagePlaceholderDescription(msg));
 

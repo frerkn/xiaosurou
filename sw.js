@@ -3,7 +3,7 @@
 // CACHE_VERSION bump 强制清缓存
 // 关键约束: URLS_TO_CACHE 增删需同步 sw.js 注释 + ?v= 版本号
 
-const CACHE_VERSION = 'v0.2.31.56';
+const CACHE_VERSION = 'v0.2.31.57';
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [
@@ -46,7 +46,7 @@ const URLS_TO_CACHE = [
   'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
   'https://phoebeboo.github.io/mewoooo/pp.js',
   'https://cdn.jsdelivr.net/npm/streamsaver@2.0.6/StreamSaver.min.js',
-  'https://img.baidu.re/i/2026/07/w6p47e.png',
+  './assets/icon-192.png',
   // v0.2.15.1 新增: �?ByteString 涉及�?3 �?modules (之前漏了, 现在加进白名�? SW 主动缓存)
   './modules/proactive-wake.js',
   './modules/notification-battery.js',
@@ -143,7 +143,6 @@ self.addEventListener('fetch', event => {
     url.includes('cdn.jsdelivr.net/npm/streamsaver') ||
     url.includes('phoebeboo.github.io/mewoooo/pp.js') ||
     url.includes('i.postimg.cc/') ||
-    url.includes('img.baidu.re/') ||
     // v0.3.0 回退：Live2D 引擎 (PIXI v6 + pixi-live2d-display 0.4.0 + Cubism 4 core 本地, 330 v0.1.30 旧栈)
     url.includes('cdn.jsdelivr.net/npm/pixi.js@6.5.0') ||
     url.includes('cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0') ||
@@ -234,8 +233,8 @@ self.addEventListener('push', event => {
           : fixedMessage;
         await self.registration.showNotification(`💬 ${charName}`, {
           body: notifBody,
-          icon: data.icon || 'https://img.baidu.re/i/2026/07/w6p47e.png',
-          badge: data.badge || 'https://img.baidu.re/i/2026/07/w6p47e.png',
+          icon: data.icon || './assets/icon-192.png',
+          badge: data.badge || './assets/icon-192.png',
           tag: `task-${taskId}`,
           data: { chatId, taskId, type: 'proactive-wake', messageType, message: fixedMessage },
           requireInteraction: true,
@@ -270,8 +269,8 @@ self.addEventListener('push', event => {
     const placeholderBody = `${charName} 想跟你说点什�?..`;
     const placeholderOptions = {
       body: placeholderBody,
-      icon: data.icon || 'https://img.baidu.re/i/2026/07/w6p47e.png',
-      badge: data.badge || 'https://img.baidu.re/i/2026/07/w6p47e.png',
+      icon: data.icon || './assets/icon-192.png',
+      badge: data.badge || './assets/icon-192.png',
       tag: `task-${taskId}`,
       data: { chatId, taskId, type: 'proactive-wake', messageType, generating: true },
       requireInteraction: true,
@@ -305,8 +304,8 @@ self.addEventListener('push', event => {
   const title = data.title || 'EPhone';
   const options = {
     body: data.body || 'You have a new message',
-    icon: data.icon || 'https://img.baidu.re/i/2026/07/w6p47e.png',
-    badge: data.badge || 'https://img.baidu.re/i/2026/07/w6p47e.png',
+    icon: data.icon || './assets/icon-192.png',
+    badge: data.badge || './assets/icon-192.png',
     tag: data.tag || 'default',
     data: data.data || {},
     requireInteraction: true,
@@ -418,8 +417,8 @@ self.addEventListener('message', event => {
       // 弹新通知
       await self.registration.showNotification(title, {
         body,
-        icon: 'https://img.baidu.re/i/2026/07/w6p47e.png',
-        badge: 'https://img.baidu.re/i/2026/07/w6p47e.png',
+        icon: './assets/icon-192.png',
+        badge: './assets/icon-192.png',
         tag,
         data: notifData || {},
         requireInteraction: true,
