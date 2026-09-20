@@ -7085,20 +7085,14 @@ ${getActiveThoughtsPrompt()}
               if (originalMsg.status && originalMsg.status !== 'pending') continue;
 
               originalMsg.status = 'accepted';
-
-              // ★★★ 新增：构造 AI 的“已收款”消息 ★★★
-              aiMessage = {
-                role: 'assistant',
-                senderName: msgData.name || chat.name,
-                type: 'transfer',
-                isReceived: true,  // 标记为收款
-                amount: originalMsg.amount,
-                currency: originalMsg.currency || 'CNY',
-                note: '已收款',
-                timestamp: messageTimestamp++
-              };
-              // 去掉 continue，让它流转到下方的统一推送逻辑(if aiMessage...)
-              break;
+              // 不再额外构造 assistant "已收款" 消息:
+              // - 用户视角的"已收款"卡片已由 chat-input.js handleUserTransferResponse 写入 (role:'user')
+              // - 原转账卡片渲染 (chat-interface.js L1136-1137) 会根据 status='accepted' 自动显示"你已收款"
+              // - 若再 push 一条 role:'assistant' 的"已收款", 会被当作 AI 自己的输出渲染 (用户截图里 AI 那侧的多余卡片),
+              //   且会被喂回给 AI 作为历史, 导致 AI 下次回复误以为"我也收款了"并自指评论
+              if (isViewingThisChat) {
+                renderChatInterface(chatId);
+              }
             }
             continue;
           }
