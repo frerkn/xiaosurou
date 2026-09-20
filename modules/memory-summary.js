@@ -3343,7 +3343,11 @@ async function summarizeExistingLongTermMemory(chatId) {
 
   if (!confirmed) return;
 
-  const memoryContent = memoriesToRefine.map(mem => `- ${mem.content}`).join('\n');
+  const formatMemoryDate = (ts) => new Date(ts).toLocaleString('zh-CN', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false
+  });
+  const memoryContent = memoriesToRefine.map(mem => `- [${formatMemoryDate(mem.timestamp)}] ${mem.content}`).join('\n');
   const userNickname = targetChatForRefine.settings.myNickname || (state.qzoneSettings.nickname || '用户');
 
 
@@ -3352,15 +3356,12 @@ async function summarizeExistingLongTermMemory(chatId) {
     month: 'long',
     day: 'numeric'
   });
-  let timeHeader = '';
-  let timeRule = '';
-
-  if (targetChatForRefine.settings.enableTimePerception) {
-    timeHeader = `
+  // 精炼场景必须按日期分条 → 强制传今天日期 + 每条记忆的时间戳, 不受 enableTimePerception 开关影响
+  // (之前开关关闭时 AI 只能凭想象编日期, 导致总结的日期全是错的)
+  const timeHeader = `
 # 当前时间
 - **今天是：${today}**`;
-    timeRule = `3.  **【时间转换铁律 (必须遵守)】**: 如果记忆中提到了相对时间（如"明天"、"下周"），你【必须】结合"今天是${today}"这个信息，将其转换为【具体的公历日期】。`;
-  }
+  const timeRule = `3.  **【时间转换铁律 (必须遵守)】**: 如果记忆中提到了相对时间（如"明天"、"下周"），你【必须】结合"今天是${today}"这个信息，将其转换为【具体的公历日期】。`;
   const summaryWorldBook = state.worldBooks.find(wb => wb.name === '总结设定'); // 确保这个名字和你创建的世界书一致
   let summarySettingContext = '';
   if (summaryWorldBook) {
