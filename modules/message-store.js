@@ -365,6 +365,33 @@
     return messages.slice(-safeLimit);
   }
 
+  // 按时间范围查消息 (用于聊天记录搜索 "只看某一天")。
+  // 走 IndexedDB [chatId+timestamp] 复合索引, 不依赖 chat.history 渲染窗口,
+  // 搜索功能可以直接查整个历史。
+  async function getMessagesByDateRange(chatId, startMs, endMs, options = {}) {
+    const { limit = 500, excludeHidden = true } = options || {};
+    const db = getDb();
+
+    if (!db?.messages) {
+      // 老 schema 兜底: 走内存窗口
+      const window = getWindowMessages(chatId);
+      return window
+        .filter(m => m.timestamp >= startMs && m.timestamp <= endMs)
+        .filter(m => !excludeHidden || !m.isHidden)
+        .slice(0, limit);
+    }
+
+    const safeStart = Number.isFinite(startMs) ? startMs : Dexie.minKey;
+    const safeEnd = Number.isFinite(endMs) ? endMs : Dexie.maxKey;
+    const rows = await db.messages
+      .where('[chatId+timestamp]')
+      .between([chatId, safeStart], [chatId, safeEnd], true, true)
+      .toArray();
+
+    const filtered = excludeHidden ? rows.filter(m => !m.isHidden) : rows;
+    return filtered.slice(0, limit);
+  }
+
   async function getRecentMessages(chatId, limit, predicate = null) {
     const pageSize = getRenderWindow(limit);
     const rows = await getRecentContextMessages(chatId, {
@@ -742,9 +769,17 @@
         msg.meaning,
         msg.note,
         msg.productInfo,
+        msg.greeting,
+        msg.dialogue,
+        msg.description,
+        msg.prompt,
+        msg.title,
+        msg.subreddit,
+        msg.suffix,
         msg.senderName,
-        msg.receiverName
-      ].map(v => (typeof v === 'string' ? v : JSON.stringify(v || ''))).join(' ').toLowerCase();
+        msg.receiverName,
+        Array.isArray(msg.items) ? msg.items.map(it => it && it.name).filter(Boolean).join(' ') : ''
+      ].map(v => (typeof v === 'string' ? v : (v ? JSON.stringify(v) : ''))).join(' ').toLowerCase();
       return text.includes(term);
     };
 
@@ -828,6 +863,7 @@
     getMessageByTimestamp,
     getMessagesByTimestamps,
     getRecentContextMessages,
+    getMessagesByDateRange,
     getRecentMessages,
     getLastVisibleMessage,
     getPreviousVisibleMessage,

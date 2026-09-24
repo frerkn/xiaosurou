@@ -2305,39 +2305,72 @@
       return;
     }
 
-    let results = chat.history.filter(msg => !msg.isHidden);
+    const resultsListEl = document.getElementById('chat-search-results-list');
+    resultsListEl.innerHTML = '<p style="text-align:center; color: var(--text-secondary);">搜索中...</p>';
 
-
-    if (keyword) {
-      results = results.filter(msg => {
-        let contentString = '';
-
-        if (typeof msg.content === 'string') {
-          contentString = msg.content;
-        } else if (msg.type === 'voice_message') {
-          contentString = msg.content;
-        } else if (msg.type === 'ai_image' || msg.type === 'user_photo') {
-          contentString = msg.content;
-        } else if (msg.type === 'offline_text') {
-          contentString = `${msg.dialogue || ''} ${msg.description || ''}`;
-        } else if (msg.quote) {
-          contentString = msg.content;
+    let results = [];
+    try {
+      if (window.messageStore) {
+        // 走 IndexedDB 全表搜索 (chat.history 只是渲染窗口, 旧消息会漏)
+        if (keyword && dateValue) {
+          results = await window.messageStore.searchMessages(chat.id, keyword, { limit: 500 });
+          const range = computeDayRange(dateValue);
+          results = results.filter(m => m.timestamp >= range.start && m.timestamp <= range.end);
+        } else if (keyword) {
+          results = await window.messageStore.searchMessages(chat.id, keyword, { limit: 500 });
+        } else {
+          // 仅日期: 直接走日期索引 (Dexie [chatId+timestamp] 复合索引), 免去 keyword 模糊匹配
+          const range = computeDayRange(dateValue);
+          results = await window.messageStore.getMessagesByDateRange(chat.id, range.start, range.end, { limit: 500 });
         }
-        return contentString.toLowerCase().includes(keyword);
-      });
+      } else {
+        // 兜底: 没 messageStore 时退回 chat.history 渲染窗口 (老逻辑)
+        results = (chat.history || []).filter(msg => !msg.isHidden);
+        if (keyword) {
+          results = results.filter(msg => extractSearchableText(msg).includes(keyword));
+        }
+        if (dateValue) {
+          const range = computeDayRange(dateValue);
+          results = results.filter(m => m.timestamp >= range.start && m.timestamp <= range.end);
+        }
+      }
+    } catch (err) {
+      console.error('[搜索失败]', err);
+      resultsListEl.innerHTML = '<p style="text-align:center; color: var(--text-secondary);">搜索出错，请查看控制台。</p>';
+      return;
     }
 
+    await renderSearchResults(results, chat);
+  }
 
-    if (dateValue) {
-      const selectedDate = new Date(dateValue);
-      const startOfDay = new Date(selectedDate.setHours(0, 0, 0, 0)).getTime();
-      const endOfDay = new Date(selectedDate.setHours(23, 59, 59, 999)).getTime();
-
-      results = results.filter(msg => msg.timestamp >= startOfDay && msg.timestamp <= endOfDay);
+  // 提取一条消息里所有"可能含用户想搜的文本"的字段, 用于 fallback 路径
+  function extractSearchableText(msg) {
+    if (!msg) return '';
+    const parts = [];
+    if (typeof msg.content === 'string') parts.push(msg.content);
+    if (msg.note) parts.push(String(msg.note));
+    if (msg.meaning) parts.push(String(msg.meaning));
+    if (msg.productInfo) parts.push(String(msg.productInfo));
+    if (msg.greeting) parts.push(String(msg.greeting));
+    if (msg.dialogue) parts.push(String(msg.dialogue));
+    if (msg.description) parts.push(String(msg.description));
+    if (msg.prompt) parts.push(String(msg.prompt));
+    if (msg.senderName) parts.push(String(msg.senderName));
+    if (msg.receiverName) parts.push(String(msg.receiverName));
+    if (Array.isArray(msg.items)) {
+      msg.items.forEach(it => it && it.name && parts.push(String(it.name)));
     }
+    return parts.join(' ').toLowerCase();
+  }
 
-
-    await renderSearchResults(results);
+  // 把 YYYY-MM-DD 转成当天 [startOfDay, endOfDay] 的两个 timestamp;
+  // 不用 new Date(dateValue).setHours(...) 是为了避开 setHours 原地修改 Date 对象的坑
+  function computeDayRange(dateValue) {
+    const base = new Date(dateValue);
+    if (isNaN(base.getTime())) return { start: 0, end: Date.now() };
+    const startOfDay = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 0, 0, 0, 0).getTime();
+    const endOfDay = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 23, 59, 59, 999).getTime();
+    return { start: startOfDay, end: endOfDay };
   }
 
 
@@ -2426,7 +2459,9 @@
     document.getElementById('keyword-search-input').value = '';
     document.getElementById('date-search-input').value = '';
 
-    await renderSearchResults(state.chats[state.activeChatId].history.filter(msg => !msg.isHidden));
+    // 只清筛选 + 回占位文案, 不再把 chat.history 窗口里所有消息铺出来
+    document.getElementById('chat-search-results-list').innerHTML =
+      '<p style="text-align:center; color: var(--text-secondary);">输入关键词或选择日期进行搜索。</p>';
   }
 
 

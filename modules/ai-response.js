@@ -4662,10 +4662,18 @@ ${getActiveThoughtsPrompt()}
                   content: `${prefix}[分享了一个Reddit帖子]\n标题: ${rData.title}\n来自: ${rData.subreddit}\n内容摘要: ${rData.selftext || '[链接/图片]'}`
                 };
               }
-              if (msg.type === 'transfer') return {
-                role: 'user',
-                content: `${prefix}[系统提示：你于时间戳 ${msg.timestamp} 向对方发起了转账: ${msg.amount}元, 备注: ${msg.note}。等待对方处理。]`
-              };
+              if (msg.type === 'transfer') {
+                // 用户接收/拒收转账的状态标记 — 已由 chat-input.js handleUserTransferResponse
+                // 写入的 hidden system message ("你接受了 X 的转账" / "你拒绝并退还了 X 的转账")
+                // 单独传达给 AI; 这里不能再产出 "你向对方发起转账" 的反向提示, 否则 AI 上下文里
+                // 会同时存在两条冲突的系统文本 (例: [你于时间戳 xxx 向对方发起了转账: x元, 备注: 已收款])
+                // 让 AI 误判用户收款后"又主动发了一笔转账"。
+                if (msg.isReceived || msg.isRefund) return null;
+                return {
+                  role: 'user',
+                  content: `${prefix}[系统提示：你于时间戳 ${msg.timestamp} 向对方发起了转账: ${msg.amount}元, 备注: ${msg.note}。等待对方处理。]`
+                };
+              }
               if (msg.type === 'couple_invite') {
                 const ciStatus = msg.status === 'accepted' ? '对方已接受' : msg.status === 'rejected' ? '对方已拒绝' : '等待对方确认';
                 return {
