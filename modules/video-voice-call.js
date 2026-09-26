@@ -541,7 +541,14 @@
     noSpeechTimeoutMs: 8000,
     minRecordingMs: 800,
     silenceAfterSpeechMs: 1800,
-    maxRecordingMs: 30000,
+    // 2026-09-27: 取消用户说话 30 秒硬上限 (跟 tts-audio.js 一致改法)
+    //   - 旧值 30000 把用户讲小故事 / 长一点的回复录音到一半强行截断,
+    //     送进 ASR 的就是残缺音频, AI 也只能听到 30 秒
+    //   - 正常说话 5-10 分钟完全在 ASR provider 能力内, 没必要前端限死
+    //   - 改成 600000 (10 分钟) 兜底: 万一 mediaRecorder / 流卡死, 不会无限录
+    //   - silenceAfterSpeechMs: 1800 (静音 1.8 秒自动停) 和
+    //     noSpeechTimeoutMs: 8000 (8 秒没声就停) 都保留, 不影响正常对话
+    maxRecordingMs: 600000,
     volumeThreshold: 0.035
   };
 
@@ -567,7 +574,9 @@
     noSpeechTimeoutMs: 8000,
     minRecordingMs: 800,
     silenceAfterSpeechMs: 1800,
-    maxRecordingMs: 30000,
+    // 2026-09-27: 跟视频通话一致, 取消用户说话 30 秒硬上限
+    // (详见上方 VIDEO_CALL_AUTO_LISTEN_CONFIG 同名字段注释)
+    maxRecordingMs: 600000,
     volumeThreshold: 0.035
   };
 

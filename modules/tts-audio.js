@@ -41,8 +41,14 @@
   }
   // --- TTS 播放队列（修复：前一条没读完就跳到最后一条的问题） ---
   const ttsQueue = [];
-  const CALL_TTS_SYNTHESIS_TIMEOUT_MS = 30000;
-  const CALL_TTS_PLAYBACK_TIMEOUT_MS = 30000;
+  // 2026-09-26: 取消 TTS 硬超时限制
+  //   - 旧值 30000 (30 秒) 把 200-500 字的小故事朗读到一半就截断,
+  //     实际场景朗读就要 30-75 秒, 边界上全被掐
+  //   - MiniMax T2A v2 单次请求上限 10000 字符, API 完全够用
+  //   - 改成 600000 (10 分钟) 兜底: 正常情况根本不会触发,
+  //     万一 fetch 真挂死 / 网络断, 兜底触发跳到下一句, 不会无限卡死
+  const CALL_TTS_SYNTHESIS_TIMEOUT_MS = 600000;
+  const CALL_TTS_PLAYBACK_TIMEOUT_MS = 600000;
   let isTtsPlaying = false;
 
   function stopTtsQueue() {
