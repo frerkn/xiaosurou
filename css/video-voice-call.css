@@ -344,14 +344,18 @@
                margin-bottom: 18px;
            }
 
-           /* 等待页头像放大 + 去原白边 + 加阴影 (不影响 .caller-avatar 全局, 因为只作用域本屏) */
+           /* 等待页头像放大 + 去原白边 + 加阴影 (不影响 .caller-avatar 全局, 因为只作用域本屏)
+              v0.5.0 P26: 花环图 (video-call-avatar-frame-green.png) 上半部装饰重 (月亮/星星/月桂叶),
+              下半部是飘逸丝带伸出环外, 花环圈圈的视觉中心在图片几何中心上方约 22px;
+              头像尺寸 v0.5.0 P26.1: 六轮试值, 134 还略小, 加到 138;
+              位置偏移从 -22 减到 -18 (user 反馈往下挪一点更舒服)。 */
            #outgoing-call-screen .caller-avatar {
                position: absolute;
                top: 50%;
                left: 50%;
-               transform: translate(-50%, -50%);
-               width: 120px;
-               height: 120px;
+               transform: translate(-50%, calc(-50% - 18px));
+               width: 138px;
+               height: 138px;
                border-radius: 50%;
                border: 0;
                object-fit: cover;
@@ -1625,14 +1629,18 @@
   to { transform: rotate(360deg); }
 }
 
-/* v0.1.30 Live2D 视频通话 - canvas 浮层 + fallback 静态图 */
+/* v0.1.30 Live2D 视频通话 - canvas 浮层 + fallback 静态图
+   v0.5.x P26.2: live2d-loader.js:46 把 canvas inline z-index 设成 99999,
+   inline style 优先级最高, CSS z-index:10 被覆盖, 模型始终在最前 (挡花环+玻璃)。
+   !important 强制压回 5 → 低于 #video-call-controls-frame (z:50), 让花环+玻璃浮在模型前面;
+   .video-call-controls (inline z:100000) 仍远高于 frame, 按钮保持最前。 */
 #live2d-canvas {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    z-index: 10;  /* 背景之上, 字幕 (#video-call-main z-index:50) 之下 */
+    z-index: 5 !important;  /* 背景之上, 字幕 (#video-call-main z-index:50) 之下 */
     pointer-events: none;  /* 不抢视频通话控制按钮的点击 */
     background: transparent;
 }
@@ -2893,7 +2901,9 @@
     background: none;
     border-radius: 0;
     pointer-events: none;
-    z-index: 0;
+    /* v0.5.x P26.2: z-index 从 0 抬到 50 → 高过 #live2d-canvas (z:10) 让花环+玻璃
+       浮在模型前面; 仍低于 .video-call-controls (inline z:100000) 让按钮在最前 */
+    z-index: 50;
 }
 
 /* v0.5.x: 半透明玻璃底板 (::before) + 花边素材 (::after, 压在玻璃上面)
@@ -2931,7 +2941,10 @@
 #video-call-screen #video-call-controls-frame::before {
     content: '';
     position: absolute;
-    inset: 17.734% 4.659% 19.026% 5.102%;
+    /* v0.5.x P26.2: 上下从 17.734%/19.026% 缩到 10%/12% → 玻璃上下不再留大空隙,
+       更"撑满"花边中央开口 (用户反馈"玻璃+花环上下留空隙")。
+       左右保持 5.102%/4.659% 不变, 因为左右是装饰条不是开口。 */
+    inset: 10% 4.659% 12% 5.102%;
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.06) 100%);
     -webkit-backdrop-filter: blur(14px) saturate(140%);
     backdrop-filter: blur(14px) saturate(140%);

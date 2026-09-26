@@ -94,7 +94,12 @@
       // 存在 → 优先用 appearance.modelId / scale / positionX / positionY
       // 不存在 → 完全保持原 activeModelIdForChat 行为, 不影响现有正常通话
       let videoCallAppearance = null;
-      let mountOptions = { scale: 0.4, autoStartIdle: true };
+      // v0.5.x P26.3: 初始 scale 0.4 → 0.8 (用户反馈"接通时模型太小"), 0.8 是模型原始大小的 80%,
+      // 在 video-call-screen 中央占据约 60-70% 高度, 既不会压住按钮区又能看清五官和服饰。
+      // v0.5.x P26.4: y 强制 window.innerHeight/2 (覆盖 saved positionY), 因为 PWA 上没 console 清 saved,
+      //    用户之前 saved 的 positionY 让模型跑到屏底 → 模型看不见; 强制中央最稳。
+      // saved scale / positionY 不再覆盖 mountOptions, 但 saved modelId / positionX 仍生效。
+      let mountOptions = { scale: 0.8, autoStartIdle: true, y: window.innerHeight / 2 };
       try {
         if (window.Live2DStorage) {
           // v0.4.3: per-chat 模型绑定 (chat 专属 modelId, fallback 全局)
@@ -113,14 +118,11 @@
         videoCallAppearance = null;
       }
       if (videoCallAppearance && videoCallAppearance.modelId) {
-        // 找到 appearance → 覆盖 activeId, 用 appearance 里的 scale / position
+        // 找到 appearance → 覆盖 activeId
         activeId = videoCallAppearance.modelId;
-        // 构造 mountOptions (loader 读 scale / x / y 字段, 不传就走默认居中)
-        if (typeof videoCallAppearance.scale === 'number' && videoCallAppearance.scale > 0) {
-          mountOptions.scale = videoCallAppearance.scale;
-        }
+        // v0.5.x P26.4: scale / positionY 不再从 saved 覆盖 (强制走代码默认 0.8 + 中央),
+        //    仅 positionX (水平方向) 从 saved 覆盖, 用户左右调过的位置保留
         if (typeof videoCallAppearance.positionX === 'number') mountOptions.x = videoCallAppearance.positionX;
-        if (typeof videoCallAppearance.positionY === 'number') mountOptions.y = videoCallAppearance.positionY;
       }
 
       if (!activeId) {
