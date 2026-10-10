@@ -9,10 +9,15 @@
 // 三条硬约束 (决定了这里的每一个设计):
 //   1. 【绝不影响现有播放】任何一步失败都往上抛, 由 tts-audio.js 回退到
 //      <audio> 原路径。引擎自己绝不能"静默失败"造成无声。
-//   2. 【不碰通话链路】优先借用 window.voiceCallSharedAudioContext(已由彩铃点击
-//      授权、且全项目从不 close), 借不到才自建。本模块只创建自己的节点并在结束时
-//      disconnect 自己的节点, 从不修改/关闭任何别人的 ctx, 因此 call-lip-sync.js
-//      的 getTapNode 与通话 TTS 队列完全不受影响。
+//   2. 【绝不借用通话的 ctx】早期版本优先借 window.voiceCallSharedAudioContext
+//      (它由彩铃点击授权、全项目从不 close)。2026-10-10 实测发现这是错的:
+//      iPhone 上只要发生过一次输出路由变化(摘耳机 / 关蓝牙), 长期存活的
+//      AudioContext 不会改道, Web Audio 会把声音送进一个已经不存在的设备 ->
+//      【完全无声】, 而同一时刻 <audio> 照常出声(走的是另一条音频会话)。
+//      实测确认: 关掉空间音频立刻恢复外放, 重新连上蓝牙耳机又好了。
+//      现在改为: 聊天语音一律用自己的、播完即关的短命 ctx。既不碰也不关
+//      别人的 ctx, call-lip-sync.js 的 getTapNode 与通话 TTS 队列完全不受影响,
+//      又天然跟着当前输出设备走。
 //   3. 【iOS user gesture】AudioContext 的创建与 resume 必须在点击手势内同步发生,
 //      否则 Safari 会挂起 -> 无声。所以 prepare() 是同步的, 必须在点击处理函数
 //      最开头调用, 之后才 await 网络和解码。
@@ -48,10 +53,13 @@
   };
 
   // ---- 状态 ----
-  var ownCtx = null;              // 自建的 ctx (借用不到时才建)
-  var borrowedCtx = null;         // 上次借用的共享 ctx
+  // ownCtx 是【本条语音专用】的短命 ctx: prepare() 在手势里建, 播完(卷积尾巴
+  // 走完)就 close 掉。绝不长期复用 —— 长期复用正是 iOS 输出路由失效的根源,
+  // 详见文件头约束 2。
+  var ownCtx = null;
   var active = null;              // 当前播放句柄的内部状态
   var lastError = '';
+  var routeWatchBound = false;    // 路由变化监听是否已挂(只挂一次)
 
   // ------------------------------------------------------------
   // 基础能力检测
@@ -68,22 +76,57 @@
     return true;
   }
 
-  function isCallBusy() {
+  /**
+   * 关掉自己的 ctx。这是本模块【唯一】允许调用 close 的地方 ——
+   * 通话那条链的 window.voiceCallSharedAudioContext 归它们自己管, 本模块
+   * 既不借也不关(见文件头约束 2)。
+   */
+  function closeOwnCtx() {
+    var c = ownCtx;
+    if (!c) return;
+    ownCtx = null;
+    // 插值出来的双耳 buffer 缓存跟着旧 ctx 一起作废(只清这层, 不动解析好的二进制)
     try {
-      return typeof window.isCallTtsPlaying === 'function' && window.isCallTtsPlaying();
-    } catch (e) {
-      return false;
-    }
+      if (window.TtsBinauralHrir && typeof window.TtsBinauralHrir.clearIrCache === 'function') {
+        window.TtsBinauralHrir.clearIrCache();
+      }
+    } catch (e) { /* ignore */ }
+    try {
+      if (c.state !== 'closed' && typeof c.close === 'function') c.close();
+    } catch (e) { /* 关不掉就算了, 只是多占一个 ctx */ }
   }
 
-  function sharedCtxHealthy() {
-    var ctx = window.voiceCallSharedAudioContext;
-    if (!ctx) return false;
-    if (ctx.state === 'closed') return false;
-    if (typeof ctx.createConvolver !== 'function') return false;
-    // 通话正在播 TTS 时不借 —— 避免两条链路在同一张音频图上互相干扰
-    if (isCallBusy()) return false;
-    return true;
+  /**
+   * 输出设备变了就把自己的 ctx 丢掉, 下次 prepare() 会建一个新的 ——
+   * 新建时拿到的是当前真实路由, 而不是那个已经断开的老设备。
+   *
+   * devicechange 只在部分浏览器上会触发(iOS 基本不触发), visibilitychange
+   * 在手机上更常与"拔耳机/切输出"同时发生, 两条都挂上, 挂不上也不影响 ——
+   * 主保险是"每条语音一个短命 ctx"。
+   */
+  function onRouteMayHaveChanged() {
+    if (!ownCtx) return;
+    // 还有在播的不动它, 打断当前这条语音比修路由更糟
+    if (active && active.playing) return;
+    closeOwnCtx();
+  }
+
+  function bindRouteWatchers() {
+    if (routeWatchBound) return;
+    routeWatchBound = true;
+    try {
+      if (window.navigator && window.navigator.mediaDevices
+        && typeof window.navigator.mediaDevices.addEventListener === 'function') {
+        window.navigator.mediaDevices.addEventListener('devicechange', onRouteMayHaveChanged);
+      }
+    } catch (e) { /* ignore */ }
+    try {
+      if (typeof document !== 'undefined' && document.addEventListener) {
+        document.addEventListener('visibilitychange', function () {
+          if (!document.hidden) onRouteMayHaveChanged();
+        });
+      }
+    } catch (e) { /* ignore */ }
   }
 
   function ownCtxHealthy() {
@@ -95,20 +138,14 @@
    * @returns {AudioContext|null}
    */
   function ensureContext() {
-    // 1) 优先借用通话链路的共享 ctx —— 它已 resume, 不必再赌一次 iOS 授权
-    if (sharedCtxHealthy()) {
-      borrowedCtx = window.voiceCallSharedAudioContext;
-      if (borrowedCtx.state === 'suspended' && typeof borrowedCtx.resume === 'function') {
-        borrowedCtx.resume().catch(function () { /* 非手势环境静默失败, 下面会查 state */ });
-      }
-      if (borrowedCtx.state === 'running') return borrowedCtx;
-    }
-
-    // 2) 自建 (整个生命周期只建一次)
     var Ctx = getAudioContextClass();
     if (!Ctx) return null;
 
+    bindRouteWatchers();
+
+    // 只用自己那条短命 ctx, 借来的永远不进这条链
     if (!ownCtxHealthy()) {
+      closeOwnCtx();
       try {
         ownCtx = new Ctx({ sampleRate: PREFERRED_SAMPLE_RATE, latencyHint: 'playback' });
       } catch (e) {
@@ -446,6 +483,11 @@
           for (var c = 0; c < st.chain.length; c++) {
             try { st.chain[c].disconnect(); } catch (e) { /* ignore */ }
           }
+          // 尾巴走完就把这条语音专用的 ctx 关掉。下次播放会在用户手势里重新建,
+          // 拿到的是【当前】输出设备 —— 这正是治 iOS "摘耳机后外放彻底无声"的那一剂。
+          // stop() 里故意不关: play() 一进来就调 stop(), 那时 prepare() 刚在手势里
+          // 建好 ctx, 关掉就得在 gesture 之外重建, iOS 会重新挂起。
+          if (ownCtx === st.ctx) closeOwnCtx();
         }, st.tailMs);
         if (st.onended) {
           try { st.onended(); } catch (e) { /* ignore */ }
@@ -530,7 +572,9 @@
         playing: active.playing,
         offset: active.offset,
         rate: active.ctx.sampleRate,
-        borrowed: active.ctx === borrowedCtx
+        // 2026-10-10: 聊天语音不再借用通话共享 ctx, 这里恒为 false。保留字段
+        // 只是不想让可能在读它的排查代码炸掉。
+        borrowed: false
       } : null;
     }
   };

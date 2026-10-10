@@ -811,8 +811,8 @@
           blob: blob,
           azimuthDeg: settings.azimuthDeg,
           distanceM: settings.distanceM,
-          // 2026-10-10: 动态轨迹。'static' 时引擎走原来的单卷积路径,
-          //   行为与改造前逐字一致; 其余值才启用 A/B 双卷积交叉淡化。
+          // 2026-10-10: 动态轨迹。'static' 时引擎走单卷积静态路径;
+          //   其余值启用"停顿切位"—— 出声期方位锁死, 只在停顿静音区换 buffer。
           trajectory: settings.trajectory || 'static',
           onended: function () {
             if (button) button.textContent = '▶';

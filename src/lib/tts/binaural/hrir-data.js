@@ -322,6 +322,17 @@
     cacheKey: cacheKey,
     load: load,
     preload: preload,
+    /**
+     * 只清【插值出来的 AudioBuffer 缓存】, 解析好的二进制与加载 Promise 都留着。
+     *
+     * 2026-10-10: 播放引擎从"一个长期 AudioContext"改成"每条语音一个短命 ctx",
+     * 缓存里那些由 createBuffer 生成的 AudioBuffer 会跨 ctx 存活。规范上
+     * AudioBuffer 不绑定具体 ctx, 但既然不变式变了, 换 ctx 时顺手清一次最省心 ——
+     * 代价只是几十次 128 抽头插值, 一次几毫秒。
+     */
+    clearIrCache: function () {
+      irCache = Object.create(null);
+    },
     // 供测试用
     _resetCache: function () {
       irCache = Object.create(null);

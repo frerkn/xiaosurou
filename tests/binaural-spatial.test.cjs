@@ -605,23 +605,77 @@ async function testEngine() {
   on.setBin(readBin());
   check('E2 开关打开 → isEnabled true', on.sandbox.TtsSpatialAudio.isEnabled(), true);
 
-  // E3 借用共享 ctx
+  // E3 绝不借用通话共享 ctx。
+// 2026-10-10 实测: iPhone 上摘耳机/关蓝牙之后, 长期存活的 AudioContext 不改道,
+  // Web Audio 往一个已断开的设备输出 -> 完全无声, 而 <audio> 照常出声。
+  // 那个共享 ctx 全项目从不 close, 借它就把这个坑原封不动带进来。
   const shared = new FakeAudioContext({ sampleRate: 48000 });
   const app = loadApp({ binauralEnabled: true, sharedCtx: shared });
   app.setBin(readBin());
   const got = app.sandbox.TtsSpatialAudio.getContext();
-  check('E3 有共享 ctx 时复用它(不新建)', got, shared);
-  check('E3b 未多建 AudioContext', app.createdCtx.length, 0);
+  checkTrue('E3 有共享 ctx 时仍然自建(绝不借用)', got && got !== shared);
+  check('E3b 自建了一个 AudioContext', app.createdCtx.length, 1);
+  check('E3c 共享 ctx 没被 close 碰过', shared.state, 'running');
+  check('E3d 共享 ctx 上没建任何节点', shared.convolvers.length, 0);
+  check('E3e 自建的 ctx 上才有节点', got.convolvers.length, 0); // 还没播, 应为 0
+
+  // E3f 播完之后必须把自建的 ctx 关掉 —— 这才是"下一条语音拿到新路由"的保证
+  {
+    const done = loadApp({ binauralEnabled: true, sharedCtx: new FakeAudioContext({ sampleRate: 48000 }) });
+    done.setBin(readBin());
+    const dctx = done.sandbox.TtsSpatialAudio.getContext();
+    await done.sandbox.TtsSpatialAudio.play({
+      blob: new Blob([new Uint8Array(32)]), azimuthDeg: 90, distanceM: 0.25
+    });
+    check('E3f 播之前 ctx 活着', dctx.state, 'running');
+    dctx.sources[0].onended();                       // 自然结束
+    await tick(200);                                 // 等 tailMs 走完
+    check('E3g 播完 + 卷积尾巴走完后 ctx 已关闭', dctx.state, 'closed');
+    // 再播一条应该建一个全新的 ctx (而不是复活那个关掉的)
+    const before = done.createdCtx.length;
+    const fresh = done.sandbox.TtsSpatialAudio.getContext();
+    checkTrue('E3h 下一条语音拿到的是新 ctx', fresh && fresh !== dctx);
+    check('E3i 确实新建了一个', done.createdCtx.length, before + 1);
+  }
+
+  // E3j 中途 stop 不关 ctx —— play() 一进来就调 stop(), 那时 prepare() 刚在手势里
+  // 建好 ctx, 关掉就得在 gesture 之外重建, iOS 会重新挂起。
+  {
+    const midway = loadApp({ binauralEnabled: true });
+    midway.setBin(readBin());
+    const mctx = midway.sandbox.TtsSpatialAudio.getContext();
+    await midway.sandbox.TtsSpatialAudio.play({
+      blob: new Blob([new Uint8Array(32)]), azimuthDeg: 90, distanceM: 0.25
+    });
+    midway.sandbox.TtsSpatialAudio.stop();
+    check('E3j stop 之后 ctx 仍然可用(不关)', mctx.state, 'running');
+  }
+
+  // E3k closeOwnCtx 会顺手清掉插值出来的 buffer 缓存(不跨 ctx 复用旧 buffer)
+  {
+    const H = app.sandbox.TtsBinauralHrir;
+    const set = H.parseBinary(new Uint8Array(readBin()).buffer);
+    const mc = new FakeAudioContext({ sampleRate: 48000 });
+    const a = H.getStereoIr(set, mc, 90, 0.25);
+    const b = H.getStereoIr(set, mc, 90, 0.25);
+    check('E3k 同一位置第二次命中缓存(同一对象)', a === b, true);
+    H.clearIrCache();
+    const c = H.getStereoIr(set, mc, 90, 0.25);
+    check('E3l clearIrCache 后重新插值(拿到新对象)', a === c, false);
+    check('E3m 重插出来的 buffer 形状不变', c.numberOfChannels, a.numberOfChannels);
+    check('E3n clearIrCache 不影响解析好的二进制',
+      H.parseBinary(new Uint8Array(readBin()).buffer).taps, set.taps);
+  }
 
   // E4 无共享时自建, 且带 48k 首选采样率
   const solo = loadApp({ binauralEnabled: true });
   solo.setBin(readBin());
   const ctx = solo.sandbox.TtsSpatialAudio.getContext();
-  checkTrue('E4 无共享时自建 ctx', !!ctx);
+  checkTrue('E4 自建 ctx', !!ctx);
   check('E4b 自建 ctx 首选 48k', ctx.sampleRate, 48000);
   check('E4c 只建了一个', solo.createdCtx.length, 1);
   const ctx2 = solo.sandbox.TtsSpatialAudio.getContext();
-  check('E4d 二次调用复用同一 ctx', ctx2, ctx);
+  check('E4d 同一条语音内二次调用复用同一 ctx', ctx2, ctx);
   check('E4e 仍未多建', solo.createdCtx.length, 1);
 
   // E5 播放: 音频图形状
