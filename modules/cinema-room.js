@@ -2813,7 +2813,13 @@
           settings: {
             aiPersona: (c.settings && c.settings.aiPersona) || '',
             myPersona: (c.settings && c.settings.myPersona) || '',
-            myNickname: (c.settings && c.settings.myNickname) || '我'
+            myNickname: (c.settings && c.settings.myNickname) || '我',
+            // 🔴 2026-10-10 补: aiAvatar 之前漏在这里。
+            //   影院跑在 iframe 沙盒里, 沙盒有自己的 window.state, 靠这个 payload 拿到角色。
+            //   payload 里没有 aiAvatar → 沙盒的 state.chats[id].settings 里就没这个字段 →
+            //   cinema-live.js 的 getAvatarUrl() 返回空 → AI 气泡前【永远不渲染头像】。
+            //   (用户实测: 影院里所有 AI 气泡都没头像, 主聊天却正常)
+            aiAvatar: (c.settings && c.settings.aiAvatar) || ''
           },
           watchTogetherSettings: {
             geminiApiKey: (c.watchTogetherSettings && c.watchTogetherSettings.geminiApiKey) || ''

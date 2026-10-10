@@ -2032,11 +2032,36 @@
     //   改成: 没连上时【等它连上】再生成, 而不是直接判死。
     //   上限 WAIT_READY_MS, 超时才认失败 —— 能等, 但不会无限等。
     if (!S.client || !S.client.isReady()) {
+      // 🔴 2026-10-10 用户实测: 带着草稿进影院直接点总结 → 连不上 API,
+      //   因为 autoConnect 里有 `if (!video.src) return false` —— 只有在【播视频】时才连。
+      //   但"精炼草稿"根本不需要画面: 剧情梗概、单集记忆、吐槽全都在草稿里,
+      //   只要 Gemini 连上写一段文字就够了。所以这里【主动把 Live 连上】再生成,
+      //   不该逼用户先播一集视频才能总结。
       if (!S.enabled) {
-        // Live 压根没开(用户没播视频/没连)。这种情况没法靠等解决,
-        // 但【不能让它变成死路】: 落草稿, 明确告诉用户先播一下/等连上再回来点。
-        saveDraft();
-        return Promise.resolve({ saved: false, error: 'Gemini 没连上，先放一下视频等它连上，再回来点「生成观影记忆」（记忆已存草稿，不会丢）' });
+        // Live 压根没启动过 → 主动 enable()。需要 key; 没 key enable() 会自己提示并返回 false。
+        if (!getGeminiKey()) {
+          saveDraft();
+          return Promise.resolve({ saved: false, error: '还没填 Gemini API Key，先到房间右上角 ⚙ 填一下（记忆已存草稿，不会丢）' });
+        }
+        appendSystemLine('⏳ 正在连接 Gemini 来整理你的观影记忆……');
+        renderPlotPanel();
+        // enable() 内部会校验 key / LiveClient 是否就绪, 失败返回 false
+        return enable().then(function (started) {
+          if (!started) {
+            saveDraft();
+            return { saved: false, error: 'Gemini 连不上，记忆已存草稿，连上后再点一次即可' };
+          }
+          // 已发起连接 → 等它 ready 后递归继续(带 _waiting 标记)
+          return waitUntilReady(WAIT_READY_MS).then(function (ok) {
+            if (!ok) {
+              saveDraft();
+              appendSystemLine('⚠️ Gemini 一直没连上，这次没存上（记忆已存草稿，连上后再点一次即可）');
+              renderPlotPanel();
+              return { saved: false, error: 'Gemini 一直没连上，记忆已存草稿，连上后再点一次' };
+            }
+            return generateFinalMemory(Object.assign({}, o, { _waiting: true }));
+          });
+        });
       }
       appendSystemLine('⏳ Gemini 正在重连，等它连上就自动帮你生成……');
       renderPlotPanel();
