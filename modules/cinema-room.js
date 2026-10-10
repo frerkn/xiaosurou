@@ -1524,8 +1524,15 @@
     if (global.CinemaLive) {
       global.CinemaLive.setSeries(seriesPicked.key, seriesPicked.title);
       var st = global.CinemaLive.getSeriesState();
+      // 🔴 2026-10-10 用户实测: 看1、2集退出, 再进来播第3集, 总结却写成"第一集"。
+      //   真凶: 原来传的是 st.lastEp —— 那是 getSeriesState() 从内存 watchSession 读的,
+      //   而草稿恢复可能还没跑完, 这会儿它可能还是 0 → Live 以为你从没看过 → 
+      //   第3集被记成第1集, addEpisodeMemory(1,...) 还会【覆盖掉草稿里的第1集】。
+      //
+      //   改: 传【这次实际播的集号】(ep), 它是用户点的那个按钮, 永远不会错。
+      //   Live 内部 onVideoEnded 用 seriesLastEp+1 推进, 这里把基准对齐到 ep-1。
       global.CinemaLive.setSeriesProgress(seriesPicked.key, seriesPicked.title,
-        Math.max(0, st.lastEp || 0), st.outline || '');
+        ep - 1, st.outline || '', ep);
     }
 
     // ⚠️ 换集【不清场、不重连】—— 只把这次的播放时长结掉, 让下一集重新起 5 分钟。

@@ -124,7 +124,12 @@
     seriesTitle: '',           // 短剧: 剧名(显示用)
     seriesLastEp: 0,           // 短剧: 已看到第几集
     seriesOutline: '',         // 短剧: 总纲(每 20 集合并一次, 跨场保留)
-    episodeMemories: []        // 短剧: 本次攒的单集记忆 [{ep, text}]
+    episodeMemories: [],       // 短剧: 本次攒的单集记忆 [{ep, text}]
+    // 🔴 2026-10-10 用户实测: 退出再进来播第3集, 总结写成"第一集"。
+    //   nowPlayingEp = 宿主传来的【这次实际播的集号】(用户点的按钮),
+    //   onVideoEnded 播完时直接用它, 不再用 seriesLastEp+1 去猜 ——
+    //   猜在"草稿恢复还没跑完"时序下会把第3集当第1集, 还会覆盖掉第1集的记忆。
+    nowPlayingEp: 0
   };
 
   /** 当前这次 play 段已跑了多久 (ms); 没在播放时返回 0 */
@@ -203,6 +208,7 @@
     watchSession.seriesLastEp = 0;
     watchSession.seriesOutline = '';
     watchSession.episodeMemories = [];
+    watchSession.nowPlayingEp = 0;
     log('新的 Cinema watch session:', watchSession.watchSessionId);
     return watchSession.watchSessionId;
   }
@@ -1214,7 +1220,17 @@
     for (var i = 0; i < watchSession.episodeMemories.length; i++) {
       if (watchSession.episodeMemories[i].ep === ep) { exist = watchSession.episodeMemories[i]; break; }
     }
-    if (exist) { exist.text = t; }
+    if (exist) {
+      // 重播同一集会覆盖 —— 这是对的。但如果覆盖时长度差很多,
+      // 多半是集号算错了(比如把新一集当成了旧集) → 记一条日志方便事后核对,
+      // 别让它静悄悄把上一集的记忆换掉。
+      var oldLen = (exist.text || '').length;
+      if (oldLen && Math.abs(oldLen - t.length) > oldLen * 0.5) {
+        logWarn('⚠️ 第 ' + ep + ' 集记忆被覆盖且长度变化很大 (' + oldLen + ' → ' + t.length +
+          ' 字), 确认一下集号对不对');
+      }
+      exist.text = t;
+    }
     else { watchSession.episodeMemories.push({ ep: ep, text: t }); }
     watchSession.episodeMemories.sort(function (a, b) { return a.ep - b.ep; });
     if (ep > watchSession.seriesLastEp) watchSession.seriesLastEp = ep;
@@ -1230,8 +1246,11 @@
     if (watchSession.pendingSummary) return Promise.resolve('');   // 单通道, 别并发
 
     var instruction = [];
-    instruction.push('【【后台任务】】这一集刚播完。');
-    instruction.push('根据你刚才连续看到的画面, 写出这一集讲了什么。');
+    instruction.push('【【后台任务】】你刚刚看完了' + (watchSession.seriesTitle ? '《' + watchSession.seriesTitle + '》' : '这部短剧') + '的【第 ' + ep + ' 集】。');
+    // 🔴 2026-10-10 用户实测: 不写集号, 模型会自己重新编号, 把第3集写成"第一集"。
+    //   它只能靠上下文猜(前面是第1、2集的记忆), 所以这里必须把真实集号【说清楚】。
+    instruction.push('这是第 ' + ep + ' 集 —— 不是第 1 集, 也不是本次的第一集。');
+    instruction.push('根据你刚才连续看到的画面, 写出【第 ' + ep + ' 集】讲了什么。');
     instruction.push('');
     instruction.push('必须写清这四件事:');
     instruction.push('1. 这一集出场的人物是谁(用画面里能认出来的称呼或身份, 不要叫"那位大人");');
@@ -1241,7 +1260,12 @@
     instruction.push('');
     instruction.push(SERIES_EPISODE_HINT);
     instruction.push('');
-    instruction.push('只输出正文, 不要标题、不要客套、不要分析、不要"根据我的观察"这种说法。');
+    // ⚠️ 集号前缀: 让每条单集记忆自带"第X集"标记。
+    //   这样合并总纲 / 退出精炼时, 集号跟着文字一起走, 不会散架。
+    instruction.push('⚠️ 正文【第一句必须以"第 ' + ep + ' 集，"开头】, 然后接剧情。');
+    instruction.push('这是为了标明集号, 不是让你重复标题, 整段就正常写下去。');
+    instruction.push('');
+    instruction.push('只输出正文, 不要客套、不要分析、不要"根据我的观察"这种说法。');
     if (watchSession.episodeMemories.length) {
       instruction.push('');
       instruction.push('前面已经记过的集(不要重复写, 只写这一集):');
@@ -1478,6 +1502,7 @@
         seriesKey: watchSession.seriesKey,
         seriesTitle: watchSession.seriesTitle,
         seriesLastEp: watchSession.seriesLastEp,
+        nowPlayingEp: watchSession.nowPlayingEp,
         seriesOutline: watchSession.seriesOutline,
         episodeMemories: watchSession.episodeMemories,
         currentPlotSummary: watchSession.currentPlotSummary,
@@ -1533,6 +1558,7 @@
     watchSession.seriesKey = d.seriesKey || null;
     watchSession.seriesTitle = d.seriesTitle || '';
     watchSession.seriesLastEp = d.seriesLastEp || 0;
+    watchSession.nowPlayingEp = d.nowPlayingEp || 0;
     watchSession.seriesOutline = d.seriesOutline || '';
     watchSession.episodeMemories = d.episodeMemories;
     watchSession.currentPlotSummary = d.currentPlotSummary || '';
@@ -2253,7 +2279,13 @@
   function onVideoEnded() {
     // 短剧: 一集播完 → 记这一集剧情 + 看够 20 集就合并 (2026-10-07)
     if (watchSession.kind === 'series') {
-      var ep = watchSession.seriesLastEp + 1;
+      // 🔴 2026-10-10 用户实测: 退出再进来播第3集, 总结却写成"第一集"。
+      //   原来用 seriesLastEp+1 猜集号 —— 草稿恢复时序一错, seriesLastEp 还是 0,
+      //   第3集就被记成第1集, addEpisodeMemory(1,...) 还会【覆盖掉草稿里的第1集记忆】。
+      //   现在优先用宿主传来的【确切集号】(用户点的那个按钮); 没有才回退到猜。
+      var ep = watchSession.nowPlayingEp > 0 ? watchSession.nowPlayingEp : (watchSession.seriesLastEp + 1);
+      // 用掉了 nowPlayingEp 就清掉, 避免下次连播时又用它(串到下一集)
+      watchSession.nowPlayingEp = 0;
       markPaused();
       stopStageSummary();
       log('第 ' + ep + ' 集播完, 记录剧情…');
@@ -2358,11 +2390,18 @@
 
     // ---- 短剧 (2026-10-07) ----
     setSeries: setSeries,
-    setSeriesProgress: function (key, title, lastEp, outline) {
+    setSeriesProgress: function (key, title, lastEp, outline, nowPlayingEp) {
       if (key) watchSession.seriesKey = key;
       if (title !== undefined) watchSession.seriesTitle = title;
       if (lastEp !== undefined && lastEp !== null) watchSession.seriesLastEp = Number(lastEp) || 0;
       if (outline !== undefined && outline !== null) watchSession.seriesOutline = String(outline || '');
+      // 🔴 2026-10-10 用户实测: 退出再进来播第3集, 总结却写成"第一集"。
+      //   根因是 Live 只知道 seriesLastEp, 播完时用 seriesLastEp+1 猜集号;
+      //   草稿恢复时序一错, seriesLastEp 还是 0 → 第3集被当成第1集, 还会覆盖旧记忆。
+      //   宿主那边知道用户点的【确切集号】, 传过来直接用, 不猜。
+      if (nowPlayingEp !== undefined && nowPlayingEp !== null) {
+        watchSession.nowPlayingEp = Number(nowPlayingEp) || 0;
+      }
       watchSession.kind = 'series';
     },
     requestEpisodeSummary: requestEpisodeSummary,
