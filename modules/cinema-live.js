@@ -60,6 +60,24 @@
   var SERIES_OUTLINE_MAX_CHARS = 1500;    // 短剧: 每 20 集合并出的总纲
   var SUMMARY_REQUEST_TIMEOUT_MS = 45000;
 
+  // 🔴 2026-10-10 摘要收尾判据: 静默多少毫秒算"这次说完了"。
+  //
+  // 【为什么不再用 turnComplete 收摘要】(用户实测: 手动总结死活不落盘 + 片段漏进聊天框)
+  //   turnComplete 是【音频回合】的边界, 不是"这段文字说完了"的保证。
+  //   观影时 1 FPS 一直在送帧 → 回合被不停推进。于是发完请求后,
+  //   极容易撞上一个【上一回合正在收尾】:
+  //     ① 上一回合的尾巴文字到达 → handleModelText 把它塞进新请求的 buffer, gotText=true
+  //     ② 那个回合的 turnComplete 到达 → onTurnCompleteInternal 看到 gotText 就 resolve
+  //        → 收走的是【半截 + 上集尾巴】
+  //     ③ 用户真正要的总结正文这才开始吐 → pendingSummary 已 null → 全漏进聊天框
+  //   10-09 加的 gotText 门只能防"一个字都没到就收", 防不住"收早了" —— 症状一模一样。
+  //
+  // 【新办法: 不看回合边界, 只看"安静了多久"】
+  //   每次收到一个字就重置静默计时; 连续 SUMMARY_SETTLE_MS 没新字 → 判定说完, resolve。
+  //   流式输出时字与字之间的间隔远小于 2 秒, 所以只有真的说完了才会安静下来。
+  //   这样收摘要跟回合边界彻底解耦, 无论它落在哪个 turn 上都无所谓。
+  var SUMMARY_SETTLE_MS = 2000;
+
   // 恢复 handle 单独存一个 key —— 不跟旧观影的 wt_ 那个互相覆盖
   var HANDLE_KEY = 'cinema_gemini_live_resume_handle';
   var MAX_RETRY = 5;
@@ -910,11 +928,13 @@
 
     if (watchSession.pendingSummary) {
       var p = watchSession.pendingSummary;
-      // ⚠️ gotText = 「这次摘要真的开始吐字了」, 是 onTurnCompleteInternal 敢收它的前提。
-      // 见下面那段竞态说明。
       p.gotText = true;
+      p.lastTextAt = Date.now();
       p.buffer += takeDelta(p.lastText, text);   // 摘要同样要去重, 否则整段是重复堆的
       p.lastText = text;
+      // 🔴 每次收到字就重新起算静默计时 —— 说完了自然会安静下来, 计时到点才收。
+      //   这取代了"靠 turnComplete 收", 见 SUMMARY_SETTLE_MS 的说明。
+      if (typeof p.armSettle === 'function') p.armSettle();
       return;   // ⬅ 关键: 摘要文字绝不进聊天气泡
     }
     // 正常陪聊: 跨多个 turn 累加成【一整句】, 始终只占一个气泡
@@ -984,9 +1004,10 @@
 
     var p = {
       kind: kind, buffer: '', lastText: '',
-      resolve: null, timer: null,
+      resolve: null, timer: null, settleTimer: null,
+      lastTextAt: 0,
       // gotText: 见 handleModelText / onTurnCompleteInternal 的竞态说明。
-      // 摘要请求发出去之后, 必须【真的收到模型的字】才允许被 turnComplete 收走。
+      // 摘要请求发出去之后, 必须【真的收到模型的字】才允许被收走。
       gotText: false
     };
     var promise = new Promise(function (resolve) { p.resolve = resolve; });
@@ -996,8 +1017,29 @@
     renderStatus('ready');
     renderPlotPanel();
 
+    /**
+     * 判定"这次摘要说完了" —— 连续 SUMMARY_SETTLE_MS 没新字。
+     * 挂在 p.settleTimer 上, 每次 handleModelText 收到字就重新调一次(重新计时)。
+     *
+     * 为什么不用 turnComplete: 见 SUMMARY_SETTLE_MS 上面的注释。
+     * 回合边界被视频帧推着走, 撞上上一回合收尾就会收早 → 漏进聊天框。
+     */
+    p.armSettle = function () {
+      if (watchSession.pendingSummary !== p) return;   // 已被别的路径收走
+      if (p.settleTimer) clearTimeout(p.settleTimer);
+      if (!p.gotText) return;                          // 一个字都没吐, 继续等
+      p.settleTimer = setTimeout(function () {
+        if (watchSession.pendingSummary !== p) return;
+        var buf = (p.buffer || '').trim();
+        log('[摘要] ' + kind + ' 静默 ' + (SUMMARY_SETTLE_MS / 1000) + 's, 判定说完 (' + buf.length + ' 字)');
+        p.resolve(buf);
+        finishSummary(p);
+      }, SUMMARY_SETTLE_MS);
+    };
+
     p.timer = setTimeout(function () {
       if (watchSession.pendingSummary !== p) return;
+      if (p.settleTimer) clearTimeout(p.settleTimer);   // 超时收走前先掐掉静默计时, 防二次 resolve
       watchSession.pendingSummary = null;
       watchSession.summaryBusy = false;
       logWarn('[摘要] ' + kind + ' 请求超时 (' + SUMMARY_REQUEST_TIMEOUT_MS + 'ms)');
@@ -1028,6 +1070,7 @@
   function finishSummary(p) {
     if (!p) return;
     if (p.timer) clearTimeout(p.timer);
+    if (p.settleTimer) clearTimeout(p.settleTimer);   // 静默计时器也要收, 别在收完后又 resolve 一次
     if (watchSession.pendingSummary === p) watchSession.pendingSummary = null;
     watchSession.summaryBusy = false;
     // 摘要收尾后同样排掉 _lastTranscription, 免得这一整段全文在之后的
@@ -1943,33 +1986,86 @@
   //     · 关房间                 ← 独立动作, 任何时候都能走
   //   失败不清数据(episodeMemories 一直留着), 按钮可以无限点。
   // ============================================================
+
+  // 等 Live 就绪的最长时间 (ms)。超过就认失败, 回草稿, 让用户再点。
+  // 不能无限等 —— 那会让用户看着界面一直转。
+  var WAIT_READY_MS = 20000;
+
+  /**
+   * 轮询等 Live 连接就绪。resolve(true)=连上了, resolve(false)=超时。
+   * 每 500ms 看一次; 用户手动 disable 或离开房间会提前退出。
+   */
+  function waitUntilReady(ms) {
+    var waited = 0;
+    return new Promise(function (resolve) {
+      var iv = setInterval(function () {
+        waited += 500;
+        if (S.client && S.client.isReady()) { clearInterval(iv); resolve(true); return; }
+        // 用户主动停用 / 离开了 → 别傻等
+        if (S._userDisabled || S._leaving || !S.enabled) { clearInterval(iv); resolve(false); return; }
+        if (waited >= ms) { clearInterval(iv); resolve(false); }
+      }, 500);
+    });
+  }
+
   function generateFinalMemory(opts) {
     var o = opts || {};
     if (watchSession.finalSummarySaved) return Promise.resolve({ saved: true, alreadySaved: true });
-    if (watchSession.summaryBusy || watchSession.pendingSummary) {
-      return Promise.resolve({ saved: false, error: '正在整理中，请等一下' });
-    }
+    // _waiting 是"正在等连接"的状态位, 用来防止"等 → 连上 → 递归 → 又判死/又等"的套娃。
+    // 它是【在等待期间才置 true】, 且一旦进来先放行自己, 所以不会挡自己递归。
+    if (o._waiting && (S.client && S.client.isReady())) o = Object.assign({}, o, { _waiting: false });
     if (!draftHasContent()) {
       return Promise.resolve({ saved: false, error: '这次还没有可总结的剧情记忆' });
     }
+    // 已经有摘要在跑 → 拒掉, 防止点两次并发两个请求(单通道)。
+    if (!o._waiting && (watchSession.summaryBusy || watchSession.pendingSummary)) {
+      return Promise.resolve({ saved: false, error: '正在整理中，请等一下' });
+    }
     var chat = getCurrentChat();
     if (!chat) return Promise.resolve({ saved: false, error: '没有找到角色会话' });
+
+    // 🔴 2026-10-10 病根1: 连接判死成"死开关"(用户实测: 进去点总结连不上, 播第三集一直重连)
+    //   旧写法只看"这一瞬间 isReady()", 而 Live 本来就在靠指数退避自愈。
+    //   点按钮时正好落在退避间隔 → isReady()=false → 直接判死返回。
+    //   而"等连接回来"没人触发, 连接一回来按钮还是判死 → 彻底死结, 也退不出。
+    //
+    //   改成: 没连上时【等它连上】再生成, 而不是直接判死。
+    //   上限 WAIT_READY_MS, 超时才认失败 —— 能等, 但不会无限等。
     if (!S.client || !S.client.isReady()) {
-      // ⚠️ Live 没连上时【不能】就这么算了 —— 那正是"API 临时问题"的场景,
-      //   而单集记忆还在内存里。让 UI 提示用户等重连后再点。
-      saveDraft();
-      return Promise.resolve({ saved: false, error: 'Gemini 还没连上，等它连好后可以再点一次' });
+      if (!S.enabled) {
+        // Live 压根没开(用户没播视频/没连)。这种情况没法靠等解决,
+        // 但【不能让它变成死路】: 落草稿, 明确告诉用户先播一下/等连上再回来点。
+        saveDraft();
+        return Promise.resolve({ saved: false, error: 'Gemini 没连上，先放一下视频等它连上，再回来点「生成观影记忆」（记忆已存草稿，不会丢）' });
+      }
+      appendSystemLine('⏳ Gemini 正在重连，等它连上就自动帮你生成……');
+      renderPlotPanel();
+      return waitUntilReady(WAIT_READY_MS).then(function (ok) {
+        if (!ok) {
+          saveDraft();
+          appendSystemLine('⚠️ Gemini 一直没连上，这次没存上（记忆已存草稿，连上后再点一次即可）');
+          renderPlotPanel();
+          return { saved: false, error: 'Gemini 一直没连上，记忆已存草稿，连上后再点一次' };
+        }
+        // 连上了 → 递归一次(带 _waiting 标记), 此时若又有别的请求在跑会被闸门拒掉
+        return generateFinalMemory(Object.assign({}, o, { _waiting: true }));
+      });
     }
 
-    var wasPaused = S.paused;
     // 手动生成时【不设 S._leaving】—— 那会把帧循环和重连一起关掉, 房间就废了。
     if (!watchSession.finalSummaryRequested) {
       watchSession.finalSummaryRequested = true;
     }
+    var wasPaused = S.paused;
     pauseFrames('手动生成观影记忆');      // 停帧, 让它专心写文字
     appendSystemLine(o.quiet ? '' : '⏳ 正在整理这次观影记忆，请稍等……');
     renderPlotPanel();
 
+    // 🔴 2026-10-10 用 try/finally 包住整条链, 保证【一定会复位】。
+    //   之前 flag 复位写在链尾的 .then 里, 一旦中途 promise 断掉/抛异常,
+    //   flag 就永久卡在 true —— 而 handleUserMessage / resumeFrames 都拿它当闸门,
+    //   结果是"连接还在但什么都发不出去、一直重连也连上了不理我"的死锁 (用户实测)。
+    //   这一个 flag 卡住 = 整场观影变成死局, 绝不能漏复位。
     return waitForNoPendingSummary()
       .then(function () { return requestSummary('final', buildFinalSummaryInstruction()); })
       .then(function (text) {
@@ -1999,12 +2095,24 @@
         // 无论成功失败都要把现场恢复, 否则用户看片会莫名其妙卡住不播了
         watchSession.finalSummaryRequested = false;
         finishSummary(watchSession.pendingSummary);
+        flushQueuedUserText();
         if (!wasPaused && S.enabled && S.client && S.client.isReady()) {
           resumeFrames('手动生成完成');
         }
         renderStatus('ready');
         renderPlotPanel();
         return r;
+      }, function (err) {
+        // 上游抛异常时【也要】复位 —— 这里就是防 flag 卡死的那道兜底
+        watchSession.finalSummaryRequested = false;
+        finishSummary(watchSession.pendingSummary);
+        saveDraft();
+        logError('手动生成观影记忆(上游异常):', (err && err.message) || err);
+        appendSystemLine('⚠️ 这次没存上：' + ((err && err.message) || '未知错误') +
+          '（你的记忆都还在，可以再点一次「生成观影记忆」）');
+        renderStatus('ready');
+        renderPlotPanel();
+        return { saved: false, error: (err && err.message) || '未知错误' };
       });
   }
 
@@ -2074,39 +2182,24 @@
 
   function onTurnCompleteInternal() {
     // ══════════════════════════════════════════════════════════════════════
-    // ⚠️⚠️ 2026-10-09 竞态修复 (用户实测症状: 「总结记忆的时候总是写进聊天框里」)
+    // 🔴 2026-10-10 摘要去掉了 turnComplete 依赖 (用户实测: 手动总结不落盘 + 片段漏进聊天框)
     //
-    // 【怎么坏的】
-    //   观影时 1 FPS 一直在送视频帧, TURN_COVERAGE=ALL_VIDEO → 帧会不断推进回合。
-    //   live-client.js 收到 serverContent.turnComplete 时, 会【先】把最后一段转写
-    //   以 final=true 再抛一次, 【然后】才调 onTurnComplete()。
+    // 【这里现在什么都不收】—— 摘要统一由 SUMMARY_SETTLE_MS 静默计时器收
+    //   (见 handleModelText 里的 p.armSettle())。
     //
-    //   摘要请求发出去的那一瞬间, 只要正好撞上一个正在收尾的回合:
-    //     ① onModelText(旧对话的尾巴)  → buffer 被上一轮对话污染
-    //     ② onTurnComplete()           → 这里把空的/脏的 buffer resolve 掉,
-    //                                      finishSummary() 把 pendingSummary 置 null
-    //     ③ 模型真正的总结文本这时才到 → pendingSummary 已是 null
-    //                                  → 走正常分支 → 【打进聊天气泡】
-    //   结果: 记忆一个字没存, 整段总结出现在聊天框里。
+    // 【为什么必须拿掉】原来的 gotText 门只防"一个字都没到就收", 防不住"收太早":
+    //   观影时 1 FPS 送帧 → 回合被不停推进 → 发完摘要请求极容易撞上【上一回合收尾】。
+    //   撞上时: 上一回合尾巴 → 塞进新 buffer 且 gotText=true → 该回合 turnComplete
+    //   → 当场 resolve 一个半截 buffer → 真正的正文随后到达时 pendingSummary 已 null,
+    //   全部漏进聊天框, 且写库拿到的内容是残缺的。
+    //   静默计时跟回合边界解耦, 撞不撞回合都无所谓。
     //
-    // 【为什么只有部分角色犯】
-    //   观影时会跟角色搭话的那个角色, Live 一直有回合在跑 → 撞上的概率高;
-    //   安静看片的角色几乎撞不上。跟代码版本、跟设备新旧【完全无关】。
-    //
-    // 【怎么修的】
-    //   gotText 标记: 没吐过字的摘要不许被回合收尾收走, 继续等真正的摘要。
-    //   模型真的一句话都不说的话, 由 requestSummary 里的定时器兜底 resolve('')。
+    // 【保留】下面只是日志, 方便排查时看到回合在推进。
     // ══════════════════════════════════════════════════════════════════════
-    var p = watchSession.pendingSummary;
-    if (p) {
-      if (!p.gotText) {
-        log('[摘要] 回合收尾但摘要还没吐字, 不收 (继续等真正的摘要输出)');
-        return;
-      }
-      var buf = (p.buffer || '').trim();
-      p.resolve(buf);
-      finishSummary(p);
-      flushQueuedUserText();
+    if (watchSession.pendingSummary) {
+      log('[摘要] 回合收尾 (不据此收摘要, 等静默计时器; 已吐 ' +
+        (watchSession.pendingSummary.buffer || '').length + ' 字)');
+      return;
     }
     // 普通陪聊的回合结束: 【什么都不做】, 气泡继续留着。
     // 一句话跨多个 turn 是常态, 只有用户发新消息才开新气泡。
