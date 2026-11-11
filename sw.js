@@ -1248,7 +1248,23 @@
 //   新增回归: tests/_call-directives.cjs / tests/_call-gaze.cjs / tests/_call-scope.cjs /
 //   tests/_call-poke.cjs。
 //   ⚠️ index.html 自己不带 ?v=，SW 对它是 cache-first → 必须 bump CACHE_VERSION。
-const CACHE_VERSION = 'v0.2.120.0';
+// v0.2.121.0 (2026-11-11): 视频通话底部外框换成不透明奶黄底板 + 三个小动物按钮。
+//   ① 素材: assets/live2d-call/视频通话正式页按钮框.png 换成 1774x887 (比例 2.0),
+//      奶黄底板中央 alpha≈254/255 → 挡住 Live2D 半身的下半截, 不再看着像"断腿";
+//      四角 alpha=0 (透明) → 边缘融进背景, 不会出现白边。
+//      ⚠️ 踩过的坑: 上传副本会被服务端转码成 JPEG (mimeType=image/jpeg), 透明通道丢失
+//      → 渲染出来是一块带白边的矩形。合成必须用 *.asset.json 里 sourcePath 指向的原始 PNG。
+//   ② 布局: .video-call-controls 从 flex 居中改成 aspect-ratio:2/1 + 绝对定位,
+//      并且跟 #video-call-controls-frame 用同一套 width:380/max-width:92%/left:50%/bottom:0
+//      → 两者永远重合, 素材在窄屏等比缩放不变形。
+//   ③ 三个按钮图案已画进素材 → HTML 按钮退化成透明点击热区, 用百分比定位
+//      (left 16.5%/40%/63%, top 30%, 21%x40%) 跟着素材一起缩放。
+//      踩过的坑: 原来固定 px 定位, 窄屏上 max-width:92% 把容器缩到 358px 后热区错位 23px。
+//   ④ 删掉 ::before 半透明玻璃底板 → 图层从 2 层减到 1 层, 比改动前更省
+//      (顺带消除 backdrop-filter 被误开的风险 —— 它背后是 60fps 的 Live2D 画布)。
+//   index.html 的 ?v=：css/video-voice-call.css 0.0.50 → 0.0.51。
+//   ⚠️ index.html 自己不带 ?v=，SW 对它是 cache-first → 必须 bump CACHE_VERSION。
+const CACHE_VERSION = 'v0.2.121.0';
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [
