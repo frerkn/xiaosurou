@@ -1221,7 +1221,34 @@
 //   index.html 的 ?v=：modules/video-voice-call.js 0.0.82 → 0.0.83、
 //   modules/live2d-manager.js 0.0.7 → 0.0.8。
 //   ⚠️ index.html 自己不带 ?v=，SW 对它是 cache-first → 必须 bump CACHE_VERSION。
-const CACHE_VERSION = 'v0.2.119.0';
+// v0.2.120.0 (2026-11-11): 视频通话 —— 面部表情 / 身体动作 拆成两组, 加转头 + 视线跟随 + 戳脸歪头。
+//   ① live2d-loader.js 新增 getExpressionParamMap / resetParametersByScope
+//      原来"恢复默认"是整份参数快照逐参数写回, ParamPose 也在快照里 →
+//      切面部表情必然把手势卸掉, 切手势也必然把表情卸掉 (两者被硬性互斥)。
+//      现在按参数作用域还原: 面部组只动面部, 动作组只动 ParamPose, 两组互不干扰。
+//      契约: null = 整份还原(旧行为), [] = 什么都不做 (绝不能当成整份)。
+//   ② video-voice-call.js 把表情清单按"exp3 里有没有 ParamPose"拆两组
+//      (不按名字判断 —— 名字是人起的, 参数是硬事实), 指令新增 [[动作:xxx]]。
+//      每轮: 动作先放下(除非这轮要换新的)、再比新的; 动作只生效一轮。
+//      提示词分两段: 面部表情仍"每轮必须写一条", 动作改成"默认不写、语义匹配才写"。
+//   ③ 新增 attachCallGazeDriver: 手指位置驱动 ParamAngleX/Y/Z + ParamEyeBallX/Y。
+//      写法是"表情基值 + 偏移"(基值由 recapture 在表情写入后刷新), 所以表情不会被抹掉。
+//      眼睛跟得快(9.0)、头跟得慢(2.6) → 先看再转; 抬手 300ms 后回正;
+//      手指按着不动不回正 (手机上 pointermove 不再触发, 不能误判成松手)。
+//      戳脸(脸椭圆判定, 放宽 1.35 倍) → 往被戳的反方向歪头约 7°, 保持 900ms。
+//      应急开关: localStorage 'mavis-call-gaze' = 'off' / 'mavis-call-action-split' = 'off'。
+//   ④ 戳脸 → 下一轮告诉 AI: 命中脸椭圆时记一条 pending, 组装请求时临时 push 一条
+//      ※【真实发生】... 的 user 消息 (跟 callIdleNudge 一样【不写进 callHistory】)。
+//      TTL 8 秒(戳完太久就不报, 免得 AI 突然说"你干嘛戳我")、冷却 10 秒(狂戳不会死循环)、
+//      报过即清。主 prompt 加了第 6 条规则解释 ※ 标记, 否则模型会跟着写 (动作) 违反禁旁白。
+//      ⚠️ 主 prompt 原「错误示例」里写着「[[动作:挥手]] —— 没有 [[动作:]] 这种开关」,
+//      和 ② 直接用动作开关自相矛盾, 已改成 [[心情:开心]] 的示例; 白名单从三种改四种。
+//   index.html 的 ?v=：modules/video-voice-call.js 0.0.83 → 0.0.85、
+//   modules/live2d-loader.js 0.3.7 → 0.3.8。
+//   新增回归: tests/_call-directives.cjs / tests/_call-gaze.cjs / tests/_call-scope.cjs /
+//   tests/_call-poke.cjs。
+//   ⚠️ index.html 自己不带 ?v=，SW 对它是 cache-first → 必须 bump CACHE_VERSION。
+const CACHE_VERSION = 'v0.2.120.0';
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [

@@ -587,6 +587,96 @@
     }, 100);
   }
 
+  /**
+   * 读这个模型**每条表情各写了哪些参数**, 结果缓存在 canvas._live2dExprParams。
+   *
+   * 用途: 把表情分成「面部表情」和「身体动作」两组。判据是"这条 exp3 有没有写
+   * ParamPose" —— 写了就是整块身体的姿势(枚举), 没写就是面部参数。
+   * 不能只看表情名: 名字是用户随便起的, 只有 exp3 里的参数是硬事实。
+   *
+   * @returns {Promise<Map<string, string[]>>} key = 表情名(小写), value = 参数 id 数组
+   */
+  async function getExpressionParamMap(canvas) {
+    const empty = new Map();
+    try {
+      if (!canvas) return empty;
+      if (canvas._live2dExprParams instanceof Map) return canvas._live2dExprParams;
+      const data = canvas._live2dModelData;
+      if (!data || !data.files || typeof data.files.entries !== 'function') return empty;
+
+      const map = new Map();
+      const suffix = '.exp3.json';
+      for (const [filePath, blob] of data.files.entries()) {
+        const path = String(filePath || '');
+        const lower = path.toLowerCase();
+        if (!lower.endsWith(suffix)) continue;
+        const base = path.substring(path.lastIndexOf('/') + 1, path.length - suffix.length);
+        if (!base || !blob || typeof blob.text !== 'function') continue;
+        try {
+          const json = JSON.parse(await blob.text());
+          const params = Array.isArray(json.Parameters) ? json.Parameters : [];
+          const ids = [];
+          for (const p of params) {
+            if (p && p.Id && ids.indexOf(p.Id) < 0) ids.push(p.Id);
+          }
+          map.set(base.toLowerCase(), ids);
+        } catch (e) { /* 单条读失败跳过, 不拖垮整张表 */ }
+      }
+      // 只缓存读到了东西的结果, 读空了下一次还能重试
+      if (map.size > 0) canvas._live2dExprParams = map;
+      return map;
+    } catch (e) {
+      return empty;
+    }
+  }
+
+  /**
+   * 只把**指定参数**写回挂载时拍的出厂快照。
+   *
+   * 为什么要按作用域: 整份快照还原会把 ParamPose 一起写回 0 →
+   * 切面部表情必然把手势卸掉, 切手势也必然把面部表情卸掉 (两者被硬性互斥)。
+   * 按组还原之后, 面部参数和 ParamPose 互不干扰, 就能同时生效。
+   *
+   * @param {Array<string>|null} paramIds 要还原的参数 id;
+   *   传 null/undefined = 整份还原(旧行为);
+   *   传 [] = 什么都不做 (调用方还没拿到该组的参数集, 宁可不动也不能误伤另一组)
+   * @returns {number} 实际写回的参数个数
+   */
+  function resetParametersByScope(canvas, paramIds) {
+    try {
+      const model = canvas && canvas._live2dModel;
+      const im = model && model.internalModel;
+      const core = im && (im.coreModel || im._model || (im.coreModel && im.coreModel._model));
+      const snap = canvas && canvas._live2dInitialParams;
+      if (!core || !snap || !snap.size) return 0;
+      if (typeof core.setParameterValueByIndex !== 'function') return 0;
+
+      let n = 0;
+      if (!Array.isArray(paramIds)) {
+        // 旧行为: 整份快照写回
+        snap.forEach((val, idx) => {
+          try { core.setParameterValueByIndex(idx, val); n++; } catch (e) { /* 跳过 */ }
+        });
+        return n;
+      }
+      // 空数组 = 明确什么都不做。绝不能当成"整份还原" —— 那会把另一组的参数一起写回,
+      // 正好是目前要修的那个"面部/动作互相卸掉"的 bug。
+      if (paramIds.length === 0) return 0;
+
+      const canIndex = typeof core.getParameterIndex === 'function';
+      if (!canIndex) return 0;
+      for (const id of paramIds) {
+        let idx = -1;
+        try { idx = core.getParameterIndex(id); } catch (e) { idx = -1; }
+        if (idx < 0 || !snap.has(idx)) continue;
+        try { core.setParameterValueByIndex(idx, snap.get(idx)); n++; } catch (e) { /* 跳过 */ }
+      }
+      return n;
+    } catch (e) {
+      return 0;
+    }
+  }
+
   global.Live2DLoader = {
     mountLive2D,
     mountLive2DFromIDB,
@@ -594,5 +684,7 @@
     playMotion,
     setExpression,
     isMounted,
+    getExpressionParamMap,
+    resetParametersByScope,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
