@@ -1115,6 +1115,9 @@
   let voiceCallIsRecording = false;
   let voiceCallIsRecognizing = false;
   let voiceCallAudioContext = null;
+  // v0.5.x: 音量检测输入节点 (麦克风流 → analyser)。抄视频侧 videoCallAudioSource:
+  //   每轮 listening 都新建, 每轮 cleanup 都 disconnect, 避免节点越堆越多。
+  let voiceCallAudioSource = null;
   let voiceCallAnalyser = null;
   let voiceCallAutoListenAnimationFrame = null;
   let voiceCallAutoListenTimers = [];
@@ -3222,7 +3225,7 @@ let voiceCallStatusHoldUntil = 0;
       errorBubble.className = 'call-message-bubble ai-speech';
       errorBubble.style.color = '#ff8a80';
       errorBubble.textContent = `[ERROR: API configuration is missing or incomplete.]`;
-      if(callFeed) callFeed.appendChild(errorBubble);
+      appendCallBubble(callFeed, errorBubble);
       onVideoCallTtsQueueFinished(); // Ensure state is cleaned up
       return;
     }
@@ -3300,7 +3303,7 @@ ${linkedContents}
       userBubble.textContent = userInput;
       userBubble.dataset.timestamp = userTimestamp;
       addLongPressListener(userBubble, () => showCallMessageActions(userTimestamp));
-      callFeed.appendChild(userBubble);
+      appendCallBubble(callFeed, userBubble);
       callFeed.scrollTop = callFeed.scrollHeight;
 
       // 构建视觉输入: 真实摄像头帧 / 用户上传的静态图片 (优先级: 摄像头 > 静态图)
@@ -3538,7 +3541,7 @@ ${linkedContents}
           aiBubble.innerHTML = `<strong>${turn.name}:</strong> ${stripCallDisplayText(turn.speech)}`;
           aiBubble.dataset.timestamp = aiTimestamp;
           addLongPressListener(aiBubble, () => showCallMessageActions(aiTimestamp));
-          callFeed.appendChild(aiBubble);
+          appendCallBubble(callFeed, aiBubble);
           renderedAiContentCount++;
           markVideoCallAiResponseRendered(aiTurnId);
           // v0.5.0 P26: turnId 守卫 — 旧回合 stale fetch 不污染当前 callHistory
@@ -3693,7 +3696,7 @@ ${linkedContents}
           aiBubble.textContent = stripCallDisplayText(messageContent);
           aiBubble.dataset.timestamp = aiTimestamp;
           addLongPressListener(aiBubble, () => showCallMessageActions(aiTimestamp));
-          callFeed.appendChild(aiBubble);
+          appendCallBubble(callFeed, aiBubble);
 
           // v0.5.0 P26: turnId 守卫
           if (!videoCallActiveTurn || videoCallActiveTurn.id !== turn.id) {
@@ -3752,7 +3755,7 @@ ${linkedContents}
       errorBubble.className = 'call-message-bubble ai-speech';
       errorBubble.style.color = '#ff8a80';
       errorBubble.textContent = `[ERROR: ${error.message}]`;
-      callFeed.appendChild(errorBubble);
+      appendCallBubble(callFeed, errorBubble);
       callFeed.scrollTop = callFeed.scrollHeight;
       // 上面这颗气泡是塞进 #video-call-main 的, 而那个容器被 `display:none !important` 隐藏
       // → 用户根本看不到任何错误, 只感觉"AI 突然不说话了"。
@@ -3805,9 +3808,50 @@ ${linkedContents}
       return null;
     }
   }
+  // ══════════════════════════════════════════════════════════════
+  // v0.5.x 通话气泡 DOM 上限 (性能)
+  //   背景: #video-call-main (CSS display:none !important) 和 #voice-call-main
+  //        (index.html 行内 style="display:none") —— 两个容器都是【隐藏的】,
+  //        用户根本看不到通话气泡。但 appendChild 照样把节点 + 长按监听器
+  //        一路堆到挂断才清 (endVideoCall / endVoiceCall 里 innerHTML=''),
+  //        通话越久 DOM 越大 → 内存涨 + GC 压力 → 手机发烫。
+  //   做法: 只保留最近 CALL_FEED_MAX_BUBBLES 条, 超出丢最老的。
+  //        不改任何 JS 链路语义 —— appendChild / scrollTop / querySelector('em')
+  //        依赖全部保留, 只是老节点不再留在 DOM 里。
+  // ══════════════════════════════════════════════════════════════
+  const CALL_FEED_MAX_BUBBLES = 20;
+
+  function trimCallFeed(feed) {
+    if (!feed) return;
+    let excess = feed.children.length - CALL_FEED_MAX_BUBBLES;
+    if (excess <= 0) return;
+    const kids = Array.from(feed.children);
+    for (const el of kids) {
+      if (excess <= 0) break;
+      // 「正在接通...」占位符是 <em>, 不参与裁剪 (否则占位符会被提前丢掉)
+      if (!el || el.tagName === 'EM') continue;
+      if (el.parentNode === feed) { feed.removeChild(el); excess--; }
+    }
+  }
+
+  function appendCallBubble(feed, node) {
+    if (!feed || !node) return;
+    feed.appendChild(node);
+    trimCallFeed(feed);
+  }
+
   function trimCallHistory(callState) {
     if (callState.callHistory.length > 100) {
       callState.callHistory = callState.callHistory.slice(-100);
+    }
+    // v0.5.x 摄像头帧「阅后即焚」
+    //   callHistory 里每条用户消息可能带 visionContent (多模态数组, 内含 base64 图片)。
+    //   它只属于【产生它的那一轮】—— 下一轮再带上一次, 等于每轮都把历史图片
+    //   重发一遍, payload 越滚越大 (JSON.stringify + 上传都在手机本地烧 CPU/电量)。
+    //   这里在请求已经发出之后删掉图片, 只留纯文字 → 每轮 payload 恒定最多 1 张图。
+    //   ⚠️ 调用点在 fetch 之后 (body 已 JSON.stringify 序列化), 不影响刚发的那一轮。
+    for (const entry of callState.callHistory) {
+      if (entry && entry.visionContent) delete entry.visionContent;
     }
   }
 
@@ -3940,6 +3984,15 @@ ${linkedContents}
   function cleanupVoiceCallAudioAnalysis() {
     clearVoiceCallAutoListenTimers();
 
+    if (voiceCallAudioSource) {
+      try {
+        voiceCallAudioSource.disconnect();
+      } catch (error) {
+        console.warn('语音通话音量检测输入节点断开失败:', error);
+      }
+      voiceCallAudioSource = null;
+    }
+
     if (voiceCallAnalyser) {
       try {
         voiceCallAnalyser.disconnect();
@@ -3949,14 +4002,11 @@ ${linkedContents}
       voiceCallAnalyser = null;
     }
 
-    if (voiceCallAudioContext) {
-      try {
-        voiceCallAudioContext.close();
-      } catch (error) {
-        console.warn('语音通话 AudioContext 关闭失败:', error);
-      }
-      voiceCallAudioContext = null;
-    }
+    // v0.5.x: audioContext 不在这里 close, 整个通话期间复用同一个实例,
+    // 在 endVoiceCall 才统一关闭 (抄视频侧 v0.5.0 P26)。
+    // 为什么: AudioContext 不是普通对象 —— 每 new 一个就拉起一个【实时音频渲染线程】
+    // (Android 上还会触发音频设备重配置)。原来每轮 listening 都 new + close 一次,
+    // 等于每 10~20 秒创建/销毁一次音频线程 → 通话越久越烫, 也会撞 Chrome 活跃上限 (~6)。
   }
 
   function stopVoiceCallMicStream() {
@@ -4226,11 +4276,27 @@ ${linkedContents}
         throw new Error('当前环境不支持 Web Audio 音量检测');
       }
 
-      voiceCallAudioContext = new AudioContextClass();
-      const source = voiceCallAudioContext.createMediaStreamSource(voiceCallMicStream);
+      // v0.5.x: 复用 audioContext — 整个通话只创建一次, endVoiceCall 才关闭 (抄视频侧 v0.5.0 P26)。
+      //   原来这里是 voiceCallAudioContext = new AudioContextClass() —— 每轮都 new + close,
+      //   等于每轮拉起/销毁一个实时音频渲染线程 → 通话越久越烫。
+      if (!voiceCallAudioContext || voiceCallAudioContext.state === 'closed') {
+        voiceCallAudioContext = new AudioContextClass();
+      }
+      // iOS Safari / WKWebView 上新建的 AudioContext 默认是 'suspended',
+      // 不 resume 的话 analyser 永远读到全 0 → volume 恒低于阈值 →
+      // hasDetectedSpeech 永远 false → 8 秒 noSpeechTimeoutMs 到点后静默停掉, 用户说话没人听。
+      // 这里 resume 只是尽力而为 (iOS 严格要求 user gesture), 真正可靠的 resume 靠
+      // startVoiceCall 里在用户手势链路内的预创建 (见上)。
+      if (voiceCallAudioContext.state === 'suspended'
+        && typeof voiceCallAudioContext.resume === 'function') {
+        voiceCallAudioContext.resume().catch((resumeErr) => {
+          console.warn('语音通话 AudioContext resume 失败 (可能需要用户交互):', resumeErr);
+        });
+      }
+      voiceCallAudioSource = voiceCallAudioContext.createMediaStreamSource(voiceCallMicStream);
       voiceCallAnalyser = voiceCallAudioContext.createAnalyser();
       voiceCallAnalyser.fftSize = 2048;
-      source.connect(voiceCallAnalyser);
+      voiceCallAudioSource.connect(voiceCallAnalyser);
 
       voiceCallIsListening = true;
       voiceCallAutoListenStartedAt = Date.now();
@@ -4406,6 +4472,28 @@ ${linkedContents}
     voiceCallState.isTtsPlaying = false;
     voiceCallState.canUserSpeak = true;
 
+    // v0.5.x: 在【用户手势链路内】预创建 + resume AudioContext (抄视频侧 v0.5.0 P27)。
+    //   iOS Safari / WKWebView 要求 AudioContext 必须在 user gesture (点击/触摸) 里创建或 resume,
+    //   否则永远是 'suspended' → analyser 读到的全是 0 → volume 恒低于阈值 →
+    //   hasDetectedSpeech 永远 false → 8 秒 noSpeechTimeoutMs 到点静默停掉, 表现为"用户说话没人听"。
+    //   这里预创建后, startVoiceCallAutoListening 里走的是"复用"分支, 不再依赖那里的 new+resume。
+    //   失败不影响通话: 整个块 try/catch 吞掉, 交给 startVoiceCallAutoListening 兜底再创建一次。
+    try {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (AudioContextClass) {
+        // 复用策略: 已有可用实例就不重复创建 (endVoiceCall 负责 close + 清引用)
+        if (!voiceCallAudioContext || voiceCallAudioContext.state === 'closed') {
+          voiceCallAudioContext = new AudioContextClass();
+        }
+        if (voiceCallAudioContext.state === 'suspended'
+          && typeof voiceCallAudioContext.resume === 'function') {
+          voiceCallAudioContext.resume().catch(() => { /* 非手势环境, 静默失败 */ });
+        }
+      }
+    } catch (audioCtxPreCreateError) {
+      console.warn('语音通话 AudioContext 预创建失败, 交由自动监听阶段兜底:', audioCtxPreCreateError);
+    }
+
     const preCallHistory = chat.history.slice(-10);
     voiceCallState.preCallContext = preCallHistory.map(msg => {
       const sender = msg.role === 'user' ? (chat.settings.myNickname || '我') : (msg.senderName || chat.name);
@@ -4490,9 +4578,16 @@ ${linkedContents}
     const voiceCallMainEl = document.getElementById('voice-call-main');
     if (voiceCallMainEl) voiceCallMainEl.innerHTML = '';
 
-    // 注: 语音侧的 voiceCallAudioContext / voiceCallAnalyser 已由上面的
-    // releaseVoiceCallMicrophone() → cleanupVoiceCallAudioAnalysis() 负责 close+清引用,
-    // 这里不需要再重复一遍 (视频侧那个 ctx 是 P26 特意改成"整个通话复用"才需要显式关的)。
+    // v0.5.x: 语音侧现在也是"整个通话复用同一个 audioContext"(抄视频侧 v0.5.0 P26),
+    //   所以在这里统一关闭一次 —— 每轮 cleanupVoiceCallAudioAnalysis() 只 disconnect 节点, 不再 close。
+    //   close() 是异步的但我们不 await — 同步发起关闭 + 清引用即可,
+    //   浏览器会在 background 完成真实释放, 不会阻塞挂断流程。
+    if (voiceCallAudioContext && voiceCallAudioContext.state !== 'closed') {
+      try { voiceCallAudioContext.close(); } catch (e) { /* ignore */ }
+      voiceCallAudioContext = null;
+    }
+    if (voiceCallAudioSource) { voiceCallAudioSource = null; }
+    if (voiceCallAnalyser) { voiceCallAnalyser = null; }
 
     callDiagStage('hangup:hardware-released');
 
@@ -4773,7 +4868,7 @@ ${linkedContents}
       errorBubble.className = 'call-message-bubble ai-speech';
       errorBubble.style.color = '#ff8a80';
       errorBubble.textContent = `[ERROR: API configuration is missing or incomplete.]`;
-      if(callFeed) callFeed.appendChild(errorBubble);
+      appendCallBubble(callFeed, errorBubble);
       onVoiceCallTtsQueueFinished(); // Ensure state is cleaned up
       return;
     }
@@ -4846,7 +4941,7 @@ ${linkedContents}
       userBubble.textContent = userInput;
       userBubble.dataset.timestamp = userTimestamp;
       addLongPressListener(userBubble, () => showCallMessageActions(userTimestamp));
-      callFeed.appendChild(userBubble);
+      appendCallBubble(callFeed, userBubble);
       callFeed.scrollTop = callFeed.scrollHeight;
 
       voiceCallState.callHistory.push({
@@ -5029,7 +5124,7 @@ ${voiceCallTtsBlock}
           aiBubble.textContent = stripCallDisplayText(displayText);
           aiBubble.dataset.timestamp = aiTimestamp;
           addLongPressListener(aiBubble, () => showCallMessageActions(aiTimestamp));
-          callFeed.appendChild(aiBubble);
+          appendCallBubble(callFeed, aiBubble);
           voiceCallState.callHistory.push({
             role: 'assistant',
             content: displayText,
@@ -5082,7 +5177,7 @@ ${voiceCallTtsBlock}
           aiBubble.textContent = stripCallDisplayText(displayText);
           aiBubble.dataset.timestamp = aiTimestamp;
           addLongPressListener(aiBubble, () => showCallMessageActions(aiTimestamp));
-          callFeed.appendChild(aiBubble);
+          appendCallBubble(callFeed, aiBubble);
 
           voiceCallState.callHistory.push({
             role: 'assistant',
@@ -5127,7 +5222,7 @@ ${voiceCallTtsBlock}
       errorBubble.className = 'call-message-bubble ai-speech';
       errorBubble.style.color = '#ff8a80';
       errorBubble.textContent = `[ERROR: ${error.message}]`;
-      callFeed.appendChild(errorBubble);
+      appendCallBubble(callFeed, errorBubble);
       callFeed.scrollTop = callFeed.scrollHeight;
       // ⚠️⚠️ 语音侧原来【根本没有】把错误写到可见的提示文字上 (视频侧有)。
       //   错误气泡在 #voice-call-main 里, 那个容器被 display:none !important 隐藏,
@@ -5393,6 +5488,8 @@ ${voiceCallTtsBlock}
   window.voiceCallState = voiceCallState;
   // 通话记录里取纯文字用 —— 视频通话的用户那条可能是多模态数组
   window.callHistoryContentToText = callHistoryContentToText;
+  // v0.5.x 性能: 气泡 DOM 上限 —— ai-response.js 的「重新生成回应」重渲染气泡时也用这个值
+  window.CALL_FEED_MAX_BUBBLES = CALL_FEED_MAX_BUBBLES;
   window.handleInitiateCall = handleInitiateCall;
   window.startVideoCall = startVideoCall;
   window.minimizeVideoCall = minimizeVideoCall;

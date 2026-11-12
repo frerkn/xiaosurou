@@ -471,6 +471,8 @@
                   #video-call-controls-frame (bottom:0 / height:220 / z-index:50) 的玻璃压住,
                   也和聊天框 #video-call-main (bottom:140 / z-index:50) 抢同一块位置 → 用户反馈"挡事".
                   花环上沿在 bottom 220px, 留 10px 间隙 → 230px.
+                · v0.5.x P27.1: 底板整体上移 64px (bottom 0 → 64), 胶囊跟着一起上移
+                  230 → 294 → 跟底板保持原来的 40px 间隙, 不会被底板压住.
                 · 不加 backdrop-filter (会拖累 Live2D canvas 渲染)
                 · 字仍是粉色发光, 加在胶囊上
               注意: 只作用于视频通话页, 语音通话 (#voice-call-screen) 的样式一个字都没动。 */
@@ -479,7 +481,7 @@
                position: absolute;
                left: 20px;
                right: auto;
-               bottom: 230px;
+               bottom: 294px;
                z-index: 100000;
                width: auto;
                max-width: calc(100% - 40px);
@@ -2833,7 +2835,10 @@
        改用绝对定位 left:50% + transform 自我位移, 100% 居中且不依赖父布局 */
     position: absolute;
     left: 50%;
-    bottom: 0;
+    /* v0.5.x P27.1: 整体上移 64px —— 底板往上顶, 多挡住半身皮套那截短腿。
+       ⚠️ 这个值必须跟 #video-call-controls-frame 的 bottom 完全一样:
+       两个盒子要重合, 按钮的百分比定位才是同一个坐标系。 */
+    bottom: 64px;
     transform: translateX(-50%);
     margin: 0;
     /* v0.5.x P27: 换新素材 (奶黄底板 + 三个小动物按钮, 1774x887, 比例 2.0)
@@ -2930,7 +2935,8 @@
 #video-call-screen #video-call-controls-frame {
     position: absolute;
     left: 50%;
-    bottom: 0;
+    /* v0.5.x P27.1: 整体上移 64px (跟 .video-call-controls 的 bottom 一样, 两盒子必须重合) */
+    bottom: 64px;
     transform: translateX(-50%);
     width: 380px;
     /* max-width 跟 .video-call-controls 保持一致 → 窄屏时两者被同一个

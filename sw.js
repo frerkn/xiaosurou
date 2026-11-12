@@ -1264,7 +1264,46 @@
 //      (顺带消除 backdrop-filter 被误开的风险 —— 它背后是 60fps 的 Live2D 画布)。
 //   index.html 的 ?v=：css/video-voice-call.css 0.0.50 → 0.0.51。
 //   ⚠️ index.html 自己不带 ?v=，SW 对它是 cache-first → 必须 bump CACHE_VERSION。
-const CACHE_VERSION = 'v0.2.121.0';
+// v0.2.122.0 (2026-11-12): 视频通话底部外框整体上移 64px。
+//   用户反馈"皮套的腿不够长, 按钮框太靠近底部" → 底板往上顶, 多挡住那截短腿。
+//   ① #video-call-controls-frame 和 .video-call-controls 的 bottom: 0 → 64px
+//      (两个盒子仍然完全重合, 按钮的百分比定位还是同一个坐标系)。
+//   ② 状态胶囊 #video-call-status-text 跟着一起上移: bottom 230px → 294px
+//      → 跟底板保持原来的 40px 间隙, 不会被底板压住。
+//   index.html 的 ?v=：css/video-voice-call.css 0.0.51 → 0.0.52。
+//   ⚠️ index.html 自己不带 ?v=，SW 对它是 cache-first → 必须 bump CACHE_VERSION。
+// v0.2.123.0 (2026-11-12): 通话发烫优化 —— 气泡 DOM 上限 + 摄像头帧阅后即焚。
+//   排查结论: #video-call-main / #voice-call-main 【两个气泡容器都是隐藏的】
+//   (前者 CSS display:none !important, 后者 index.html 行内 style="display:none")
+//   → 之前怀疑的 "语音通话 backdrop-filter: blur(10px)" 从来没生效过 (元素不生成盒子),
+//     那条不是发烫原因, 已排除。
+//   真正持续累积的是【DOM 节点】: 气泡一路 appendChild 到挂断才 innerHTML='' 清空,
+//   每个节点还挂着长按监听器 → 通话越久内存越大 + GC 压力 → 手机发热。
+//   ① 气泡 DOM 上限: 只保留最近 20 条 (video-voice-call.js 的 CALL_FEED_MAX_BUBBLES,
+//      新增 appendCallBubble/trimCallFeed, 10 处 appendChild 全走它);
+//      ai-response.js 的「重新生成回应」重渲染也改成只渲染最近 20 条。
+//   ② 摄像头帧阅后即焚: trimCallHistory 里 delete entry.visionContent
+//      —— 帧只属于产生它的那一轮, 以前每轮都重发一遍历史图片, payload 越滚越大。
+//      现在每轮 payload 恒定最多 1 张图。
+//   index.html 的 ?v=：modules/video-voice-call.js 0.0.85 → 0.0.86,
+//                    modules/ai-response.js 0.0.57 → 0.0.58。
+//   ⚠️ index.html 自己不带 ?v=，SW 对它是 cache-first → 必须 bump CACHE_VERSION。
+// v0.2.124.0 (2026-11-12): 语音通话 AudioContext 复用对齐 (抄视频侧 v0.5.0 P26)。
+//   排查"通话久了手机发烫"时发现: 视频侧早就改成"整个通话复用同一个 AudioContext",
+//   语音侧却漏了 —— startVoiceCallAutoListening 每轮 listening 都 new 一个 AudioContext,
+//   cleanupVoiceCallAudioAnalysis 每轮又 close 掉。
+//   AudioContext 不是普通对象: 每 new 一个就拉起一个【实时音频渲染线程】
+//   (Android 上还会触发音频设备重配置) → 等于每 10~20 秒创建/销毁一次音频线程。
+//   改动 (五处, 全部与视频侧对称):
+//   ① 新增模块级 voiceCallAudioSource (原来 source 是局部变量, 从不 disconnect)。
+//   ② startVoiceCall: 在用户手势链路内预创建 + resume AudioContext (抄视频侧 v0.5.0 P27),
+//      避免 iOS Safari 上 analyser 永远读到全 0 → "用户说话没人听"。
+//   ③ startVoiceCallAutoListening: 复用已有 context (只在 closed 时才 new) + resume 兜底。
+//   ④ cleanupVoiceCallAudioAnalysis: 只 disconnect source/analyser, 【不再 close context】。
+//   ⑤ endVoiceCall: 统一 close 一次 + 清引用。
+//   index.html 的 ?v=：modules/video-voice-call.js 0.0.86 → 0.0.87。
+//   ⚠️ index.html 自己不带 ?v=，SW 对它是 cache-first → 必须 bump CACHE_VERSION。
+const CACHE_VERSION = 'v0.2.124.0';
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 const URLS_TO_CACHE = [
