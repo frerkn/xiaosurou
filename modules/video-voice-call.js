@@ -492,6 +492,33 @@
     };
     try { canvas._live2dGazeRecapture = recapture; } catch (e) { /* ignore */ }
 
+    /**
+     * 换基值: 把"当前表情写在视线参数上的值"认作新基值。
+     *
+     * 为什么不能用"挂载那一刻的快照": 快照里没有表情写的值 → 表情的歪头
+     * (歪头卖萌 ParamAngleZ=30 / 整领带 ParamAngleY=35) 每帧都被抹成 0
+     * → 调试台(没有这个驱动)能歪头, 正式视频通话里歪不了。
+     *
+     * 默认是**合并**语义: values 里给了的参数才改, 没给的原样留着。
+     *   因为脸表情和姿势表情可以同时存在(整领带是姿势, 歪头卖萌是脸),
+     *   姿势表情只写 ParamPose, 不能顺手把脸表情的歪头基线清成 0。
+     * replace=true 时才整份替换(恢复默认表情用)。
+     *
+     * @param {Object<string, number>} values {参数id: 数值}
+     * @param {boolean} [replace]
+     */
+    const setBase = function (values, replace) {
+      const v = (values && typeof values === 'object') ? values : {};
+      CALL_GAZE_PARAMS.forEach(function (id) {
+        const n = v[id];
+        const has = (typeof n === 'number' && isFinite(n));
+        if (!replace && !has) return;            // 合并: 这条表情没写这个参数 → 不动
+        exprVals[id] = has ? n : 0;
+        lastOff[id] = 0;
+      });
+    };
+    try { canvas._live2dGazeSetBase = setBase; } catch (e) { /* ignore */ }
+
     let target = { x: 0, y: 0 };
     let eye = { x: 0, y: 0 };
     let head = { x: 0, y: 0 };
@@ -632,7 +659,7 @@
         } catch (e) { continue; }
         const span = Math.max(Math.abs(lo), Math.abs(hi)) || 1;
         const off = frac[id] * span;
-        // 基值(表情写的) + 偏移, 两边都不丢
+        // 基值(当前表情写的) + 偏移, 两边都不丢
         let v = (exprVals[id] || 0) + off;
         if (v < lo) v = lo; else if (v > hi) v = hi;
         try { core.setParameterValueByIndex(k, v); } catch (e) { /* ignore */ }
@@ -651,6 +678,9 @@
       attached = false;
       try {
         if (canvas._live2dGazeRecapture === recapture) canvas._live2dGazeRecapture = null;
+      } catch (e) { /* ignore */ }
+      try {
+        if (canvas._live2dGazeSetBase === setBase) canvas._live2dGazeSetBase = null;
       } catch (e) { /* ignore */ }
       try { im.off('beforeModelUpdate', frame); } catch (e) { /* ignore */ }
       try { canvas.removeEventListener('pointerdown', onDown); } catch (e) { /* ignore */ }
